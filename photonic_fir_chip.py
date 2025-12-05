@@ -21,6 +21,7 @@ from dataclasses import dataclass
 @dataclass
 class ChipParameters:
     """Physical parameters of the photonic chip"""
+
     n_taps: int = 16
     n_signal_taps: int = 8
     fsr: float = 160e9  # Hz - Free Spectral Range
@@ -34,11 +35,11 @@ class ChipParameters:
 class MZI:
     """
     Mach-Zehnder Interferometer with tunable phase shifter.
-    
+
     Transfer function: |t|² = sin²(φ/2), |r|² = cos²(φ/2)
     where φ is the phase difference between the two arms.
     """
-    
+
     def __init__(self, name: str, insertion_loss_db: float = 0.5):
         """
         Parameters:
@@ -51,15 +52,15 @@ class MZI:
         self.name = name
         self.phase = 0.0  # radians
         self.insertion_loss = 10 ** (-insertion_loss_db / 10)  # Convert dB to linear
-        
+
     def set_phase(self, phase_rad: float):
         """Set the phase difference in the MZI (radians)"""
         self.phase = phase_rad
-        
+
     def get_splitting_ratio(self) -> Tuple[float, float]:
         """
         Get power splitting ratio.
-        
+
         Returns:
         --------
         (bar_port, cross_port) : Tuple[float, float]
@@ -68,11 +69,11 @@ class MZI:
         bar = np.cos(self.phase / 2) ** 2
         cross = np.sin(self.phase / 2) ** 2
         return bar * self.insertion_loss, cross * self.insertion_loss
-    
+
     def get_field_transfer(self) -> Tuple[complex, complex]:
         """
         Get complex field transfer coefficients.
-        
+
         Returns:
         --------
         (bar_field, cross_field) : Tuple[complex, complex]
@@ -87,7 +88,7 @@ class PhaseShifter:
     """
     Optical phase shifter using thermo-optic effect.
     """
-    
+
     def __init__(self, name: str, insertion_loss_db: float = 0.05):
         """
         Parameters:
@@ -100,11 +101,11 @@ class PhaseShifter:
         self.name = name
         self.phase = 0.0  # radians
         self.insertion_loss = 10 ** (-insertion_loss_db / 10)
-        
+
     def set_phase(self, phase_rad: float):
         """Set the phase shift (radians)"""
         self.phase = phase_rad
-        
+
     def get_transfer(self) -> complex:
         """Get complex field transfer coefficient"""
         return np.sqrt(self.insertion_loss) * np.exp(1j * self.phase)
@@ -114,7 +115,7 @@ class DirectionalCoupler:
     """
     3 dB directional coupler (50:50 splitter/combiner).
     """
-    
+
     def __init__(self, coupling_ratio: float = 0.5, insertion_loss_db: float = 0.1):
         """
         Parameters:
@@ -126,11 +127,11 @@ class DirectionalCoupler:
         """
         self.coupling_ratio = coupling_ratio
         self.insertion_loss = 10 ** (-insertion_loss_db / 10)
-        
+
     def get_field_transfer(self) -> Tuple[complex, complex]:
         """
         Returns complex field coefficients for the two outputs.
-        
+
         For a 50:50 coupler: 1/√2 * (1, j)
         """
         t = np.sqrt(self.coupling_ratio * self.insertion_loss)
@@ -142,7 +143,7 @@ class DelayLine:
     """
     Optical delay line using spiral waveguide.
     """
-    
+
     def __init__(self, delay: float, length_cm: float = 1.0, loss_per_cm: float = 0.15):
         """
         Parameters:
@@ -157,16 +158,16 @@ class DelayLine:
         self.delay = delay
         self.length = length_cm
         self.loss = 10 ** (-loss_per_cm * length_cm / 10)
-        
+
     def get_transfer(self, omega: np.ndarray) -> np.ndarray:
         """
         Get frequency-dependent transfer function.
-        
+
         Parameters:
         -----------
         omega : np.ndarray
             Angular frequencies (rad/s)
-            
+
         Returns:
         --------
         H : np.ndarray
@@ -178,7 +179,7 @@ class DelayLine:
 class PhotonicFIRChip:
     """
     Complete 16-tap photonic FIR chip with binary tree architecture.
-    
+
     Architecture:
     - 1 reference tap (tap 0)
     - 7 unused taps (taps 1-7)
@@ -186,59 +187,65 @@ class PhotonicFIRChip:
     - Binary tree of MZIs for power distribution
     - Phase shifters for each tap
     """
-    
+
     def __init__(self, params: Optional[ChipParameters] = None):
         """
         Initialize the photonic FIR chip.
-        
+
         Parameters:
         -----------
         params : ChipParameters, optional
             Chip physical parameters
         """
         self.params = params or ChipParameters()
-        
+
         # Calculate number of unused taps
-        self.params.n_unused = self.params.n_taps - self.params.n_signal_taps - 1  # -1 for reference
-        
+        self.params.n_unused = (
+            self.params.n_taps - self.params.n_signal_taps - 1
+        )  # -1 for reference
+
         # Create ports
         self.ports = {
-            'sig_in': 'Signal Input',
-            'sig_out': 'Signal Output',
-            'cal_in': 'Calibration Input',
-            'cal_out': 'Calibration Output'
+            "sig_in": "Signal Input",
+            "sig_out": "Signal Output",
+            "cal_in": "Calibration Input",
+            "cal_out": "Calibration Output",
         }
-        
+
         # Input couplers (3 dB)
         self.input_coupler = DirectionalCoupler(coupling_ratio=0.5)
         self.output_coupler = DirectionalCoupler(coupling_ratio=0.5)
-        
+
         # Initialize MZI network for signal processing core (binary tree)
         # Stage 1: 1 MZI
         self.mzi_2_1 = MZI("MZI_2-1")
-        
+
         # Stage 2: 2 MZIs
         self.mzi_3_3 = MZI("MZI_3-3")
         self.mzi_3_4 = MZI("MZI_3-4")
-        
+
         # Stage 3: 4 MZIs
         self.mzi_4_5 = MZI("MZI_4-5")
         self.mzi_4_6 = MZI("MZI_4-6")
         self.mzi_4_7 = MZI("MZI_4-7")
         self.mzi_4_8 = MZI("MZI_4-8")
-        
+
         # Store all MZIs in order for easy access
         self.mzis = [
             self.mzi_2_1,
-            self.mzi_3_3, self.mzi_3_4,
-            self.mzi_4_5, self.mzi_4_6, self.mzi_4_7, self.mzi_4_8
+            self.mzi_3_3,
+            self.mzi_3_4,
+            self.mzi_4_5,
+            self.mzi_4_6,
+            self.mzi_4_7,
+            self.mzi_4_8,
         ]
-        
+
         # Initialize phase shifters for all 16 taps
         self.phase_shifters = [
             PhaseShifter(f"PS_{i+1}") for i in range(self.params.n_taps)
         ]
-        
+
         # Initialize delay lines (progressive delays)
         self.delay_lines = []
         for i in range(self.params.n_taps):
@@ -246,19 +253,22 @@ class PhotonicFIRChip:
             # Estimate physical length from delay
             length_cm = (delay * 3e8 / self.params.group_index) * 100
             self.delay_lines.append(
-                DelayLine(delay=delay, length_cm=length_cm, 
-                         loss_per_cm=self.params.waveguide_loss)
+                DelayLine(
+                    delay=delay,
+                    length_cm=length_cm,
+                    loss_per_cm=self.params.waveguide_loss,
+                )
             )
-        
+
         # Fixed phase settings for reference and unused taps
         # (set to maintain minimum phase condition)
         self._reference_phase = 0.0
         self._unused_phases = np.zeros(self.params.n_unused)
-        
+
     def set_mzi_phase(self, mzi_index: int, phase_rad: float):
         """
         Set phase of a specific MZI in the binary tree.
-        
+
         Parameters:
         -----------
         mzi_index : int
@@ -273,11 +283,11 @@ class PhotonicFIRChip:
             self.mzis[mzi_index].set_phase(phase_rad)
         else:
             raise ValueError(f"MZI index must be between 0 and {len(self.mzis)-1}")
-    
+
     def set_tap_phase(self, tap_index: int, phase_rad: float):
         """
         Set phase of a specific tap's phase shifter.
-        
+
         Parameters:
         -----------
         tap_index : int
@@ -295,11 +305,11 @@ class PhotonicFIRChip:
             self.phase_shifters[tap_index].set_phase(phase_rad)
         else:
             raise ValueError(f"Tap index must be between 0 and {self.params.n_taps-1}")
-    
+
     def set_signal_tap_phases(self, phases: np.ndarray):
         """
         Set phases for all signal processing taps (taps 8-15).
-        
+
         Parameters:
         -----------
         phases : np.ndarray
@@ -307,15 +317,15 @@ class PhotonicFIRChip:
         """
         if len(phases) != self.params.n_signal_taps:
             raise ValueError(f"Expected {self.params.n_signal_taps} phase values")
-        
+
         start_idx = self.params.n_unused + 1
         for i, phase in enumerate(phases):
             self.phase_shifters[start_idx + i].set_phase(phase)
-    
+
     def set_mzi_phases(self, phases: np.ndarray):
         """
         Set phases for all MZIs in the binary tree.
-        
+
         Parameters:
         -----------
         phases : np.ndarray
@@ -323,171 +333,178 @@ class PhotonicFIRChip:
         """
         if len(phases) != len(self.mzis):
             raise ValueError(f"Expected {len(self.mzis)} phase values")
-        
+
         for mzi, phase in zip(self.mzis, phases):
             mzi.set_phase(phase)
-    
+
     def compute_tap_coefficients(self) -> np.ndarray:
         """
         Compute the complex-valued tap coefficients based on current MZI and phase shifter settings.
-        
+
         Returns:
         --------
         tap_coefficients : np.ndarray
             Complex tap coefficients (length 16)
         """
         tap_coeffs = np.zeros(self.params.n_taps, dtype=complex)
-        
+
         # Reference tap (index 0) - direct path
         tap_coeffs[0] = self.phase_shifters[0].get_transfer()
-        
+
         # Unused taps (indices 1-7) - set to very small values
         for i in range(1, self.params.n_unused + 1):
             tap_coeffs[i] = 0.01 * self.phase_shifters[i].get_transfer()
-        
+
         # Signal processing taps (indices 8-15) - controlled by binary tree
         # The field distribution is determined by the MZI tree
-        
+
         # Start with equal field from the coupler (amplitude = 1/√2)
         # Start with equal field from the coupler (amplitude = 1/√2)
         tap_fields = np.ones(self.params.n_signal_taps, dtype=complex) / np.sqrt(2)
-        
+
         # Stage 1: MZI 2-1 splits into two groups of 4
         bar_2_1, cross_2_1 = self.mzi_2_1.get_field_transfer()
-        tap_fields[0:4] *= bar_2_1    # Taps 9-12 (indices 0-3)
+        tap_fields[0:4] *= bar_2_1  # Taps 9-12 (indices 0-3)
         tap_fields[4:8] *= cross_2_1  # Taps 13-16 (indices 4-7)
-        
+
         # Stage 2: MZI 3-3 and 3-4 split into groups of 2
         bar_3_3, cross_3_3 = self.mzi_3_3.get_field_transfer()
         bar_3_4, cross_3_4 = self.mzi_3_4.get_field_transfer()
-        
+
         # MZI 3-3 splits taps 9-12 into [9-10] and [11-12]
         temp_0_1 = tap_fields[0:2].copy()
-        tap_fields[0:2] = temp_0_1 * bar_3_3    # Taps 9-10
+        tap_fields[0:2] = temp_0_1 * bar_3_3  # Taps 9-10
         tap_fields[2:4] = temp_0_1 * cross_3_3  # Taps 11-12
-        
+
         # MZI 3-4 splits taps 13-16 into [13-14] and [15-16]
         temp_4_5 = tap_fields[4:6].copy()
-        tap_fields[4:6] = temp_4_5 * bar_3_4    # Taps 13-14
+        tap_fields[4:6] = temp_4_5 * bar_3_4  # Taps 13-14
         tap_fields[6:8] = temp_4_5 * cross_3_4  # Taps 15-16
-        
+
         # Stage 3: MZI 4-5, 4-6, 4-7, 4-8 split into individual taps
         bar_4_5, cross_4_5 = self.mzi_4_5.get_field_transfer()
         bar_4_6, cross_4_6 = self.mzi_4_6.get_field_transfer()
         bar_4_7, cross_4_7 = self.mzi_4_7.get_field_transfer()
         bar_4_8, cross_4_8 = self.mzi_4_8.get_field_transfer()
-        
+
         # Split tap 9-10
         temp_0 = tap_fields[0]
-        tap_fields[0] = temp_0 * bar_4_5    # Tap 9
+        tap_fields[0] = temp_0 * bar_4_5  # Tap 9
         tap_fields[1] = temp_0 * cross_4_5  # Tap 10
-        
+
         # Split tap 11-12
         temp_2 = tap_fields[2]
-        tap_fields[2] = temp_2 * bar_4_6    # Tap 11
+        tap_fields[2] = temp_2 * bar_4_6  # Tap 11
         tap_fields[3] = temp_2 * cross_4_6  # Tap 12
-        
+
         # Split tap 13-14
         temp_4 = tap_fields[4]
-        tap_fields[4] = temp_4 * bar_4_7    # Tap 13
+        tap_fields[4] = temp_4 * bar_4_7  # Tap 13
         tap_fields[5] = temp_4 * cross_4_7  # Tap 14
-        
+
         # Split tap 15-16
         temp_6 = tap_fields[6]
-        tap_fields[6] = temp_6 * bar_4_8    # Tap 15
+        tap_fields[6] = temp_6 * bar_4_8  # Tap 15
         tap_fields[7] = temp_6 * cross_4_8  # Tap 16
-        
+
         # Apply phase shifters to create final complex coefficients
         start_idx = self.params.n_unused + 1
         for i in range(self.params.n_signal_taps):
             phase_transfer = self.phase_shifters[start_idx + i].get_transfer()
             tap_coeffs[start_idx + i] = tap_fields[i] * phase_transfer
-        
+
         return tap_coeffs
-    
-    def compute_frequency_response(self, frequencies: np.ndarray, 
-                                   port: str = 'signal') -> np.ndarray:
+
+    def compute_frequency_response(
+        self, frequencies: np.ndarray, port: str = "signal"
+    ) -> np.ndarray:
         """
         Compute the frequency response H(ω) of the chip.
-        
+
         Parameters:
         -----------
         frequencies : np.ndarray
             Frequency array in Hz (relative to center frequency)
         port : str
             'signal' for signal ports, 'calibration' for calibration ports
-            
+
         Returns:
         --------
         H : np.ndarray
             Complex frequency response
         """
         omega = 2 * np.pi * frequencies
-        
+
         # Get current tap coefficients
         tap_coeffs = self.compute_tap_coefficients()
-        
+
         # Initialize frequency response
         H = np.zeros(len(frequencies), dtype=complex)
-        
-        if port == 'signal':
+
+        if port == "signal":
             # Signal port only sees signal processing taps (8-15)
             start_idx = self.params.n_unused + 1
             for i in range(start_idx, self.params.n_taps):
                 delay_transfer = self.delay_lines[i].get_transfer(omega)
                 H += tap_coeffs[i] * delay_transfer
-                
-        elif port == 'calibration':
+
+        elif port == "calibration":
             # Calibration port sees all taps including reference
             for i in range(self.params.n_taps):
                 delay_transfer = self.delay_lines[i].get_transfer(omega)
                 H += tap_coeffs[i] * delay_transfer
         else:
             raise ValueError("Port must be 'signal' or 'calibration'")
-        
+
         return H
-    
-    def compute_impulse_response(self, port: str = 'signal') -> Tuple[np.ndarray, np.ndarray]:
+
+    def compute_impulse_response(
+        self, port: str = "signal"
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Compute the impulse response h(t) of the chip.
-        
+
         Parameters:
         -----------
         port : str
             'signal' or 'calibration'
-            
+
         Returns:
         --------
         (time, impulse_response) : Tuple[np.ndarray, np.ndarray]
             Time array and complex impulse response
         """
         tap_coeffs = self.compute_tap_coefficients()
-        
-        if port == 'signal':
+
+        if port == "signal":
             start_idx = self.params.n_unused + 1
             h = tap_coeffs[start_idx:]
-            time = np.arange(len(h)) * self.params.delay_step + start_idx * self.params.delay_step
-        elif port == 'calibration':
+            time = (
+                np.arange(len(h)) * self.params.delay_step
+                + start_idx * self.params.delay_step
+            )
+        elif port == "calibration":
             h = tap_coeffs
             time = np.arange(len(h)) * self.params.delay_step
         else:
             raise ValueError("Port must be 'signal' or 'calibration'")
-        
+
         return time, h
-    
-    def get_insertion_loss_spectrum(self, wavelengths_nm: np.ndarray, 
-                                   port: str = 'calibration') -> np.ndarray:
+
+    def get_insertion_loss_spectrum(
+        self, wavelengths_nm: np.ndarray, port: str = "calibration"
+    ) -> np.ndarray:
         """
         Compute the insertion loss spectrum (power) in dB.
         This is what would be measured by a wavelength-swept laser and power metre.
-        
+
         Parameters:
         -----------
         wavelengths_nm : np.ndarray
             Wavelength array in nanometres
         port : str
             'signal' or 'calibration'
-            
+
         Returns:
         --------
         insertion_loss_db : np.ndarray
@@ -496,28 +513,32 @@ class PhotonicFIRChip:
         # Convert wavelength to frequency
         c = 3e8  # speed of light
         frequencies = c / (wavelengths_nm * 1e-9) - self.params.center_wavelength * c
-        
+
         # Compute frequency response
         H = self.compute_frequency_response(frequencies, port=port)
-        
+
         # Convert to power (insertion loss)
         power = np.abs(H) ** 2
-        insertion_loss_db = 10 * np.log10(power + 1e-12)  # Add small value to avoid log(0)
-        
+        insertion_loss_db = 10 * np.log10(
+            power + 1e-12
+        )  # Add small value to avoid log(0)
+
         return insertion_loss_db
 
 
-def create_sinc_filter(n_taps: int = 8, phase_step: float = 0) -> Tuple[np.ndarray, np.ndarray]:
+def create_sinc_filter(
+    n_taps: int = 8, phase_step: float = 0
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Create a sinc filter with specified phase step.
-    
+
     Parameters:
     -----------
     n_taps : int
         Number of filter taps
     phase_step : float
         Phase step between taps in radians
-        
+
     Returns:
     --------
     (amplitudes, phases) : Tuple[np.ndarray, np.ndarray]
@@ -526,13 +547,13 @@ def create_sinc_filter(n_taps: int = 8, phase_step: float = 0) -> Tuple[np.ndarr
     # Sinc function centred at middle tap
     n = np.arange(n_taps)
     center = (n_taps - 1) / 2
-    x = (n - center)
-    
+    x = n - center
+
     # Sinc amplitudes (normalized)
     amplitudes = np.sinc(x / 2)
     amplitudes = amplitudes / np.max(amplitudes) * 0.5  # Normalise to 0.5 max
-    
+
     # Linear phase progression
     phases = n * phase_step
-    
+
     return amplitudes, phases
