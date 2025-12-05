@@ -199,7 +199,7 @@ def example_1_basic_sinc_filter():
     ax9.axvspan(8.5, 16.5, alpha=0.2, color="yellow", label="Signal Core")
 
     plt.tight_layout()
-    plt.savefig("example1_basic_sinc_filter.png", dpi=150, bbox_inches="tight")
+    plt.savefig("output/example1_basic_sinc_filter.png", dpi=150, bbox_inches="tight")
     print("\nPlot saved: example1_basic_sinc_filter.png")
 
     plt.show()
@@ -255,7 +255,7 @@ def example_2_phase_steps():
         print(f"  Min insertion loss: {np.min(insertion_loss):.2f} dB")
 
     plt.tight_layout()
-    plt.savefig("example2_phase_steps.png", dpi=150, bbox_inches="tight")
+    plt.savefig("output/example2_phase_steps.png", dpi=150, bbox_inches="tight")
     print("\nPlot saved: example2_phase_steps.png")
 
     plt.show()
