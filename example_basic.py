@@ -8,7 +8,8 @@ This script demonstrates basic functionality of the photonic FIR chip:
 Based on: Xu et al. (2022) "Self-calibrating programmable photonic integrated circuits"
 """
 
-from photonic_fir_chip import PhotonicFIRChip, ChipParameters, create_sinc_filter
+from photonic_fir_chip import PhotonicFIRChip, ChipParameters
+from ideal_response_generator import create_sinc_filter
 import numpy as np
 import matplotlib.pyplot as plt
 
