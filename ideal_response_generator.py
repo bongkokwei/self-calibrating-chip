@@ -10,7 +10,40 @@ Based on: Xu et al. (2022) "Self-calibrating programmable photonic integrated ci
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Tuple, Dict, Optional
-from photonic_fir_chip import PhotonicFIRChip, ChipParameters, create_sinc_filter
+from photonic_fir_chip import PhotonicFIRChip, ChipParameters
+
+
+def create_sinc_filter(
+    n_taps: int = 8, phase_step: float = 0
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Create a sinc filter with specified phase step.
+
+    Parameters:
+    -----------
+    n_taps : int
+        Number of filter taps
+    phase_step : float
+        Phase step between taps in radians
+
+    Returns:
+    --------
+    (amplitudes, phases) : Tuple[np.ndarray, np.ndarray]
+        Tap amplitudes and phases
+    """
+    # Sinc function centred at middle tap
+    n = np.arange(n_taps)
+    center = (n_taps - 1) / 2
+    x = n - center
+
+    # Sinc amplitudes (normalized)
+    amplitudes = np.sinc(x / 2)
+    amplitudes = amplitudes / np.max(amplitudes) * 0.5  # Normalise to 0.5 max
+
+    # Linear phase progression
+    phases = n * phase_step
+
+    return amplitudes, phases
 
 
 class IdealResponseGenerator:
