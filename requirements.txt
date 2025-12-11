@@ -7,6 +7,12 @@ scipy>=1.7.0
 # Plotting
 matplotlib>=3.3.0
 
+# Instrument packages
+pip install git+https://github.com/bongkokwei/voltage-ctrl.git
+pip install git+https://github.com/bongkokwei/luna-ova.git
+pip install git+https://github.com/bongkokwei/fiberlabs-edfa.git
+
+
 # Optional: For faster FFT
 # pyfftw>=0.12.0
 
