@@ -42,6 +42,8 @@ env/
 *.mp4
 output/
 data/
+measurements/
+
 # OS
 .DS_Store
 Thumbs.db
