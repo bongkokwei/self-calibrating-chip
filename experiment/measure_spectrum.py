@@ -128,8 +128,9 @@ if __name__ == "__main__":
 
     df = measure_and_save_spectrum(
         folder_dir="./measurements",
-        file_name="spectrum_test_20241212",
+        file_name="spectrum_test_999999",
         num_averages=5,
+        wavelength_range_nm=1.28,
     )
 
     # Quick inspection
@@ -153,10 +154,5 @@ if __name__ == "__main__":
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-
-    # Save plot
-    plot_path = Path("./measurements") / "spectrum_test_20241212_plot.png"
-    plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-    print(f"\nPlot saved to: {plot_path}")
 
     plt.show()
