@@ -123,15 +123,39 @@ def measure_and_save_spectrum(
     return df
 
 
-# Example usage
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
 
     df = measure_and_save_spectrum(
-        folder_dir="../data",
-        file_name="spectrum_test_datetime",
+        folder_dir="./measurements",
+        file_name="spectrum_test_20241212",
     )
 
     # Quick inspection
     print("\nFirst few rows:")
     print(df.head())
     print(f"\nData shape: {df.shape}")
+
+    # Plot insertion loss and phase
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+    # Plot insertion loss
+    ax1.plot(df["wavelength_nm"], df["insertion_loss_db"], "b-", linewidth=1.5)
+    ax1.set_ylabel("Insertion Loss (dB)", fontsize=12)
+    ax1.grid(True, alpha=0.3)
+    ax1.set_title("Luna OVA Measurement Results", fontsize=14, fontweight="bold")
+
+    # Plot phase
+    ax2.plot(df["wavelength_nm"], df["phase_rad"], "r-", linewidth=1.5)
+    ax2.set_xlabel("Wavelength (nm)", fontsize=12)
+    ax2.set_ylabel("Phase (rad)", fontsize=12)
+    ax2.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+
+    # Save plot
+    plot_path = Path("./measurements") / "spectrum_test_20241212_plot.png"
+    plt.savefig(plot_path, dpi=300, bbox_inches="tight")
+    print(f"\nPlot saved to: {plot_path}")
+
+    plt.show()

@@ -41,7 +41,7 @@ env/
 *.gif
 *.mp4
 output/
-
+data/
 # OS
 .DS_Store
 Thumbs.db
