@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from typing import Tuple, Optional
 
 
-def extract_tap_coefficients_from_spectrum(
+def extract_tap_coefficients(
     df: pd.DataFrame,
     wavelength_col: str = "wl_axis",
     insertion_loss_col: str = "IL",
@@ -134,10 +134,20 @@ def extract_tap_coefficients_from_spectrum(
     # Detect peaks - use prominence to find significant taps
     # Prominence helps distinguish actual taps from noise
     mean_magnitude = np.mean(h_magnitude)
+
+    # Calculate minimum distance between peaks
+    # Use at least 1 ps spacing, or 1 sample point if resolution is lower
+    min_distance = max(1, int(1.0 / dt_ps))
+
+    print(f"\nPeak detection:")
+    print(
+        f"Minimum distance between peaks: {min_distance} samples ({min_distance * dt_ps:.3f} ps)"
+    )
+
     peak_indices, peak_properties = find_peaks(
         h_magnitude,
         prominence=mean_magnitude * 0.1,  # Adjust threshold as needed
-        distance=int(1.0 / dt_ps),  # Minimum 1 ps between peaks
+        distance=min_distance,  # Minimum distance between peaks
     )
 
     # Extract tap coefficients at peak positions
@@ -217,8 +227,7 @@ def plot_time_domain_results(
     ax.set_ylabel("Magnitude", fontsize=12)
     ax.set_title(
         "Impulse Response with Detected Tap Coefficients",
-        fontsize=14,
-        fontweight="bold",
+        fontsize=12,
     )
     ax.legend(fontsize=11)
     ax.grid(True, alpha=0.3)
@@ -235,7 +244,7 @@ def example_usage():
     data_file = ".\\data\\spectrum_test_20241212.csv"  # Update this path
 
     try:
-        df = pd.read_csv(data_file)
+        df = pd.read_csv(data_file, comment="#")
         print(f"Loaded data from: {data_file}")
         print(f"Columns: {list(df.columns)}")
         print(f"Shape: {df.shape}\n")
@@ -246,7 +255,7 @@ def example_usage():
         return None
 
     # Extract tap coefficients
-    time_ps, h_time, tap_times, tap_coeffs = extract_tap_coefficients_from_spectrum(
+    time_ps, h_time, tap_times, tap_coeffs = extract_tap_coefficients(
         df,
         wavelength_col="wl_axis",  # Adjust to match your CSV column names
         insertion_loss_col="IL",
@@ -264,6 +273,8 @@ def example_usage():
         tap_coefficients=tap_coeffs,
         time_window_ps=(0, 100),
     )
+
+    print(tap_coeffs.dtype)
 
     return time_ps, h_time, tap_times, tap_coeffs
 
