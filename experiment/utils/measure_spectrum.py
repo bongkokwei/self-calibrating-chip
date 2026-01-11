@@ -126,50 +126,50 @@ def measure_and_save_spectrum(
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from datetime import datetime
-    
+
     # Generate timestamp string
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
+
     # Append timestamp to filename
     base_name = "spectrum_test"
     file_name = f"{base_name}_{timestamp}"
-    
+
     df = measure_and_save_spectrum(
         folder_dir="./measurements",
         file_name=file_name,
         num_averages=5,
         wavelength_range_nm=1.28,
     )
-    
+
     # Quick inspection
     print("\nFirst few rows:")
     print(df.head())
     print(f"\nData shape: {df.shape}")
-    
+
     # Plot insertion loss and phase
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-    
+
     # Plot insertion loss
     ax1.plot(df["wl_axis"], df["IL"], "b-", linewidth=1.5)
     ax1.set_ylabel("Insertion Loss (dB)", fontsize=12)
     ax1.grid(True, alpha=0.3)
     ax1.set_title("Luna OVA Measurement Results", fontsize=12)
-    
+
     # Plot phase
     ax2.plot(df["wl_axis"], df["LPD"], "r-", linewidth=1.5)
     ax2.set_xlabel("Wavelength (nm)", fontsize=12)
     ax2.set_ylabel("Phase (rad)", fontsize=12)
     ax2.grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
-    
+
     # Save figure instead of showing it
     fig_filename = f"./measurements/{base_name}_plot_{timestamp}.png"
-    fig.savefig(fig_filename, dpi=300, bbox_inches='tight')
+    fig.savefig(fig_filename, dpi=300, bbox_inches="tight")
     print(f"\nFigure saved to: {fig_filename}")
-    
+
     # Optionally still show the plot
     # plt.show()
-    
+
     # Clean up
     plt.close(fig)
