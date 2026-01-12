@@ -7,7 +7,7 @@ from fiberlabs_edfa import EDFAController, DrivingMode
 from voltage_ctrl import VoltageController
 from luna_ova import LunaOVA
 
-from .utils import measure_and_save_spectrum
+from utils import measure_and_save_spectrum, extract_tap_coefficients
 
 
 def main():
