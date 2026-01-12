@@ -38,6 +38,8 @@ class PowerSplittingCalculator:
             "MZI_4-8",  # Stage 3: splits [15-16] into 15 and 16
         ]
 
+        self.power_splitting_ratios = None
+
     def tap_coeffs_to_power_splitting_ratios(
         self, tap_coeffs: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -113,7 +115,7 @@ class PowerSplittingCalculator:
                 power_splitting_ratios[3 + i] = 10 * np.log10(
                     tap_powers[idx1] / tap_powers[idx2]
                 )
-
+        self.power_splitting_ratios = power_splitting_ratios
         return power_splitting_ratios, tap_phases
 
     def power_splitting_ratio_to_mzi_phase(
