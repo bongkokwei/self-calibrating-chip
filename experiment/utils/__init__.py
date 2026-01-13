@@ -9,5 +9,5 @@ from .test_instruments import (
     configure_voltage_controller,
     measure_with_ova,
 )
-from .psr_error import calculate_psr_error
+from .psr_error import calculate_psr_error, calculate_phase_shifter_error
 from .voltage_adjustment import calculate_voltage_adjustments
