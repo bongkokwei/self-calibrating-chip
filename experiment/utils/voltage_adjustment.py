@@ -1,22 +1,57 @@
-def calcucalculate_voltage_adjustments(curr_psr_error, prev_psr_error):
+import numpy as np
+
+from psr_error import calculate_psr_error, calculate_phase_shifter_error
+
+
+def delta_power(resistance: float, power_2pi: float, phase_error: float) -> float:
+    """
+    Calculate the change in power required for a given phase error.
+    Args:
+        resistance (float): Load resistance in ohms.
+        power_2pi (float): Power required for a 2π phase shift.
+        phase_error (float): Phase error in radians.
+    Returns:
+        float: Change in power required.
+    """
+    delta_power = (phase_error / (2 * np.pi)) * power_2pi
+    return delta_power
+
+
+def calculate_voltage_adjustments(
+    mzi_error: dict,
+    phase_shifter_error: dict,
+    prev_psr_error: dict,
+    current_psr_error: dict,
+    resistance: float,
+    power_2pi: float,
+) -> dict:
     """
     Calculate voltage adjustments based on current and previous power splitting ratio errors.
     Args:
-        curr_psr_error (dict): Current power splitting ratio errors.
+        mzi_error (dict): Current power splitting ratio errors.
+        phase_shifter_error (dict): Current phase shifter errors.
         prev_psr_error (dict): Previous power splitting ratio errors.
+        current_psr_error (dict): Current power splitting ratio errors.
+        resistance (float): Load resistance in ohms.
     Returns:
         dict: Voltage adjustments for each MZI.
     """
     voltage_adjustments = {}
-    for mzi in curr_psr_error.keys():
-        # Simple proportional-derivative control for voltage adjustment
-        kp = 0.1  # Proportional gain
-        kd = 0.05  # Derivative gain
+    delta_power_mzi = {}
+    for mzi in mzi_error.keys():
+        delta_power_mzi[mzi] = delta_power(
+            resistance,
+            power_2pi,
+            mzi_error[mzi],
+        )
 
-        curr_error = curr_psr_error[mzi]
-        prev_error = prev_psr_error.get(mzi, 0)
+    for phase in phase_shifter_error.keys():
+        delta_power_mzi[phase] = delta_power(
+            resistance,
+            power_2pi,
+            phase_shifter_error[phase],
+        )
 
-        adjustment = kp * curr_error + kd * (curr_error - prev_error)
-        voltage_adjustments[mzi] = adjustment
+    # Rules to guarantee convergence
 
     return voltage_adjustments

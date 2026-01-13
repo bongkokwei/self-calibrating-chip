@@ -4,7 +4,12 @@ from luna_ova import LunaOVA
 
 
 def configure_voltage_controller(
-    channels, voltages, resistance=50.0, v_max=10.0, com_port="COM3"
+    channels,
+    voltages,
+    resistance=50.0,
+    v_max=10.0,
+    com_port="COM3",
+    zero_on_exit=True,
 ):
     """
     Configure voltage controller channels with specified voltages.
@@ -22,7 +27,11 @@ def configure_voltage_controller(
     com_port : str
         COM port for voltage controller (default: "COM3")
     """
-    with VoltageController(channels=channels, com_port=com_port) as controller:
+    with VoltageController(
+        channels=channels,
+        com_port=com_port,
+        zero_on_exit=zero_on_exit,
+    ) as controller:
         # Display channel information
         info = controller.get_channel_info()
         print("\n=== Voltage Controller Configuration ===")
@@ -135,6 +144,7 @@ if __name__ == "__main__":
         voltages=voltages,
         resistance=50.0,
         v_max=10.0,
+        zero_on_exit=True,
     )
 
     # Step 2: Configure and activate EDFA
