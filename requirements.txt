@@ -13,6 +13,8 @@ git+https://github.com/bongkokwei/voltage-ctrl.git
 git+https://github.com/bongkokwei/luna-ova.git
 git+https://github.com/bongkokwei/fiberlabs-edfa.git
 
+# Configuration file format
+PyYAML
 
 # Optional: For faster FFT
 # pyfftw>=0.12.0
