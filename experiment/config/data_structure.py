@@ -95,7 +95,7 @@ class MeasurementConfig:
 
     # Wavelength range (single FSR)
     center_wavelength_nm: float = 1550.0
-    wavelength_span_nm: float = 1.0
+    wavelength_span_nm: float = 20.67
     n_points: int = 1000
     num_averages: int = 5
 
@@ -111,6 +111,44 @@ class MeasurementConfig:
     voltage_controller_baudrate: Optional[int] = 9600
     edfa_port: Optional[str] = "COM6"
     edfa_baudrate: Optional[int] = 57600
+
+
+@dataclass
+class TapDetectionConfig:
+    """Configuration for tap detection from impulse response."""
+
+    # Peak detection method
+    use_db_scale: bool = True  # Use dB scale for detection
+
+    # Detection thresholds
+    prominence_factor_db: float = 0.3  # Prominence in dB (if use_db_scale=True)
+    height_threshold_db: float = -60.0  # Minimum height in dB
+    prominence_factor_linear: float = 0.1  # Prominence ratio (if use_db_scale=False)
+    height_threshold_linear: float = 0.05  # Minimum height ratio
+
+    # Spacing constraints
+    min_distance_ps: Optional[float] = None  # If None, use 80% of delay_step_s
+    min_distance_factor: float = 0.8  # Factor of delay_step_s to use
+
+    # Expected number of taps (if None, use chip.n_taps)
+    expected_n_taps: Optional[int] = None
+
+
+@dataclass
+class PhaseRecoveryConfig:
+    """Configuration for Kramers-Kronig phase recovery."""
+
+    # Column names in measurement CSV
+    wavelength_col: str = "wl_axis"
+    frequency_col: str = "f_axis"
+    insertion_loss_col: str = "IL"
+
+    # Hilbert transform parameters
+    add_noise_floor_db: float = -120.0  # Add small offset to avoid log(0)
+
+    # Validation
+    check_minimum_phase: bool = True  # Verify minimum phase condition
+    reference_tap_margin_db: float = 3.0  # Min margin for ref tap
 
 
 @dataclass
@@ -167,8 +205,12 @@ class ExperimentConfig:
     # Calibration settings
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
 
+    # Tap extraction settings
+    phase_recovery: PhaseRecoveryConfig = field(default_factory=PhaseRecoveryConfig)
+    tap_detection: TapDetectionConfig = field(default_factory=TapDetectionConfig)
+
     # Output paths
-    output_dir: str = "./results/"
+    output_dir: str = "./measurements/"
     save_iterations: bool = True
 
 

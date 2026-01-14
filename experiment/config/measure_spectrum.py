@@ -9,7 +9,6 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
-import sys
 
 from fiberlabs_edfa import EDFAController, DrivingMode
 from luna_ova import LunaOVA
@@ -17,31 +16,39 @@ from data_structure import MeasurementConfig, ChipParameters
 
 
 def measure_spectrum(
-    config: MeasurementConfig,
+    center_wavelength_nm: float,
+    wavelength_span_nm: float,
+    num_averages: int,
+    edfa_port: str,
+    edfa_baudrate: int,
+    edfa_output_power_dbm: float,
+    ova_ip: Optional[str],
     folder_dir: str,
     file_name: str,
-    chip_params: Optional[ChipParameters] = None,
 ) -> pd.DataFrame:
     """
     Measure insertion loss, phase, and other parameters using Luna OVA.
-    Configuration comes from MeasurementConfig dataclass.
 
     Parameters
     ----------
-    config : MeasurementConfig
-        Measurement configuration from data_structure.py
+    center_wavelength_nm : float
+        Centre wavelength in nm
+    wavelength_span_nm : float
+        Wavelength span in nm
+    num_averages : int
+        Number of averages for measurement
+    edfa_port : str
+        COM port for EDFA controller
+    edfa_baudrate : int
+        Baudrate for EDFA communication
+    edfa_output_power_dbm : float
+        EDFA output level in dBm
+    ova_ip : Optional[str]
+        IP address for OVA instrument
     folder_dir : str
         Directory path where CSV file will be saved
     file_name : str
         Name of output CSV file (without .csv extension)
-    chip_params : Optional[ChipParameters]
-        Chip parameters for metadata (optional)
-    edfa_port : str, optional
-        COM port for EDFA controller (default: "COM6")
-    edfa_output_level_dbm : float, optional
-        EDFA output level in dBm (default: 13.0)
-    num_averages : int, optional
-        Number of averages for measurement (default: 1)
 
     Returns
     -------
@@ -58,13 +65,10 @@ def measure_spectrum(
     output_dir = Path(folder_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Use instrument addresses from config if provided
-    ova_ip = config.ova_address
-
     # Connect to EDFA and perform measurement
     with EDFAController(
-        config.edfa_port,
-        baudrate=config.edfa_baudrate,
+        edfa_port,
+        baudrate=edfa_baudrate,
     ) as edfa:
 
         # Get device info for metadata
@@ -73,10 +77,10 @@ def measure_spectrum(
 
         # Configure EDFA
         edfa.set_driving_mode(1, DrivingMode.ALC)
-        edfa.set_alc_output_level(1, config.edfa_output_power_dbm)
+        edfa.set_alc_output_level(1, edfa_output_power_dbm)
         edfa.set_output_active(True)
 
-        print(f"EDFA output active at {config.edfa_output_power_dbm} dBm")
+        print(f"EDFA output active at {edfa_output_power_dbm} dBm")
 
         try:
             # Connect to OVA and measure
@@ -84,9 +88,9 @@ def measure_spectrum(
                 print("Performing OVA measurement...")
 
                 data = ova.measure_full(
-                    center_wavelength_nm=config.center_wavelength_nm,
-                    wavelength_range_nm=config.wavelength_span_nm,
-                    num_averages=config.num_averages,
+                    center_wavelength_nm=center_wavelength_nm,
+                    wavelength_range_nm=wavelength_span_nm,
+                    num_averages=num_averages,
                 )
 
                 print("Measurement complete")
@@ -99,10 +103,8 @@ def measure_spectrum(
     # Create DataFrame from all returned data
     df = pd.DataFrame(data)
 
-    # Save to CSV with metadata in header
+    # Save to CSV
     output_path = output_dir / f"{file_name}.csv"
-
-    # Append DataFrame
     df.to_csv(output_path, mode="a", index=False)
 
     print(f"Data saved to: {output_path}")
@@ -112,17 +114,20 @@ def measure_spectrum(
     return df
 
 
-def measure_with_default_config(
+def measure_spectrum_with_config(
+    config: MeasurementConfig,
     folder_dir: str = "./measurements",
     file_name_base: str = "spectrum_test",
 ) -> pd.DataFrame:
     """
-    Convenience function using default MeasurementConfig.
+    Convenience function using provided MeasurementConfig.
 
     Parameters
     ----------
+    config : MeasurementConfig
+        Measurement configuration from data_structure.py
     folder_dir : str
-        Output directory
+        Output directory (default: "./measurements")
     file_name_base : str
         Base name for output file (timestamp will be appended)
 
@@ -131,37 +136,41 @@ def measure_with_default_config(
     pd.DataFrame
         Measurement data
     """
-    # Create default config
-    config = MeasurementConfig(
-        center_wavelength_nm=1550.0,
-        wavelength_span_nm=1.28,
-        n_points=1000,
-        chip_temperature_c=30.0,
-    )
-
-    # Create default chip parameters
-    chip_params = ChipParameters()
 
     # Generate filename with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     file_name = f"{file_name_base}_{timestamp}"
 
-    # Perform measurement
+    # Perform measurement using config parameters
     return measure_spectrum(
-        config=config,
+        center_wavelength_nm=config.center_wavelength_nm,
+        wavelength_span_nm=config.wavelength_span_nm,
+        num_averages=config.num_averages,
+        edfa_port=config.edfa_port,
+        edfa_baudrate=config.edfa_baudrate,
+        edfa_output_power_dbm=config.edfa_output_power_dbm,
+        ova_ip=config.ova_address,
         folder_dir=folder_dir,
         file_name=file_name,
-        chip_params=chip_params,
     )
 
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    # Perform measurement with default config
-    df = measure_with_default_config(
+    # Create default config
+    config = MeasurementConfig(
+        center_wavelength_nm=1550.0,
+        wavelength_span_nm=21.0,
+        n_points=1000,
+        chip_temperature_c=30.0,
+    )
+
+    # Perform measurement with config
+    df = measure_spectrum_with_config(
+        config=config,
         folder_dir="./measurements",
-        file_name_base="config_based_test",
+        file_name_base="spectrum_test",
     )
 
     # Quick inspection

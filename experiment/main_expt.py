@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import yaml
 from pathlib import Path
 from datetime import datetime
@@ -15,6 +16,9 @@ from config import (
     CalibrationResults,
     config_from_dict,
     config_to_dict,
+    measure_spectrum,
+    recover_tap_coefficients_from_dataframe,
+    detect_taps,
 )
 
 
@@ -39,6 +43,7 @@ def save_config(config: ExperimentConfig, output_dir: str):
 
 
 def run_calibration_iteration(
+    df: pd.DataFrame,
     iteration: int,
     chip_state: ChipState,
     target_amps: np.ndarray,
@@ -54,14 +59,43 @@ def run_calibration_iteration(
     print(f"\nIteration {iteration}:")
 
     # 1. Measure insertion loss spectrum
-    wavelengths, insertion_loss = measure_insertion_loss_spectrum(config, chip_state)
+    folder_dir: str = ("./measurements",)
+    file_name_base: str = ("spectrum_test",)
+    # Generate filename with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_name = f"{file_name_base}_{timestamp}"
 
-    # 2. Recover phase via Kramers-Kronig
-    phase_response = recover_phase_kramers_kronig(wavelengths, insertion_loss, config)
+    df = measure_spectrum(
+        center_wavelength_nm=config.center_wavelength_nm,
+        wavelength_span_nm=config.wavelength_span_nm,
+        num_averages=config.num_averages,
+        edfa_port=config.edfa_port,
+        edfa_baudrate=config.edfa_baudrate,
+        edfa_output_power_dbm=config.edfa_output_power_dbm,
+        ova_ip=config.ova_address,
+        folder_dir=folder_dir,
+        file_name=file_name,
+    )
 
-    # 3. Recover tap coefficients via inverse FFT
-    tap_amps, tap_phases = recover_tap_coefficients(
-        wavelengths, insertion_loss, phase_response, config
+    # 2. Recover impulse response (using DataFrame wrapper)
+    time_ps, h_time = recover_tap_coefficients_from_dataframe(
+        df=df,
+        chip_params=config.chip,
+        measurement_config=config.measurement,
+        wavelength_col=config.phase_recovery.wavelength_col,
+        freq_col=config.phase_recovery.frequency_col,
+        insertion_loss_col=config.phase_recovery.insertion_loss_col,
+    )
+
+    # 3. Detect taps
+    tap_times, tap_coeffs = detect_taps(
+        time_ps=time_ps,
+        h_time=h_time,
+        chip_params=config.chip,
+        n_taps=config.chip.n_taps,
+        use_db_scale=config.tap_detection.use_db_scale,
+        prominence_factor_db=config.tap_detection.prominence_factor_db,
+        height_threshold_db=config.tap_detection.height_threshold_db,
     )
 
     # 4. Calculate errors (only for signal processing taps)

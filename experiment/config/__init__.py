@@ -26,6 +26,12 @@ from .data_structure import (
     # Results storage
     CalibrationResults,
     MeasurementResults,
+    # Helper functions
+    measure_spectrum,
+    measure_spectrum_with_config,
+    recover_tap_coefficients,
+    recover_tap_coefficients_from_dataframe,
+    detect_taps,
 )
 
 __all__ = [
