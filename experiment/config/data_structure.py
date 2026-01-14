@@ -97,13 +97,20 @@ class MeasurementConfig:
     center_wavelength_nm: float = 1550.0
     wavelength_span_nm: float = 1.0
     n_points: int = 1000
+    num_averages: int = 5
+
+    # EDFA output level
+    edfa_output_power_dbm: float = 13.0
 
     # Temperature control
     chip_temperature_c: float = 30.0
 
     # Instrument addresses (optional, for real hardware)
-    ova_address: Optional[str] = None
-    voltage_controller_port: Optional[str] = None
+    ova_address: Optional[str] = "130.194.137.122"
+    voltage_controller_port: Optional[str] = "COM3"
+    voltage_controller_baudrate: Optional[int] = 9600
+    edfa_port: Optional[str] = "COM6"
+    edfa_baudrate: Optional[int] = 57600
 
 
 @dataclass
