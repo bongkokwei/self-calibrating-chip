@@ -8,14 +8,6 @@ from fiberlabs_edfa import EDFAController, DrivingMode
 from voltage_ctrl import VoltageController
 from luna_ova import LunaOVA
 
-from utils import (
-    measure_and_save_spectrum,
-    extract_tap_coefficients,
-    calculate_psr_error,
-    calculate_phase_shifter_error,
-    calculate_voltage_adjustments,
-)
-
 from config import (
     ExperimentConfig,
     ChipState,
