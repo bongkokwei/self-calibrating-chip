@@ -115,7 +115,6 @@ def measure_spectrum(
 def measure_with_default_config(
     folder_dir: str = "./measurements",
     file_name_base: str = "spectrum_test",
-    num_averages: int = 5,
 ) -> pd.DataFrame:
     """
     Convenience function using default MeasurementConfig.
@@ -126,8 +125,6 @@ def measure_with_default_config(
         Output directory
     file_name_base : str
         Base name for output file (timestamp will be appended)
-    num_averages : int
-        Number of averages
 
     Returns
     -------
@@ -155,7 +152,6 @@ def measure_with_default_config(
         folder_dir=folder_dir,
         file_name=file_name,
         chip_params=chip_params,
-        num_averages=num_averages,
     )
 
 
@@ -166,7 +162,6 @@ if __name__ == "__main__":
     df = measure_with_default_config(
         folder_dir="./measurements",
         file_name_base="config_based_test",
-        num_averages=5,
     )
 
     # Quick inspection
