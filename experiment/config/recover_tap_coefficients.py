@@ -373,7 +373,7 @@ def example_usage():
     )
 
     # Load measured data
-    data_file = "measurements/spectrum_test_20260108_150115.csv"
+    data_file = "measurements/spectrum_test_20260115_114642.csv"
 
     try:
         df = pd.read_csv(data_file, comment="#")

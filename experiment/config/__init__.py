@@ -13,39 +13,51 @@ data_structure : Configuration data structures
 """
 
 from .data_structure import (
-    # Core chip configuration
-    ChipConfig,
-    # Component configurations
-    MZIConfig,
-    PhaseShifterConfig,
-    DelayLineConfig,
-    TapConfig,
-    # Measurement and calibration
+    ChipParameters,
+    MZIState,
+    PhaseShifterState,
+    ChipState,
     MeasurementConfig,
+    TapDetectionConfig,
+    PhaseRecoveryConfig,
     CalibrationConfig,
-    # Results storage
+    TargetFilter,
+    ExperimentConfig,
+    IterationData,
     CalibrationResults,
-    MeasurementResults,
-    # Helper functions
+    config_from_dict,
+    config_to_dict,
+)
+
+from measure_spectrum import (
     measure_spectrum,
     measure_spectrum_with_config,
+)
+from recover_tap_coefficients import (
     recover_tap_coefficients,
     recover_tap_coefficients_from_dataframe,
     detect_taps,
 )
 
 __all__ = [
-    # Core configuration
-    "ChipConfig",
-    # Component configurations
-    "MZIConfig",
-    "PhaseShifterConfig",
-    "DelayLineConfig",
-    "TapConfig",
-    # Measurement and calibration
+    "ChipParameters",
+    "MZIState",
+    "PhaseShifterState",
+    "ChipState",
     "MeasurementConfig",
+    "TapDetectionConfig",
+    "PhaseRecoveryConfig",
     "CalibrationConfig",
-    # Results storage
+    "TargetFilter",
+    "ExperimentConfig",
+    "IterationData",
     "CalibrationResults",
-    "MeasurementResults",
+    "config_from_dict",
+    "config_to_dict",
+    # Helper functions for YAML compatibility
+    "measure_spectrum",
+    "measure_spectrum_with_config",
+    "recover_tap_coefficients",
+    "recover_tap_coefficients_from_dataframe",
+    "detect_taps",
 ]
