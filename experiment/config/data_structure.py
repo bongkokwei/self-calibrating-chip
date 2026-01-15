@@ -329,25 +329,31 @@ class TargetFilter:
         n = np.arange(n_taps)
 
         if self.filter_type == "sinc":
-            # Sinc filter with linear phase
-            amplitudes = np.sinc(n - (n_taps - 1) / 2)
+            # Sinc filter: EQUAL tap amplitudes with linear phase
+            # Equal amplitudes in time domain → sinc-shaped frequency response
+            # This matches Figure 3 of Xu et al. (2022) where all 8 taps
+            # converge to the same amplitude value
+            amplitudes = np.ones(n_taps)
             phases = self.phase_step_rad * n
 
         elif self.filter_type == "hilbert":
             # Hilbert transformer
+            # Antisymmetric impulse response: h[n] = 2/(π*n) for odd n, 0 for even n
             amplitudes = np.where(
                 n % 2 == 0, 0.0, 2.0 / (np.pi * (n - (n_taps - 1) / 2))
             )
             phases = np.zeros(n_taps)
 
         elif self.filter_type == "lowpass":
-            # Half-band lowpass
+            # Half-band lowpass filter
+            # Sinc-shaped impulse response → rectangular (brick-wall) frequency response
             fc = 0.25  # Normalised cutoff frequency
             amplitudes = 2 * fc * np.sinc(2 * fc * (n - (n_taps - 1) / 2))
             phases = np.zeros(n_taps)
 
         elif self.filter_type == "highpass":
-            # Half-band highpass
+            # Half-band highpass filter
+            # All-pass minus lowpass = highpass
             fc = 0.25
             amplitudes = np.sinc(n - (n_taps - 1) / 2) - 2 * fc * np.sinc(
                 2 * fc * (n - (n_taps - 1) / 2)
@@ -356,6 +362,7 @@ class TargetFilter:
 
         elif self.filter_type == "differentiator":
             # Differentiator
+            # h[n] = (-1)^n / n for n ≠ 0, h[0] = 0
             centre = (n_taps - 1) / 2
             amplitudes = np.where(n == centre, 0.0, (-1) ** (n - centre) / (n - centre))
             phases = np.zeros(n_taps)

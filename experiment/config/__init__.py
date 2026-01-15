@@ -29,17 +29,25 @@ from .data_structure import (
     config_to_dict,
 )
 
-from measure_spectrum import (
+from .measure_spectrum import (
     measure_spectrum,
     measure_spectrum_with_config,
 )
-from recover_tap_coefficients import (
+from .recover_tap_coefficients import (
     recover_tap_coefficients,
     recover_tap_coefficients_from_dataframe,
     detect_taps,
 )
 
+from .error_calculation import (
+    calculate_mzi_errors,
+    calculate_phase_shifter_errors,
+    calculate_rms_errors,
+    calculate_all_errors,
+)
+
 __all__ = [
+    # Data structures
     "ChipParameters",
     "MZIState",
     "PhaseShifterState",
@@ -60,4 +68,8 @@ __all__ = [
     "recover_tap_coefficients",
     "recover_tap_coefficients_from_dataframe",
     "detect_taps",
+    "calculate_mzi_errors",
+    "calculate_phase_shifter_errors",
+    "calculate_rms_errors",
+    "calculate_all_errors",
 ]
