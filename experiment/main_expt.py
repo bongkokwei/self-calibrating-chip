@@ -19,6 +19,7 @@ from config import (
     measure_spectrum,
     recover_tap_coefficients_from_dataframe,
     detect_taps,
+    calculate_all_errors,
 )
 
 
@@ -60,10 +61,9 @@ def run_calibration_iteration(
 
     # 1. Measure insertion loss spectrum
     folder_dir: str = ("./measurements",)
-    file_name_base: str = ("spectrum_test",)
+    file_name_base: str = ("freq_response",)
     # Generate filename with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    file_name = f"{file_name_base}_{timestamp}"
+    file_name = f"{file_name_base}_interation_{iteration}"
 
     df = measure_spectrum(
         center_wavelength_nm=config.center_wavelength_nm,
@@ -99,44 +99,31 @@ def run_calibration_iteration(
     )
 
     # 4. Calculate errors (only for signal processing taps)
-    amp_errors, phase_errors = calculate_errors(
-        tap_amps, tap_phases, target_amps, target_phases, config
+    all_errors = calculate_all_errors(
+        measured_taps=tap_coeffs,
+        current_state=chip_state,
+        target_power_ratios=config.calibration.target_mzi_power_ratios,  # wrong
+        target_taps=target_amps * np.exp(1j * target_phases),
+        psr_calculator=config.calibration.psr_calculator,
     )
 
-    # Calculate RMS errors
-    rms_amp_error = np.sqrt(np.mean(amp_errors**2))
-    rms_phase_error = np.sqrt(np.mean(phase_errors**2))
+    # 5. Apply new voltages and update chip state
 
-    print(f"  RMS amplitude error: {rms_amp_error:.3f} dB")
-    print(f"  RMS phase error: {rms_phase_error:.3f} rad")
-
-    # 5. Update chip state
-    chip_state = update_chip_state(
-        chip_state, amp_errors, phase_errors, tap_amps, config
-    )
-
-    # Extract current powers
-    mzi_powers = {
-        mzi_id: mzi.applied_power_watts for mzi_id, mzi in chip_state.mzis.items()
-    }
-    ps_powers = {
-        tap: ps.applied_power_watts for tap, ps in chip_state.phase_shifters.items()
-    }
-
-    # Create iteration data
-    iter_data = IterationData(
-        iteration=iteration,
-        wavelengths_nm=wavelengths,
-        insertion_loss_db=insertion_loss,
-        tap_amplitudes=tap_amps,
-        tap_phases_rad=tap_phases,
-        amplitude_errors_db=amp_errors,
-        phase_errors_rad=phase_errors,
-        rms_amplitude_error_db=rms_amp_error,
-        rms_phase_error_rad=rms_phase_error,
-        mzi_powers=mzi_powers,
-        ps_powers=ps_powers,
-    )
+    # # Create iteration data
+    iter_data = 0
+    # iter_data = IterationData(
+    #     iteration=iteration,
+    #     wavelengths_nm=wavelengths,
+    #     insertion_loss_db=insertion_loss,
+    #     tap_amplitudes=tap_amps,
+    #     tap_phases_rad=tap_phases,
+    #     amplitude_errors_db=amp_errors,
+    #     phase_errors_rad=phase_errors,
+    #     rms_amplitude_error_db=rms_amp_error,
+    #     rms_phase_error_rad=rms_phase_error,
+    #     mzi_powers=mzi_powers,
+    #     ps_powers=ps_powers,
+    # )
 
     return iter_data
 
@@ -210,7 +197,9 @@ def run_experiment(config_path: str):
 
     # Compute target tap coefficients
     print("\nComputing target filter response...")
-    target_amps, target_phases = compute_target_tap_coefficients(config)
+    target_amps, target_phases = config.target.compute_target_taps(
+        n_taps=config.chip.n_taps
+    )
     print(f"Target filter: {config.target.filter_type}")
     print(f"  Number of taps: {len(target_amps)}")
     print(f"  Phase step: {config.target.phase_step_rad:.4f} rad")
