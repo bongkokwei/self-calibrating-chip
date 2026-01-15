@@ -3,6 +3,8 @@ error_calculation.py
 
 Functions for calculating power splitting ratio and phase shifter errors
 for the photonic FIR chip calibration process.
+
+Refactored to use ChipParameters for all tap indexing instead of hardcoded values.
 """
 
 import sys
@@ -15,7 +17,7 @@ from data_structure import ChipState, TargetFilter
 
 
 def calculate_mzi_errors(
-    measured_taps: np.ndarray,
+    measured_psr: Dict[str, float],
     current_state: ChipState,
     target_power_ratios: Dict[str, float],
     psr_calculator: PowerSplittingCalculator,
@@ -24,19 +26,14 @@ def calculate_mzi_errors(
     Calculate MZI power splitting ratio and phase errors.
 
     Args:
-        measured_taps: Complex tap coefficients from Kramers-Kronig recovery (length n_taps)
+        measured_psr: Measured power splitting ratios for each MZI (dict keyed by MZI ID)
         current_state: Current chip state with MZI information
-        target_power_ratios: Desired power splitting ratios for each MZI
+        target_power_ratios: Desired power splitting ratios for each MZI (dict keyed by MZI ID)
         psr_calculator: Calculator for power splitting ratio conversions
 
     Returns:
         Tuple of (power_ratio_errors, phase_errors) dictionaries keyed by MZI ID
     """
-    # Extract signal processing taps (taps 9-16 for the 16-tap chip)
-    signal_taps = measured_taps[8:16]  # Indices 8-15 correspond to taps 9-16
-
-    # Calculate measured power splitting ratios from tap coefficients
-    measured_psr = psr_calculator.tap_coeffs_to_power_splitting_ratios(signal_taps)
 
     # Convert power splitting ratios to MZI phases
     measured_mzi_phases = {
@@ -84,10 +81,12 @@ def calculate_phase_shifter_errors(
         target_taps: Target complex tap coefficients (length n_signal_taps)
 
     Returns:
-        Dictionary of phase errors (radians) keyed by tap number (9-16)
+        Dictionary of phase errors (radians) keyed by tap number
     """
-    # Extract signal processing taps (taps 9-16)
-    measured_signal_taps = measured_taps[8:16]
+    # Extract signal processing taps using chip parameters
+    signal_tap_indices = current_state.chip_params.signal_tap_indices
+    signal_tap_numbers = current_state.chip_params.signal_tap_numbers
+    measured_signal_taps = measured_taps[signal_tap_indices]
 
     # Calculate phases
     measured_phases = np.angle(measured_signal_taps)
@@ -95,7 +94,7 @@ def calculate_phase_shifter_errors(
 
     # Calculate errors accounting for initial phase offsets
     phase_errors = {}
-    for idx, tap_num in enumerate(range(9, 17)):
+    for idx, tap_num in enumerate(signal_tap_numbers):
         ps_state = current_state.phase_shifters[tap_num]
 
         # Error = target - (measured - initial_offset)
@@ -167,8 +166,15 @@ def calculate_all_errors(
         - 'rms_phase_error': RMS phase error (rad)
     """
     # Calculate MZI errors
+    # First, extract signal taps and compute measured PSR
+    signal_tap_indices = current_state.chip_params.signal_tap_indices
+    measured_signal_taps = measured_taps[signal_tap_indices]
+    measured_psr = psr_calculator.tap_coeffs_to_power_splitting_ratios(
+        measured_signal_taps
+    )
+
     mzi_psr_errors, mzi_phase_errors = calculate_mzi_errors(
-        measured_taps=measured_taps,
+        measured_psr=measured_psr,
         current_state=current_state,
         target_power_ratios=target_power_ratios,
         psr_calculator=psr_calculator,
@@ -180,9 +186,6 @@ def calculate_all_errors(
         current_state=current_state,
         target_taps=target_taps,
     )
-
-    # Extract signal processing taps for amplitude error calculation
-    measured_signal_taps = measured_taps[8:16]
 
     # Calculate tap amplitude errors (in dB)
     measured_amps = 20 * np.log10(np.abs(measured_signal_taps) + 1e-12)
