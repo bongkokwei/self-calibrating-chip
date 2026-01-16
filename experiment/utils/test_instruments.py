@@ -135,32 +135,36 @@ def measure_with_ova(
 # Main execution
 if __name__ == "__main__":
     # Define channels and voltages
-    channels = [8, 9, 10, 11, 12, 13, 14, 15]
-    voltages = [5.0, 3.3, 2.5, 1.8, 4.2, 3.0, 2.8, 3.5]
+
+    # channels = [8, 9, 10, 11, 12, 13, 14, 15]
+    # voltages = [5.0, 3.3, 2.5, 1.8, 4.2, 3.0, 2.8, 3.5]
+
+    channels = list(range(1, 33))
+    voltages = [0.0 for _ in channels]
 
     # Step 1: Configure voltage controller
     configure_voltage_controller(
         channels=channels,
         voltages=voltages,
-        resistance=50.0,
-        v_max=10.0,
-        zero_on_exit=True,
+        resistance=600.0,
+        v_max=32.0,
+        zero_on_exit=False,
     )
 
-    # Step 2: Configure and activate EDFA
-    edfa = configure_edfa(output_power_dbm=13.0, activate=True)
+    # # Step 2: Configure and activate EDFA
+    # edfa = configure_edfa(output_power_dbm=13.0, activate=True)
 
-    try:
-        # Step 3: Perform OVA measurement
-        measurement_data = measure_with_ova(
-            center_wavelength_nm=1550, wavelength_range_nm=4, num_averages=1
-        )
+    # try:
+    #     # Step 3: Perform OVA measurement
+    #     measurement_data = measure_with_ova(
+    #         center_wavelength_nm=1550, wavelength_range_nm=4, num_averages=1
+    #     )
 
-        print("\n=== All Operations Complete ===")
+    #     print("\n=== All Operations Complete ===")
 
-    finally:
-        # Always deactivate EDFA output and close connection
-        if edfa:
-            edfa.set_output_active(False)
-            edfa.__exit__(None, None, None)
-            print("✓ EDFA output deactivated and connection closed")
+    # finally:
+    #     # Always deactivate EDFA output and close connection
+    #     if edfa:
+    #         edfa.set_output_active(False)
+    #         edfa.__exit__(None, None, None)
+    #         print("✓ EDFA output deactivated and connection closed")
