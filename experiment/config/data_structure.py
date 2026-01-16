@@ -201,11 +201,6 @@ class ChipState:
         return powers
 
 
-from pprint import pprint
-
-pprint(ChipState().phase_shifters)
-
-
 @dataclass
 class MeasurementConfig:
     """Configuration for spectral measurements."""
