@@ -220,8 +220,12 @@ class MeasurementConfig:
     temperature_tolerance_c: float = 0.1
 
     # Instrument addresses (optional, for real hardware)
-    ova_address: Optional[str] = None
-    voltage_controller_port: Optional[str] = None
+    ova_address: Optional[str] = "130.194.137.122"
+    voltage_controller_port: Optional[str] = "COM3"
+    voltage_controller_baudrate: int = 9600
+    edfa_port: Optional[str] = "COM6"
+    edfa_baudrate: int = 57600
+    edfa_output_power_dbm: float = 13.0  # Output power of EDFA
 
     # Measurement settings
     integration_time_s: float = 0.1
