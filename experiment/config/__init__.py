@@ -44,6 +44,16 @@ from .error_calculation import (
     calculate_all_errors,
 )
 
+from power_splitting_ratio import (
+    build_mzi_tree_structure,
+    tap_coeffs_to_power_splitting_ratios,
+    extract_tap_phases,
+    power_splitting_ratio_to_mzi_phase,
+    mzi_phase_to_power_splitting_ratio,
+    power_splitting_ratios_to_mzi_phases,
+)
+
+
 __all__ = [
     # Data structures
     "ChipParameters",
@@ -68,4 +78,10 @@ __all__ = [
     "calculate_phase_shifter_errors",
     "calculate_rms_errors",
     "calculate_all_errors",
+    "build_mzi_tree_structure",
+    "tap_coeffs_to_power_splitting_ratios",
+    "extract_tap_phases",
+    "power_splitting_ratio_to_mzi_phase",
+    "mzi_phase_to_power_splitting_ratio",
+    "power_splitting_ratios_to_mzi_phases",
 ]

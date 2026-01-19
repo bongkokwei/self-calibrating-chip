@@ -399,11 +399,6 @@ class ExperimentConfig:
     # Calibration settings
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
 
-    # # Power splitting ratio calculator
-    # psr_calculator: PowerSplittingCalculator = field(
-    #     default_factory=PowerSplittingCalculator
-    # )
-
     # Output paths
     output_dir: str = "./results/"
     save_iterations: bool = True
@@ -436,9 +431,8 @@ class IterationData:
     rms_amplitude_error_db: float
     rms_phase_error_rad: float
 
-    # Updated powers
-    mzi_powers: Dict[str, float]
-    ps_powers: Dict[int, float]
+    # Updated chip state
+    chip_state: ChipState
 
     # Additional metrics
     max_amplitude_error_db: float = field(init=False)

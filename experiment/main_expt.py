@@ -6,8 +6,6 @@ from datetime import datetime
 from typing import Dict, Any
 import sys
 
-sys.path.append("..")
-from simulation.power_splitting_ratio import PowerSplittingCalculator
 from fiberlabs_edfa import EDFAController, DrivingMode
 from voltage_ctrl import VoltageController
 from luna_ova import LunaOVA
@@ -49,9 +47,10 @@ def save_config(config: ExperimentConfig, output_dir: str):
 def run_calibration_iteration(
     df: pd.DataFrame,
     iteration: int,
+    target_taps: Dict[int, complex],
+    mzi_tree: Dict[str, Dict],
     chip_state: ChipState,
     config: ExperimentConfig,
-    psr_calculator: PowerSplittingCalculator,
 ) -> IterationData:
     """
     Run a single calibration iteration.
@@ -95,28 +94,29 @@ def run_calibration_iteration(
     # 4. Calculate errors (only for signal processing taps)
     all_errors = calculate_all_errors(
         measured_taps=tap_coeffs,
-        current_state=chip_state,
-        target_taps=config.target.get_target_taps(n_taps=config.chip.n_taps),
-        psr_calculator=psr_calculator,
+        target_taps=target_taps,
+        signal_tap_indices=config.chip.signal_tap_indices,
+        signal_tap_numbers=config.chip.signal_tap_numbers,
+        mzi_tree=mzi_tree,
+        mzi_phi_init=chip_state.get_all_init_phase(),
+        ps_phi_init=chip_state.get_all_init_phase(),
     )
 
     # 5. Apply new voltages and update chip state
 
     # # Create iteration data
-    iter_data = 0
-    # iter_data = IterationData(
-    #     iteration=iteration,
-    #     wavelengths_nm=wavelengths,
-    #     insertion_loss_db=insertion_loss,
-    #     tap_amplitudes=tap_amps,
-    #     tap_phases_rad=tap_phases,
-    #     amplitude_errors_db=amp_errors,
-    #     phase_errors_rad=phase_errors,
-    #     rms_amplitude_error_db=rms_amp_error,
-    #     rms_phase_error_rad=rms_phase_error,
-    #     mzi_powers=mzi_powers,
-    #     ps_powers=ps_powers,
-    # )
+    iter_data = IterationData(
+        iteration=iteration,
+        wavelengths_nm=df[config.measurement.wavelength_col],
+        insertion_loss_db=df[config.measurement.insertion_loss_col],
+        tap_amplitudes=np.abs(tap_coeffs),
+        tap_phases_rad=np.angle(tap_coeffs),
+        amplitude_errors_db=all_errors["amplitude_errors_db"],
+        phase_errors_rad=all_errors["phase_errors_rad"],
+        rms_amplitude_error_db=all_errors["rms_amplitude_error_db"],
+        rms_phase_error_rad=all_errors["rms_phase_error_rad"],
+        chip_state=chip_state,
+    )
 
     return iter_data
 
