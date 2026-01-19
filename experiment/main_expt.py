@@ -4,7 +4,10 @@ import yaml
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
+import sys
 
+sys.path.append("..")
+from simulation.power_splitting_ratio import PowerSplittingCalculator
 from fiberlabs_edfa import EDFAController, DrivingMode
 from voltage_ctrl import VoltageController
 from luna_ova import LunaOVA
@@ -47,9 +50,8 @@ def run_calibration_iteration(
     df: pd.DataFrame,
     iteration: int,
     chip_state: ChipState,
-    target_amps: np.ndarray,
-    target_phases: np.ndarray,
     config: ExperimentConfig,
+    psr_calculator: PowerSplittingCalculator,
 ) -> IterationData:
     """
     Run a single calibration iteration.
@@ -59,32 +61,24 @@ def run_calibration_iteration(
     """
     print(f"\nIteration {iteration}:")
 
-    # 1. Measure insertion loss spectrum
-    folder_dir: str = ("./measurements",)
-    file_name_base: str = ("freq_response",)
-    # Generate filename with timestamp
-    file_name = f"{file_name_base}_interation_{iteration}"
-
+    # 1. Measure spectrum
     df = measure_spectrum(
-        center_wavelength_nm=config.center_wavelength_nm,
-        wavelength_span_nm=config.wavelength_span_nm,
-        num_averages=config.num_averages,
-        edfa_port=config.edfa_port,
-        edfa_baudrate=config.edfa_baudrate,
-        edfa_output_power_dbm=config.edfa_output_power_dbm,
-        ova_ip=config.ova_address,
-        folder_dir=folder_dir,
-        file_name=file_name,
+        center_wavelength_nm=config.measurement.center_wavelength_nm,
+        wavelength_span_nm=config.measurement.wavelength_span_nm,
+        num_averages=config.measurement.num_averages,
+        edfa_port=config.measurement.edfa_port,
+        edfa_baudrate=config.measurement.edfa_baudrate,
+        edfa_output_power_dbm=config.measurement.edfa_output_power_dbm,
+        ova_ip=config.measurement.ova_address,
     )
 
     # 2. Recover impulse response (using DataFrame wrapper)
     time_ps, h_time = recover_impulse_response_from_df(
         df=df,
         chip_params=config.chip,
-        measurement_config=config.measurement,
-        wavelength_col=config.phase_recovery.wavelength_col,
-        freq_col=config.phase_recovery.frequency_col,
-        insertion_loss_col=config.phase_recovery.insertion_loss_col,
+        wavelength_col=config.measurement.wavelength_col,
+        freq_col=config.measurement.frequency_col,
+        insertion_loss_col=config.measurement.insertion_loss_col,
     )
 
     # 3. Detect taps
@@ -93,18 +87,17 @@ def run_calibration_iteration(
         h_time=h_time,
         chip_params=config.chip,
         n_taps=config.chip.n_taps,
-        use_db_scale=config.tap_detection.use_db_scale,
-        prominence_factor_db=config.tap_detection.prominence_factor_db,
-        height_threshold_db=config.tap_detection.height_threshold_db,
+        use_db_scale=config.measurement.use_db_scale,
+        prominence_factor_db=config.measurement.prominence_factor_db,
+        height_threshold_db=config.measurement.height_threshold_db,
     )
 
     # 4. Calculate errors (only for signal processing taps)
     all_errors = calculate_all_errors(
         measured_taps=tap_coeffs,
         current_state=chip_state,
-        target_power_ratios=config.calibration.target_mzi_power_ratios,  # wrong
-        target_taps=target_amps * np.exp(1j * target_phases),
-        psr_calculator=config.calibration.psr_calculator,
+        target_taps=config.target.get_target_taps(n_taps=config.chip.n_taps),
+        psr_calculator=psr_calculator,
     )
 
     # 5. Apply new voltages and update chip state

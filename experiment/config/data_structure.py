@@ -6,9 +6,13 @@ Compatible with YAML serialization.
 """
 
 from dataclasses import dataclass, field
+import sys
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 import numpy as np
+
+sys.path.append("..")
+from simulation.power_splitting_ratio import PowerSplittingCalculator
 
 
 @dataclass
@@ -226,10 +230,17 @@ class MeasurementConfig:
     integration_time_s: float = 0.1
     num_averages: int = 1
 
+    # Column names in measurement CSV
+    wavelength_col: str = "wl_axis"
+    frequency_col: str = "f_axis"
+    insertion_loss_col: str = "IL"
 
-@dataclass
-class TapDetectionConfig:
-    """Configuration for tap detection from impulse response."""
+    # Hilbert transform parameters
+    add_noise_floor_db: float = -120.0  # Add small offset to avoid log(0)
+
+    # Validation
+    check_minimum_phase: bool = True  # Verify minimum phase condition
+    reference_tap_margin_db: float = 3.0  # Min margin for ref tap
 
     # Peak detection method
     use_db_scale: bool = True  # Use dB scale for detection
@@ -246,23 +257,6 @@ class TapDetectionConfig:
 
     # Expected number of taps (if None, use chip.n_taps)
     expected_n_taps: Optional[int] = None
-
-
-@dataclass
-class PhaseRecoveryConfig:
-    """Configuration for Kramers-Kronig phase recovery."""
-
-    # Column names in measurement CSV
-    wavelength_col: str = "wl_axis"
-    frequency_col: str = "f_axis"
-    insertion_loss_col: str = "IL"
-
-    # Hilbert transform parameters
-    add_noise_floor_db: float = -120.0  # Add small offset to avoid log(0)
-
-    # Validation
-    check_minimum_phase: bool = True  # Verify minimum phase condition
-    reference_tap_margin_db: float = 3.0  # Min margin for ref tap
 
 
 @dataclass
@@ -398,6 +392,11 @@ class ExperimentConfig:
 
     # Calibration settings
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
+
+    # Power splitting ratio calculator
+    psr_calculator: PowerSplittingCalculator = field(
+        default_factory=PowerSplittingCalculator
+    )
 
     # Output paths
     output_dir: str = "./results/"

@@ -131,7 +131,6 @@ def recover_impulse_response(
 def recover_impulse_response_from_df(
     df: pd.DataFrame,
     chip_params: ChipParameters,
-    measurement_config: MeasurementConfig,
     wavelength_col: str = "wl_axis",
     freq_col: str = "f_axis",
     insertion_loss_col: str = "IL",

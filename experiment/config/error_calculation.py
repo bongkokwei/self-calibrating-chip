@@ -141,7 +141,6 @@ def wrap_phase_error(phase_error: float) -> float:
 def calculate_all_errors(
     measured_taps: np.ndarray,
     current_state: ChipState,
-    target_power_ratios: Dict[str, float],
     target_taps: np.ndarray,
     psr_calculator: PowerSplittingCalculator,
 ) -> Dict:
@@ -151,7 +150,6 @@ def calculate_all_errors(
     Args:
         measured_taps: Measured complex tap coefficients from KK recovery
         current_state: Current chip state
-        target_power_ratios: Target power splitting ratios for MZIs
         target_taps: Target complex tap coefficients for signal processing
         psr_calculator: Power splitting ratio calculator
 
@@ -171,6 +169,9 @@ def calculate_all_errors(
     measured_signal_taps = measured_taps[signal_tap_indices]
     measured_psr = psr_calculator.tap_coeffs_to_power_splitting_ratios(
         measured_signal_taps
+    )
+    target_power_ratios = psr_calculator.tap_coeffs_to_power_splitting_ratios(
+        target_taps
     )
 
     mzi_psr_errors, mzi_phase_errors = calculate_mzi_errors(
