@@ -23,8 +23,8 @@ def measure_spectrum(
     edfa_baudrate: int,
     edfa_output_power_dbm: float,
     ova_ip: Optional[str],
-    folder_dir: str,
-    file_name: str,
+    folder_dir: Optional[str],
+    file_name: Optional[str],
 ) -> pd.DataFrame:
     """
     Measure insertion loss, phase, and other parameters using Luna OVA.
@@ -60,10 +60,6 @@ def measure_spectrum(
     IOError
         If unable to create output directory or write file
     """
-
-    # Create output directory if it doesn't exist
-    output_dir = Path(folder_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Connect to EDFA and perform measurement
     with EDFAController(
@@ -103,9 +99,15 @@ def measure_spectrum(
     # Create DataFrame from all returned data
     df = pd.DataFrame(data)
 
+    # Create output directory if it doesn't exist
+    if folder_dir is not None:
+        output_dir = Path(folder_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
     # Save to CSV
-    output_path = output_dir / f"{file_name}.csv"
-    df.to_csv(output_path, mode="a", index=False)
+    if file_name is not None:
+        output_path = output_dir / f"{file_name}.csv"
+        df.to_csv(output_path, mode="a", index=False)
 
     print(f"Data saved to: {output_path}")
     print(f"Columns saved: {list(df.columns)}")
@@ -115,9 +117,9 @@ def measure_spectrum(
 
 
 def measure_spectrum_with_config(
-    config: MeasurementConfig,
-    folder_dir: str = "./measurements",
-    file_name_base: str = "spectrum_test",
+    measure_config: MeasurementConfig,
+    folder_dir: Optional[str],
+    file_name: Optional[str],
 ) -> pd.DataFrame:
     """
     Convenience function using provided MeasurementConfig.
@@ -137,19 +139,15 @@ def measure_spectrum_with_config(
         Measurement data
     """
 
-    # Generate filename with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    file_name = f"{file_name_base}_{timestamp}"
-
     # Perform measurement using config parameters
     return measure_spectrum(
-        center_wavelength_nm=config.center_wavelength_nm,
-        wavelength_span_nm=config.wavelength_span_nm,
-        num_averages=config.num_averages,
-        edfa_port=config.edfa_port,
-        edfa_baudrate=config.edfa_baudrate,
-        edfa_output_power_dbm=config.edfa_output_power_dbm,
-        ova_ip=config.ova_address,
+        center_wavelength_nm=measure_config.center_wavelength_nm,
+        wavelength_span_nm=measure_config.wavelength_span_nm,
+        num_averages=measure_config.num_averages,
+        edfa_port=measure_config.edfa_port,
+        edfa_baudrate=measure_config.edfa_baudrate,
+        edfa_output_power_dbm=measure_config.edfa_output_power_dbm,
+        ova_ip=measure_config.ova_address,
         folder_dir=folder_dir,
         file_name=file_name,
     )
@@ -166,11 +164,16 @@ if __name__ == "__main__":
         chip_temperature_c=30.0,
     )
 
+    # Generate filename with timestamp
+    file_name_base = "spectrum_test"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_name = f"{file_name_base}_{timestamp}"
+
     # Perform measurement with config
     df = measure_spectrum_with_config(
         config=config,
         folder_dir="./measurements",
-        file_name_base="spectrum_test",
+        file_name=file_name,
     )
 
     # Quick inspection
