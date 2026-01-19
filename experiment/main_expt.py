@@ -45,10 +45,9 @@ def save_config(config: ExperimentConfig, output_dir: str):
 
 
 def run_calibration_iteration(
-    df: pd.DataFrame,
     iteration: int,
     target_taps: Dict[int, complex],
-    mzi_tree: Dict[str, Dict],
+    mzi_tree: Dict[str, Dict],  # TODO: incorporate this into data structures
     chip_state: ChipState,
     config: ExperimentConfig,
 ) -> IterationData:
