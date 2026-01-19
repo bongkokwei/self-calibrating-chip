@@ -198,8 +198,17 @@ class ChipState:
         for mzi_id, mzi in self.mzis.items():
             powers[f"MZI_{mzi_id}"] = mzi.applied_power_watts
         for tap_num, ps in self.phase_shifters.items():
-            powers[f"PS_{tap_num}"] = ps.applied_power_watts
+            powers[tap_num] = ps.applied_power_watts
         return powers
+
+    def get_all_init_phase(self) -> Dict[str, float]:
+        """Get dictionary of all applied powers for monitoring."""
+        init_phase = {}
+        for mzi_id, mzi in self.mzis.items():
+            init_phase[f"MZI_{mzi_id}"] = mzi.phi_init_rad
+        for tap_num, ps in self.phase_shifters.items():
+            init_phase[tap_num] = ps.phi_init_rad
+        return init_phase
 
 
 @dataclass

@@ -208,58 +208,6 @@ def power_splitting_ratios_to_mzi_phases(
     }
 
 
-# ==================== Error Calculations ====================
-
-
-def compute_psr_errors(
-    measured_taps: np.ndarray, target_psr: Dict[str, float], mzi_tree: Dict[str, Dict]
-) -> Dict[str, float]:
-    """
-    Compute power splitting ratio errors.
-
-    Args:
-        measured_taps: Measured tap coefficients
-        target_psr: Target power splitting ratios in dB
-        mzi_tree: MZI tree structure
-
-    Returns:
-        Dict[str, float]: PSR errors in dB (target - measured)
-    """
-    measured_psr = tap_coeffs_to_power_splitting_ratios(measured_taps, mzi_tree)
-
-    return {
-        mzi_id: target_psr[mzi_id] - measured_psr.get(mzi_id, 0.0)
-        for mzi_id in target_psr.keys()
-    }
-
-
-def compute_phase_errors(
-    measured_taps: np.ndarray,
-    target_phases: Dict[int, float],
-    tap_numbers: Tuple[int, ...],
-) -> Dict[int, float]:
-    """
-    Compute phase shifter errors.
-
-    Args:
-        measured_taps: Measured tap coefficients
-        target_phases: Target phases in radians
-        tap_numbers: Tap numbers corresponding to coefficients
-
-    Returns:
-        Dict[int, float]: Phase errors in radians (target - measured), wrapped to [-π, π]
-    """
-    measured_phases = extract_tap_phases(measured_taps, tap_numbers)
-
-    phase_errors = {}
-    for tap_num in target_phases.keys():
-        error = target_phases[tap_num] - measured_phases.get(tap_num, 0.0)
-        # Wrap to [-π, π]
-        phase_errors[tap_num] = np.arctan2(np.sin(error), np.cos(error))
-
-    return phase_errors
-
-
 # ==================== Visualization ====================
 
 
@@ -334,72 +282,6 @@ def print_psr_summary(psr_dict: Dict[str, float], mzi_tree: Dict[str, Dict]):
         )
 
 
-# ==================== Integration with ChipState ====================
-
-
-def update_chip_state_with_psr(
-    chip_state,  # ChipState type
-    target_psr: Dict[str, float],
-) -> None:
-    """
-    Update chip state MZI phases to achieve target PSRs.
-
-    Args:
-        chip_state: ChipState object to update (modified in place)
-        target_psr: Target power splitting ratios in dB
-    """
-    target_phases = power_splitting_ratios_to_mzi_phases(target_psr)
-
-    for mzi_id, target_phase in target_phases.items():
-        if mzi_id in chip_state.mzis:
-            chip_state.mzis[mzi_id].phase_shift_rad = target_phase
-            chip_state.mzis[mzi_id].target_power_ratio_db = target_psr[mzi_id]
-
-
-def update_chip_state_with_phases(
-    chip_state,  # ChipState type
-    target_phases: Dict[int, float],
-) -> None:
-    """
-    Update chip state phase shifter phases.
-
-    Args:
-        chip_state: ChipState object to update (modified in place)
-        target_phases: Target phases in radians, keyed by tap number
-    """
-    for tap_num, target_phase in target_phases.items():
-        if tap_num in chip_state.phase_shifters:
-            chip_state.phase_shifters[tap_num].phase_shift_rad = target_phase
-            chip_state.phase_shifters[tap_num].target_phase_rad = target_phase
-
-
-def compute_target_state_from_filter(
-    chip_state,  # ChipState type
-    target_filter,  # TargetFilter type
-    mzi_tree: Dict[str, Dict],
-) -> None:
-    """
-    Compute and set complete target state from filter specification.
-
-    Args:
-        chip_state: ChipState object to update (modified in place)
-        target_filter: TargetFilter specification
-        mzi_tree: MZI tree structure
-    """
-    # Get target tap coefficients
-    target_taps = target_filter.get_target_taps(chip_state.chip_params.n_signal_taps)
-
-    # Compute target PSRs and phases
-    target_psr = tap_coeffs_to_power_splitting_ratios(target_taps, mzi_tree)
-    target_phases = extract_tap_phases(
-        target_taps, chip_state.chip_params.signal_tap_numbers
-    )
-
-    # Update chip state
-    update_chip_state_with_psr(chip_state, target_psr)
-    update_chip_state_with_phases(chip_state, target_phases)
-
-
 # ==================== Convenience Functions ====================
 
 
@@ -412,7 +294,7 @@ def create_sinc_filter_taps(
     Args:
         n_taps: Number of filter taps (must be power of 2)
         phase_step: Phase step between taps in radians
-        normalize: Whether to normalize amplitudes to 0.5 max
+        normalize: Whether to normalise amplitudes to 0.5 max
 
     Returns:
         Complex tap coefficients
