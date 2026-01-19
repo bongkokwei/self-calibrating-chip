@@ -34,8 +34,8 @@ from .measure_spectrum import (
     measure_spectrum_with_config,
 )
 from .recover_tap_coefficients import (
-    recover_tap_coefficients,
-    recover_tap_coefficients_from_dataframe,
+    recover_impulse_response,
+    recover_impulse_response_from_df,
     detect_taps,
 )
 
@@ -65,8 +65,8 @@ __all__ = [
     # Helper functions for YAML compatibility
     "measure_spectrum",
     "measure_spectrum_with_config",
-    "recover_tap_coefficients",
-    "recover_tap_coefficients_from_dataframe",
+    "recover_impulse_response",
+    "recover_impulse_response_from_df",
     "detect_taps",
     "calculate_mzi_errors",
     "calculate_phase_shifter_errors",
