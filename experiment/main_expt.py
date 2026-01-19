@@ -17,7 +17,7 @@ from config import (
     config_from_dict,
     config_to_dict,
     measure_spectrum,
-    recover_tap_coefficients_from_dataframe,
+    recover_impulse_response_from_df,
     detect_taps,
     calculate_all_errors,
 )
@@ -78,7 +78,7 @@ def run_calibration_iteration(
     )
 
     # 2. Recover impulse response (using DataFrame wrapper)
-    time_ps, h_time = recover_tap_coefficients_from_dataframe(
+    time_ps, h_time = recover_impulse_response_from_df(
         df=df,
         chip_params=config.chip,
         measurement_config=config.measurement,

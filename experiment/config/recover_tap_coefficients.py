@@ -50,7 +50,7 @@ def kramers_kronig_phase_recovery(insertion_loss_db: np.ndarray) -> np.ndarray:
     return phase_recovered_rad
 
 
-def recover_tap_coefficients(
+def recover_impulse_response(
     wavelength_nm: np.ndarray,
     freq_hz: np.ndarray,
     insertion_loss_db: np.ndarray,
@@ -128,7 +128,7 @@ def recover_tap_coefficients(
     return time_ps, h_time_shifted
 
 
-def recover_tap_coefficients_from_dataframe(
+def recover_impulse_response_from_df(
     df: pd.DataFrame,
     chip_params: ChipParameters,
     measurement_config: MeasurementConfig,
@@ -171,7 +171,7 @@ def recover_tap_coefficients_from_dataframe(
     insertion_loss_db = df[insertion_loss_col].values
 
     # Call core function
-    return recover_tap_coefficients(
+    return recover_impulse_response(
         wavelength_nm=wavelength_nm,
         freq_hz=freq_hz,
         insertion_loss_db=insertion_loss_db,
@@ -389,7 +389,7 @@ def example_usage():
     print("=" * 70 + "\n")
 
     # Step 1: Recover impulse response (using DataFrame wrapper)
-    time_ps, h_time = recover_tap_coefficients_from_dataframe(
+    time_ps, h_time = recover_impulse_response_from_df(
         df=df,
         chip_params=chip_params,
         measurement_config=measurement_config,
