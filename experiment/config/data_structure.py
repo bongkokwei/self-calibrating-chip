@@ -11,9 +11,6 @@ from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 import numpy as np
 
-sys.path.append("..")
-from simulation.power_splitting_ratio import PowerSplittingCalculator
-
 
 @dataclass
 class ChipParameters:
@@ -393,10 +390,10 @@ class ExperimentConfig:
     # Calibration settings
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
 
-    # Power splitting ratio calculator
-    psr_calculator: PowerSplittingCalculator = field(
-        default_factory=PowerSplittingCalculator
-    )
+    # # Power splitting ratio calculator
+    # psr_calculator: PowerSplittingCalculator = field(
+    #     default_factory=PowerSplittingCalculator
+    # )
 
     # Output paths
     output_dir: str = "./results/"
