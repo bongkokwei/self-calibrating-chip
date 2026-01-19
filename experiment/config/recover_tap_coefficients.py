@@ -13,7 +13,7 @@ from typing import Tuple, Optional
 import matplotlib.pyplot as plt
 
 # Import data structures
-from data_structure import ChipParameters, MeasurementConfig, IterationData
+from data_structure import ChipParameters, MeasurementConfig
 
 
 def kramers_kronig_phase_recovery(insertion_loss_db: np.ndarray) -> np.ndarray:
