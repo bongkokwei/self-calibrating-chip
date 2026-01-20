@@ -7,6 +7,8 @@ from typing import Dict, Optional
 import sys
 from pprint import pprint
 
+from voltage_ctrl import VoltageController
+
 from config import (
     ExperimentConfig,
     ChipState,
@@ -37,11 +39,11 @@ def save_config(config: ExperimentConfig, output_dir: str):
 
 
 def main():
-
+    channels = [1, 2, 3, 4, 5]
+    voltages = [2.5, 3.0, 1.5, 2.0, 3.5]
     config = ExperimentConfig()
-    save_config(config, "")
-    pprint(config)
-
+    with VoltageController(com_port="COM3", baud_rate=9600) as v_ctrl:
+        v_ctrl.set_voltages(channels, voltages, v_max=10.0)
     return 0
 
 
