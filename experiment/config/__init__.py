@@ -44,7 +44,7 @@ from .error_calculation import (
     calculate_all_errors,
 )
 
-from power_splitting_ratio import (
+from .power_splitting_ratio import (
     build_mzi_tree_structure,
     tap_coeffs_to_power_splitting_ratios,
     extract_tap_phases,
@@ -53,8 +53,8 @@ from power_splitting_ratio import (
     power_splitting_ratios_to_mzi_phases,
 )
 
-from voltage_adjustment import (
-    update_powers,
+from .voltage_adjustment import (
+    calculate_power_adjustments,
     apply_voltages_to_hardware,
 )
 
@@ -88,6 +88,6 @@ __all__ = [
     "power_splitting_ratio_to_mzi_phase",
     "mzi_phase_to_power_splitting_ratio",
     "power_splitting_ratios_to_mzi_phases",
-    "update_powers",
+    "calculate_power_adjustments",
     "apply_voltages_to_hardware",
 ]

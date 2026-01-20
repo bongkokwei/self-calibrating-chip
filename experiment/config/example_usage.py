@@ -5,7 +5,7 @@ Example of how to use the data structures.
 """
 
 import yaml
-from data_structure import (
+from .data_structure import (
     ExperimentConfig,
     ChipParameters,
     TargetFilter,

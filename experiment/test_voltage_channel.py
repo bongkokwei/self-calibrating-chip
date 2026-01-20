@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional
 import sys
+from pprint import pprint
 
 from config import (
     ExperimentConfig,
@@ -22,10 +23,24 @@ from config import (
 )
 
 
+def save_config(config: ExperimentConfig, output_dir: str):
+    """Save configuration to output directory."""
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    config_dict = config_to_dict(config)
+    output_path = Path(output_dir) / "experiment_config.yaml"
+
+    with open(output_path, "w") as f:
+        yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
+
+    print(f"Configuration saved to {output_path}")
+
+
 def main():
 
     config = ExperimentConfig()
-    print(config)
+    save_config(config, "")
+    pprint(config)
 
     return 0
 

@@ -12,7 +12,7 @@ from typing import Optional
 
 from fiberlabs_edfa import EDFAController, DrivingMode
 from luna_ova import LunaOVA
-from data_structure import MeasurementConfig, ChipParameters
+from .data_structure import MeasurementConfig, ChipParameters
 
 
 def measure_spectrum(
