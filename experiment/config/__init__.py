@@ -53,6 +53,10 @@ from power_splitting_ratio import (
     power_splitting_ratios_to_mzi_phases,
 )
 
+from voltage_adjustment import (
+    update_powers,
+    apply_voltages_to_hardware,
+)
 
 __all__ = [
     # Data structures
@@ -84,4 +88,6 @@ __all__ = [
     "power_splitting_ratio_to_mzi_phase",
     "mzi_phase_to_power_splitting_ratio",
     "power_splitting_ratios_to_mzi_phases",
+    "update_powers",
+    "apply_voltages_to_hardware",
 ]

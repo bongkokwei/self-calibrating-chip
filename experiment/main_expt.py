@@ -3,12 +3,8 @@ import numpy as np
 import yaml
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Optional
 import sys
-
-from fiberlabs_edfa import EDFAController, DrivingMode
-from voltage_ctrl import VoltageController
-from luna_ova import LunaOVA
 
 from config import (
     ExperimentConfig,
@@ -21,6 +17,8 @@ from config import (
     recover_impulse_response_from_df,
     detect_taps,
     calculate_all_errors,
+    calculate_power_adjustments,
+    apply_voltages_to_hardware,
 )
 
 
@@ -50,6 +48,7 @@ def run_calibration_iteration(
     mzi_tree: Dict[str, Dict],  # TODO: incorporate this into data structures
     chip_state: ChipState,
     config: ExperimentConfig,
+    prev_iter_data: Optional[IterationData] = None,
 ) -> IterationData:
     """
     Run a single calibration iteration.
@@ -101,9 +100,47 @@ def run_calibration_iteration(
         ps_phi_init=chip_state.get_all_init_phase(),
     )
 
-    # 5. Apply new voltages and update chip state
+    # 5. Calculate power adjustments
+    (
+        new_mzi_powers,
+        new_ps_powers,
+        phi_init_adjustments,
+    ) = calculate_power_adjustments(
+        mzi_phase_errors=all_errors["mzi_phase_errors"],
+        ps_phase_errors=all_errors["ps_phase_errors"],
+        mzi_psr_errors=all_errors["mzi_psr_errors"],
+        prev_mzi_psr_errors=(
+            prev_iter_data.mzi_psr_errors_db if prev_iter_data else None
+        ),
+        current_mzi_powers={
+            mzi_id: mzi.applied_power_watts for mzi_id, mzi in chip_state.mzis.items()
+        },
+        current_ps_powers={
+            tap: ps.applied_power_watts for tap, ps in chip_state.phase_shifters.items()
+        },
+        mzi_phi_init={
+            mzi_id: mzi.phi_init_rad for mzi_id, mzi in chip_state.mzis.items()
+        },
+        ps_phi_init={
+            tap: ps.phi_init_rad for tap, ps in chip_state.phase_shifters.items()
+        },
+        power_for_2pi=config.chip.p2pi_watts,
+        learning_rate=config.calibration.learning_rate,
+        min_power=config.calibration.min_power_watts,
+        max_power=config.calibration.max_power_watts,
+    )
 
-    # # Create iteration data
+    # 6. Update chip state (in-place)
+    chip_state.update_powers(
+        new_mzi_powers=new_mzi_powers,
+        new_ps_powers=new_ps_powers,
+        phi_init_adjustments=phi_init_adjustments,
+    )
+
+    # 7. Apply voltages to hardware
+    apply_voltages_to_hardware(chip_state, config)
+
+    # Create iteration data
     iter_data = IterationData(
         iteration=iteration,
         wavelengths_nm=df[config.measurement.wavelength_col],
@@ -114,7 +151,7 @@ def run_calibration_iteration(
         phase_errors_rad=all_errors["phase_errors_rad"],
         rms_amplitude_error_db=all_errors["rms_amplitude_error_db"],
         rms_phase_error_rad=all_errors["rms_phase_error_rad"],
-        chip_state=chip_state,
+        chip_state=chip_state.copy(),
     )
 
     return iter_data

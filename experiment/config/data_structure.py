@@ -13,6 +13,152 @@ import numpy as np
 
 
 @dataclass
+class VoltageChannelMapping:
+    """
+    Maps voltage controller hardware channels to MZI/phase shifter IDs.
+
+    This mapping depends on your physical chip layout and how the voltage
+    controller is wired to the chip's wire bonds.
+    """
+
+    # MZI channel assignments
+    mzi_channels: Dict[str, int] = field(default_factory=dict)
+
+    # Phase shifter channel assignments
+    ps_channels: Dict[int, int] = field(default_factory=dict)
+
+    # Reference and unused tap channels (if controlled)
+    reference_channel: Optional[int] = None
+    unused_channels: Dict[int, int] = field(default_factory=dict)
+
+    def __post_init__(self):
+        """Initialize default channel mapping if empty."""
+        if not self.mzi_channels:
+            # Example mapping - adjust based on your actual wiring
+            self.mzi_channels = {
+                "1-1": 4,
+                "2-1": 18,
+                "2-2": 2,
+                "3-1": 17,
+                "3-2": 19,
+                "3-3": 3,
+                "3-4": 1,
+                "4-1": 23,
+                "4-2": 22,
+                "4-3": 21,
+                "4-4": 20,
+                "4-5": 5,
+                "4-6": 6,
+                "4-7": 7,
+                "4-8": 8,
+            }
+
+        if not self.ps_channels:
+            # Signal processing taps 9-16 mapped to channels 7-14
+            self.ps_channels = {
+                1: 24,
+                2: 25,
+                3: 26,
+                4: 27,
+                5: 28,
+                6: 29,
+                7: 30,
+                8: 31,
+                9: 16,
+                10: 15,
+                11: 14,
+                12: 13,
+                13: 12,
+                14: 11,
+                15: 10,
+                16: 9,
+            }
+
+    def get_channel(self, device_id: str) -> int:
+        """
+        Get voltage controller channel for a device.
+
+        Args:
+            device_id: Device identifier (e.g., "MZI_2-1", "PS_9", "REF", "UNUSED_3")
+
+        Returns:
+            int: Channel number for voltage controller
+
+        Raises:
+            ValueError: If device_id not found in mapping
+        """
+        if device_id.startswith("MZI_"):
+            mzi_id = device_id[4:]  # Remove "MZI_" prefix
+            if mzi_id not in self.mzi_channels:
+                raise ValueError(f"MZI '{mzi_id}' not in channel mapping")
+            return self.mzi_channels[mzi_id]
+
+        elif device_id.startswith("PS_"):
+            tap_num = int(device_id[3:])  # Remove "PS_" prefix
+            if tap_num not in self.ps_channels:
+                raise ValueError(f"Phase shifter tap {tap_num} not in channel mapping")
+            return self.ps_channels[tap_num]
+
+        elif device_id == "REF":
+            if self.reference_channel is None:
+                raise ValueError("Reference channel not configured")
+            return self.reference_channel
+
+        elif device_id.startswith("UNUSED_"):
+            tap_num = int(device_id[7:])  # Remove "UNUSED_" prefix
+            if tap_num not in self.unused_channels:
+                raise ValueError(f"Unused tap {tap_num} not in channel mapping")
+            return self.unused_channels[tap_num]
+
+        else:
+            raise ValueError(f"Unknown device ID format: {device_id}")
+
+    def get_all_channels(self) -> Dict[str, int]:
+        """Get complete mapping of all devices to channels."""
+        all_channels = {}
+
+        # MZIs
+        for mzi_id, channel in self.mzi_channels.items():
+            all_channels[f"MZI_{mzi_id}"] = channel
+
+        # Phase shifters
+        for tap_num, channel in self.ps_channels.items():
+            all_channels[f"PS_{tap_num}"] = channel
+
+        # Reference
+        if self.reference_channel is not None:
+            all_channels["REF"] = self.reference_channel
+
+        # Unused
+        for tap_num, channel in self.unused_channels.items():
+            all_channels[f"UNUSED_{tap_num}"] = channel
+
+        return all_channels
+
+    def validate_no_duplicates(self) -> bool:
+        """
+        Verify no channel is assigned to multiple devices.
+
+        Returns:
+            bool: True if mapping is valid
+
+        Raises:
+            ValueError: If duplicate channel assignments found
+        """
+        all_channels = list(self.mzi_channels.values())
+        all_channels.extend(self.ps_channels.values())
+        all_channels.extend(self.unused_channels.values())
+        if self.reference_channel is not None:
+            all_channels.append(self.reference_channel)
+
+        if len(all_channels) != len(set(all_channels)):
+            duplicates = [ch for ch in all_channels if all_channels.count(ch) > 1]
+            raise ValueError(f"Duplicate channel assignments: {set(duplicates)}")
+
+        return True
+
+
+@dataclass
 class ChipParameters:
     """Physical parameters of the 16-tap FIR chip."""
 
@@ -43,6 +189,11 @@ class ChipParameters:
 
     # Thermal parameters
     thermal_time_constant_s: float = 1e-3  # Time for thermal equilibrium
+
+    # Voltage channel mapping
+    channel_mapping: VoltageChannelMapping = field(
+        default_factory=VoltageChannelMapping
+    )
 
     # Derived properties (computed from above)
     @property
@@ -209,6 +360,83 @@ class ChipState:
         for tap_num, ps in self.phase_shifters.items():
             init_phase[tap_num] = ps.phi_init_rad
         return init_phase
+
+    def get_device_channel(self, device_id: str) -> int:
+        """Convenience method to access channel mapping."""
+        return self.chip_params.channel_mapping.get_channel(device_id)
+
+    def update_powers(
+        self,
+        new_mzi_powers: Dict[str, float],
+        new_ps_powers: Dict[int, float],
+        phi_init_adjustments: Optional[Dict[str, float]] = None,
+    ) -> None:
+        """
+        Update applied powers and initial phase offsets for MZIs and phase shifters.
+
+        This method updates the chip state in-place based on the output from
+        calculate_power_adjustments(). It also recalculates the phase shifts
+        based on the new powers using the relation:
+
+            φ = (P / P_2π) × 2π
+
+        Args:
+            new_mzi_powers: New power settings for MZIs in watts, e.g. {"2-1": 0.35}
+            new_ps_powers: New power settings for phase shifters in watts, e.g. {9: 0.42}
+            phi_init_adjustments: Initial phase corrections to apply (typically ±π),
+                                 e.g. {"2-1": π}. If None, no adjustments are made.
+
+        """
+
+        # Update MZI states
+        for mzi_id, new_power in new_mzi_powers.items():
+            if mzi_id not in self.mzis:
+                raise ValueError(f"MZI '{mzi_id}' not found in chip state")
+
+            mzi = self.mzis[mzi_id]
+
+            # Apply phi_init adjustment if provided (convergence rule a)
+            if phi_init_adjustments and mzi_id in phi_init_adjustments:
+                mzi.phi_init_rad += phi_init_adjustments[mzi_id]
+                # Wrap to [-π, π]
+                mzi.phi_init_rad = np.arctan2(
+                    np.sin(mzi.phi_init_rad), np.cos(mzi.phi_init_rad)
+                )
+
+            # Update power
+            mzi.applied_power_watts = new_power
+
+            # Recalculate phase shift: φ = (P / P_2π) × 2π
+            mzi.phase_shift_rad = (new_power / mzi.p2pi_watts) * 2 * np.pi
+
+            # Wrap phase to [-π, π] (handled by MZIState.__post_init__)
+            mzi.phase_shift_rad = np.arctan2(
+                np.sin(mzi.phase_shift_rad), np.cos(mzi.phase_shift_rad)
+            )
+
+        # Update phase shifter states
+        for tap_num, new_power in new_ps_powers.items():
+            if tap_num not in self.phase_shifters:
+                raise ValueError(f"Phase shifter tap {tap_num} not found in chip state")
+
+            ps = self.phase_shifters[tap_num]
+
+            # Update power
+            ps.applied_power_watts = new_power
+
+            # Recalculate phase shift: φ = (P / P_2π) × 2π
+            ps.phase_shift_rad = (new_power / ps.p2pi_watts) * 2 * np.pi
+
+            # Wrap phase to [-π, π]
+            ps.phase_shift_rad = np.arctan2(
+                np.sin(ps.phase_shift_rad), np.cos(ps.phase_shift_rad)
+            )
+
+    def copy(self) -> "ChipState":
+        """Create a deep copy for history tracking."""
+        import copy
+
+        return copy.deepcopy(self)
 
 
 @dataclass
