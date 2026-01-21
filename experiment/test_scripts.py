@@ -1,5 +1,5 @@
 """
-Test voltage channel configuration
+Test scripts configuration
 """
 
 import numpy as np
@@ -46,9 +46,7 @@ def test_voltage_control():
     return 0
 
 
-def test_measure_spectrum():
-
-    config = ExperimentConfig(measurement=MeasurementConfig(wavelength_span_nm=5.0))
+def test_measure_spectrum(config: ExperimentConfig):
 
     # Generate filename with timestamp
     file_name_base = "spectrum_test"
@@ -98,7 +96,7 @@ def test_measure_spectrum():
     plt.close(fig)
 
 
-def test_tap_recovery():
+def test_tap_recovery(config: ExperimentConfig):
     """
     Example usage with data structures from data_structure.py
     """
@@ -123,21 +121,21 @@ def test_tap_recovery():
     # Step 1: Recover impulse response (using DataFrame wrapper)
     time_ps, h_time = recover_impulse_response_from_df(
         df=df,
-        fsr_hz=160e9,
-        wavelength_col="wl_axis",
-        freq_col="f_axis",
-        insertion_loss_col="IL",
+        fsr_hz=config.chip.fsr_hz,
+        wavelength_col=config.measurement.wavelength_col,
+        freq_col=config.measurement.freq_col,
+        insertion_loss_col=config.measurement.insertion_loss_col,
     )
 
     # Step 2: Detect taps
     tap_times, tap_coeffs = detect_taps(
         time_ps=time_ps,
         h_time=h_time,
-        fsr_hz=160e9,
-        delay_step_s=1 / 160e9,
-        n_taps=16,
-        prominence_factor_db=0.3,
-        height_threshold_db=-60.0,
+        fsr_hz=config.chip.fsr_hz,
+        delay_step_s=1 / config.chip.fsr_hz,
+        n_taps=config.chip.num_taps,
+        prominence_factor_db=config.measurement.prominence_factor_db,
+        height_threshold_db=config.measurement.height_threshold_db,
     )
 
     # Step 3: Plot results
@@ -158,6 +156,14 @@ def test_tap_recovery():
 
 
 if __name__ == "__main__":
+
+    config = ExperimentConfig(
+        measurement=MeasurementConfig(
+            wavelength_span_nm=5.0,
+            num_averages=3,
+        ),
+    )
+
     # test_voltage_control()
-    # test_measure_spectrum()
-    test_tap_recovery()
+    # test_measure_spectrum(config)
+    test_tap_recovery(config)
