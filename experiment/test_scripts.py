@@ -103,7 +103,7 @@ def test_tap_recovery(config: ExperimentConfig):
     from pathlib import Path
 
     # Load measured data
-    data_file = "measurements/spectrum_test_20260121_143607.csv"
+    data_file = "measurements/spectrum_test_20260121_154125.csv"
 
     try:
         df = pd.read_csv(data_file, comment="#")
