@@ -3,7 +3,7 @@ Test voltage channel configuration
 """
 
 import numpy as np
-from photonic_fir import ExperimentConfig
+from photonic_fir import ExperimentConfig, MeasurementConfig
 from voltage_ctrl import VoltageController
 from photonic_fir import measure_spectrum
 
@@ -42,7 +42,7 @@ def test_measure_spectrum():
     from datetime import datetime
     import pandas as pd
 
-    config = ExperimentConfig()
+    config = ExperimentConfig(measurement=MeasurementConfig(wavelength_span_nm=5.0))
 
     # Generate filename with timestamp
     file_name_base = "spectrum_test"
@@ -56,7 +56,7 @@ def test_measure_spectrum():
         edfa_port=config.measurement.edfa_port,
         edfa_baudrate=config.measurement.edfa_baudrate,
         edfa_output_power_dbm=config.measurement.edfa_output_power_dbm,
-        ova_ip=config.measurement.ova_ip,
+        ova_ip=config.measurement.ova_address,
         folder_dir="./measurements",
         file_name=file_name,
     )
@@ -85,7 +85,7 @@ def test_measure_spectrum():
 
     # Generate timestamp for plot filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    fig_filename = f"./measurements/config_based_test_plot_{timestamp}.png"
+    fig_filename = f"./measurements/{file_name}.png"
     fig.savefig(fig_filename, dpi=300, bbox_inches="tight")
     print(f"\nFigure saved to: {fig_filename}")
 
@@ -93,5 +93,5 @@ def test_measure_spectrum():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
     test_measure_spectrum()

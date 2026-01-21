@@ -60,9 +60,8 @@ from .processing.tap_recovery import (
 try:
     from .hardware.measurement import (
         measure_spectrum,
-        measure_spectrum_with_config,
     )
-    from .hardware.voltage_control import (
+    from .hardware.voltage_adjustment import (
         calculate_power_adjustments,
         apply_voltages_to_hardware,
     )

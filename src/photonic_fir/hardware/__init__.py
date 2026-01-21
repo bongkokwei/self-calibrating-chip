@@ -15,10 +15,7 @@ Submodules:
 """
 
 try:
-    from .measurement import (
-        measure_spectrum,
-        measure_spectrum_with_config,
-    )
+    from .measurement import measure_spectrum
 
     from .voltage_adjustment import (
         calculate_power_adjustments,
@@ -39,13 +36,11 @@ except ImportError as e:
         )
 
     measure_spectrum = _missing_hardware
-    measure_spectrum_with_config = _missing_hardware
     calculate_power_adjustments = _missing_hardware
     apply_voltages_to_hardware = _missing_hardware
 
 __all__ = [
     "measure_spectrum",
-    "measure_spectrum_with_config",
     "calculate_power_adjustments",
     "apply_voltages_to_hardware",
 ]
