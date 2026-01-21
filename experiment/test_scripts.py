@@ -103,7 +103,7 @@ def test_tap_recovery(config: ExperimentConfig):
     from pathlib import Path
 
     # Load measured data
-    data_file = "measurements/spectrum_test_20260121_150848.csv"
+    data_file = "measurements/spectrum_test_20260121_143607.csv"
 
     try:
         df = pd.read_csv(data_file, comment="#")
@@ -123,7 +123,7 @@ def test_tap_recovery(config: ExperimentConfig):
         df=df,
         fsr_hz=config.chip.fsr_hz,
         wavelength_col=config.measurement.wavelength_col,
-        freq_col=config.measurement.freq_col,
+        freq_col=config.measurement.frequency_col,
         insertion_loss_col=config.measurement.insertion_loss_col,
     )
 
@@ -133,7 +133,7 @@ def test_tap_recovery(config: ExperimentConfig):
         h_time=h_time,
         fsr_hz=config.chip.fsr_hz,
         delay_step_s=1 / config.chip.fsr_hz,
-        n_taps=config.chip.num_taps,
+        n_taps=config.chip.n_taps,
         prominence_factor_db=config.measurement.prominence_factor_db,
         height_threshold_db=config.measurement.height_threshold_db,
     )
@@ -159,7 +159,7 @@ if __name__ == "__main__":
 
     config = ExperimentConfig(
         measurement=MeasurementConfig(
-            wavelength_span_nm=5.0,
+            wavelength_span_nm=86.0,
             num_averages=3,
         ),
     )
