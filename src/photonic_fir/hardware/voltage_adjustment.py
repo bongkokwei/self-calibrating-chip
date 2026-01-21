@@ -1,7 +1,7 @@
 from typing import Dict, Optional, Tuple
 import numpy as np
 
-from .data_structure import (
+from ..core.data_structure import (
     ChipState,
     MZIState,
     PhaseShifterState,

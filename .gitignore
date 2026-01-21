@@ -52,5 +52,5 @@ Thumbs.db
 *_OLD.*
 rename_plan.txt
 references/
-
+_deprecated
 .gitignore

@@ -12,9 +12,6 @@ from scipy.signal import find_peaks, hilbert
 from typing import Tuple, Optional
 import matplotlib.pyplot as plt
 
-# Import data structures
-from .data_structure import ChipParameters, MeasurementConfig
-
 
 def kramers_kronig_phase_recovery(insertion_loss_db: np.ndarray) -> np.ndarray:
     """
@@ -130,7 +127,7 @@ def recover_impulse_response(
 
 def recover_impulse_response_from_df(
     df: pd.DataFrame,
-    chip_params: ChipParameters,
+    fsr_hz: float,
     wavelength_col: str = "wl_axis",
     freq_col: str = "f_axis",
     insertion_loss_col: str = "IL",
@@ -145,10 +142,8 @@ def recover_impulse_response_from_df(
     ----------
     df : pd.DataFrame
         DataFrame containing measurement data
-    chip_params : ChipParameters
-        Physical parameters of the chip
-    measurement_config : MeasurementConfig
-        Measurement configuration
+    fsr_hz : float
+        Free spectral range in Hz
     wavelength_col : str
         Column name for wavelength data (nm)
     freq_col : str
@@ -174,19 +169,19 @@ def recover_impulse_response_from_df(
         wavelength_nm=wavelength_nm,
         freq_hz=freq_hz,
         insertion_loss_db=insertion_loss_db,
-        fsr_hz=chip_params.fsr_hz,
+        fsr_hz=fsr_hz,
     )
 
 
 def detect_taps(
     time_ps: np.ndarray,
     h_time: np.ndarray,
-    chip_params: ChipParameters,
-    n_taps: Optional[int] = None,
+    fsr_hz: float,
+    delay_step_s: float,
+    n_taps: Optional[int] = 16,
     prominence_factor_db: float = 3.0,
     min_distance_ps: Optional[float] = None,
     height_threshold_db: float = -40.0,
-    use_db_scale: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Detect tap positions and coefficients from impulse response.
@@ -222,35 +217,27 @@ def detect_taps(
     max_magnitude = np.max(h_magnitude)
 
     # Convert to dB scale if requested
-    if use_db_scale:
-        print("\n=== Using dB scale for peak detection ===")
-        h_magnitude_normalised = h_magnitude / max_magnitude
-        h_magnitude_db = 20 * np.log10(h_magnitude_normalised + 1e-12)
-        detection_signal = h_magnitude_db
-        height_min = height_threshold_db
-        prominence_min = prominence_factor_db
+    print("\n=== Using dB scale for peak detection ===")
+    h_magnitude_normalised = h_magnitude / max_magnitude
+    h_magnitude_db = 20 * np.log10(h_magnitude_normalised + 1e-12)
+    detection_signal = h_magnitude_db
+    height_min = height_threshold_db
+    prominence_min = prominence_factor_db
 
-        print(f"Maximum magnitude (linear): {max_magnitude:.6f}")
-        print(f"Height threshold: {height_threshold_db:.1f} dB")
-        print(f"Prominence threshold: {prominence_factor_db:.1f} dB")
-    else:
-        print("\n=== Using linear scale for peak detection ===")
-        detection_signal = h_magnitude
-        height_threshold_linear = 0.05
-        prominence_factor_linear = 0.1
-        height_min = max_magnitude * height_threshold_linear
-        prominence_min = max_magnitude * prominence_factor_linear
+    print(f"Maximum magnitude (linear): {max_magnitude:.6f}")
+    print(f"Height threshold: {height_threshold_db:.1f} dB")
+    print(f"Prominence threshold: {prominence_factor_db:.1f} dB")
 
     # Calculate time resolution
     dt_ps = np.mean(np.diff(time_ps))
 
     # Determine minimum distance between peaks
     if min_distance_ps is None:
-        tap_spacing_s = chip_params.delay_step_s
+        tap_spacing_s = delay_step_s
         tap_spacing_ps = tap_spacing_s * 1e12
         min_distance_ps = tap_spacing_ps * 0.8
 
-        print(f"\nFSR: {chip_params.fsr_hz/1e9:.2f} GHz")
+        print(f"\nFSR: {fsr_hz/1e9:.2f} GHz")
         print(f"Expected tap spacing: {tap_spacing_ps:.3f} ps")
         print(f"Using min_distance: {min_distance_ps:.3f} ps")
 
@@ -270,7 +257,7 @@ def detect_taps(
 
     # Filter to N largest if specified
     if n_taps is None:
-        n_taps = chip_params.n_taps
+        n_taps = n_taps
 
     if len(peak_indices) > n_taps:
         print(f"Filtering to keep only the {n_taps} largest peaks...")
@@ -331,18 +318,34 @@ def plot_impulse_response(
     fig, ax = plt.subplots(1, 1, figsize=(12, 6))
 
     # Plot impulse response
-    ax.plot(time_ps, h_magnitude, "b-", linewidth=1.5, label="Impulse Response")
+    ax.plot(
+        time_ps,
+        10 * np.log10(h_magnitude) + 1e-12,
+        "b-",
+        linewidth=1.5,
+        label="Impulse Response",
+    )
 
     # Mark detected taps if provided
     if tap_times_ps is not None and tap_coeffs is not None:
         tap_magnitudes = np.abs(tap_coeffs)
-        ax.plot(tap_times_ps, tap_magnitudes, "ro", markersize=8, label="Detected Taps")
+        ax.plot(
+            tap_times_ps,
+            10 * np.log10(tap_magnitudes),
+            "ro",
+            markersize=8,
+            label="Detected Taps",
+        )
 
     ax.set_xlabel("Time (ps)", fontsize=12)
     ax.set_ylabel("Magnitude", fontsize=12)
     ax.set_title("Impulse Response (Kramers-Kronig Phase Recovery)", fontsize=14)
     ax.legend(fontsize=11)
     ax.grid(True, alpha=0.3)
+    ax.set_ylim(bottom=-40)
+    ax.set_xlim(
+        left=0, right=16 * (1 / 160e9) * 1e12
+    )  # Example: 16 taps at 160 GHz FSR
 
     plt.tight_layout()
     plt.show()
@@ -353,23 +356,6 @@ def example_usage():
     Example usage with data structures from data_structure.py
     """
     from pathlib import Path
-
-    # Create chip parameters
-    chip_params = ChipParameters(
-        n_taps=16,
-        n_signal_taps=8,
-        reference_tap_idx=0,
-        fsr_hz=160e9,
-        delay_step_s=6.25e-12,
-    )
-
-    # Create measurement config
-    measurement_config = MeasurementConfig(
-        center_wavelength_nm=1550.0,
-        wavelength_span_nm=1.0,
-        n_points=1000,
-        chip_temperature_c=30.0,
-    )
 
     # Load measured data
     data_file = "measurements/spectrum_test_20260115_114642.csv"
@@ -390,8 +376,7 @@ def example_usage():
     # Step 1: Recover impulse response (using DataFrame wrapper)
     time_ps, h_time = recover_impulse_response_from_df(
         df=df,
-        chip_params=chip_params,
-        measurement_config=measurement_config,
+        fsr_hz=160e9,
         wavelength_col="wl_axis",
         freq_col="f_axis",
         insertion_loss_col="IL",
@@ -401,9 +386,9 @@ def example_usage():
     tap_times, tap_coeffs = detect_taps(
         time_ps=time_ps,
         h_time=h_time,
-        chip_params=chip_params,
+        fsr_hz=160e9,
+        delay_step_s=1 / 160e9,
         n_taps=16,
-        use_db_scale=True,
         prominence_factor_db=0.3,
         height_threshold_db=-60.0,
     )

@@ -12,7 +12,6 @@ from typing import Optional
 
 from fiberlabs_edfa import EDFAController, DrivingMode
 from luna_ova import LunaOVA
-from .data_structure import MeasurementConfig, ChipParameters
 
 
 def measure_spectrum(
@@ -116,53 +115,8 @@ def measure_spectrum(
     return df
 
 
-def measure_spectrum_with_config(
-    measure_config: MeasurementConfig,
-    folder_dir: Optional[str],
-    file_name: Optional[str],
-) -> pd.DataFrame:
-    """
-    Convenience function using provided MeasurementConfig.
-
-    Parameters
-    ----------
-    config : MeasurementConfig
-        Measurement configuration from data_structure.py
-    folder_dir : str
-        Output directory (default: "./measurements")
-    file_name_base : str
-        Base name for output file (timestamp will be appended)
-
-    Returns
-    -------
-    pd.DataFrame
-        Measurement data
-    """
-
-    # Perform measurement using config parameters
-    return measure_spectrum(
-        center_wavelength_nm=measure_config.center_wavelength_nm,
-        wavelength_span_nm=measure_config.wavelength_span_nm,
-        num_averages=measure_config.num_averages,
-        edfa_port=measure_config.edfa_port,
-        edfa_baudrate=measure_config.edfa_baudrate,
-        edfa_output_power_dbm=measure_config.edfa_output_power_dbm,
-        ova_ip=measure_config.ova_address,
-        folder_dir=folder_dir,
-        file_name=file_name,
-    )
-
-
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-
-    # Create default config
-    config = MeasurementConfig(
-        center_wavelength_nm=1550.0,
-        wavelength_span_nm=21.0,
-        n_points=1000,
-        chip_temperature_c=30.0,
-    )
 
     # Generate filename with timestamp
     file_name_base = "spectrum_test"
@@ -170,8 +124,14 @@ if __name__ == "__main__":
     file_name = f"{file_name_base}_{timestamp}"
 
     # Perform measurement with config
-    df = measure_spectrum_with_config(
-        config=config,
+    df = measure_spectrum(
+        center_wavelength_nm=1550.0,
+        wavelength_span_nm=5.0,
+        num_averages=5,
+        edfa_port="COM6",
+        edfa_baudrate=57600,
+        edfa_output_power_dbm=13.0,
+        ova_ip="130.194.137.122",
         folder_dir="./measurements",
         file_name=file_name,
     )
