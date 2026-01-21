@@ -39,7 +39,7 @@ def main():
 
 def test_measure_spectrum():
     import matplotlib.pyplot as plt
-    import datetime
+    from datetime import datetime
     import pandas as pd
 
     config = ExperimentConfig()
