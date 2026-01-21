@@ -34,7 +34,7 @@ def test_voltage_control():
         print(f"\n✗ Channel mapping error: {e}")
 
     channels = list(range(1, 32))
-    voltages = np.arange(0, 31, dtype=float) / 10
+    voltages = np.arange(0, 31, dtype=float) / 1.2  # 0 to 6 V
 
     with VoltageController(
         com_port="COM3",
@@ -95,15 +95,21 @@ def test_measure_spectrum(config: ExperimentConfig):
 
     plt.close(fig)
 
+    return file_name
 
-def test_tap_recovery(config: ExperimentConfig):
+
+def test_tap_recovery(config: ExperimentConfig, filename: str = None):
     """
     Example usage with data structures from data_structure.py
     """
     from pathlib import Path
 
     # Load measured data
-    data_file = "measurements/spectrum_test_20260121_154125.csv"
+    data_file = (
+        f"measurements/{filename}.csv"
+        if filename
+        else "measurements/spectrum_test_20260121_154125.csv"
+    )
 
     try:
         df = pd.read_csv(data_file, comment="#")
@@ -164,6 +170,13 @@ if __name__ == "__main__":
         ),
     )
 
-    # test_voltage_control()
-    # test_measure_spectrum(config)
-    test_tap_recovery(config)
+    test_voltage_control()
+    filename = test_measure_spectrum(config)
+    test_tap_recovery(config, filename)
+
+    with VoltageController(
+        com_port="COM3",
+        baud_rate=9600,
+        zero_on_exit=True,
+    ) as vc:
+        print("\nEnd of tests. Voltages reset to zero.")
