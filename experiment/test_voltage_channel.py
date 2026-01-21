@@ -3,7 +3,7 @@ Test voltage channel configuration
 """
 
 from photonic_fir import ExperimentConfig
-from voltage_ctrl import voltage_controller
+from voltage_ctrl import VoltageController
 
 
 def main():
@@ -25,9 +25,9 @@ def main():
     channels = [1, 2, 3, 4, 5, 6, 7, 8]
     voltages = [1.4, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5]
 
-    with voltage_controller(
+    with VoltageController(
         com_port="COM3",
-        baudrate=9600,
+        baud_rate=9600,
         zero_on_exit=True,
     ) as vc:
         vc.set_voltages(channels, voltages)
