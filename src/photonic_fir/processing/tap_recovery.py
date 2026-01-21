@@ -344,69 +344,8 @@ def plot_impulse_response(
     ax.grid(True, alpha=0.3)
     ax.set_ylim(bottom=-40)
     ax.set_xlim(
-        left=0, right=16 * (1 / 160e9) * 1e12
+        left=-(1 / 160e9) * 1e12, right=16 * (1 / 160e9) * 1e12
     )  # Example: 16 taps at 160 GHz FSR
 
     plt.tight_layout()
     plt.show()
-
-
-def example_usage():
-    """
-    Example usage with data structures from data_structure.py
-    """
-    from pathlib import Path
-
-    # Load measured data
-    data_file = "measurements/spectrum_test_20260115_114642.csv"
-
-    try:
-        df = pd.read_csv(data_file, comment="#")
-        print(f"Loaded data from: {data_file}")
-        print(f"Columns: {list(df.columns)}")
-        print(f"Shape: {df.shape}\n")
-    except FileNotFoundError:
-        print(f"Error: Could not find file {data_file}")
-        return None
-
-    print("=" * 70)
-    print("Tap Coefficient Extraction using Kramers-Kronig Phase Recovery")
-    print("=" * 70 + "\n")
-
-    # Step 1: Recover impulse response (using DataFrame wrapper)
-    time_ps, h_time = recover_impulse_response_from_df(
-        df=df,
-        fsr_hz=160e9,
-        wavelength_col="wl_axis",
-        freq_col="f_axis",
-        insertion_loss_col="IL",
-    )
-
-    # Step 2: Detect taps
-    tap_times, tap_coeffs = detect_taps(
-        time_ps=time_ps,
-        h_time=h_time,
-        fsr_hz=160e9,
-        delay_step_s=1 / 160e9,
-        n_taps=16,
-        prominence_factor_db=0.3,
-        height_threshold_db=-60.0,
-    )
-
-    # Step 3: Plot results
-    plot_impulse_response(
-        time_ps=time_ps,
-        h_time=h_time,
-        tap_times_ps=tap_times,
-        tap_coeffs=tap_coeffs,
-    )
-
-    print("\n" + "=" * 70)
-    print("Processing Complete!")
-    print("=" * 70)
-
-    return time_ps, h_time, tap_times, tap_coeffs
-
-
-if __name__ == "__main__":
-    results = example_usage()
