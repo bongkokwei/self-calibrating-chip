@@ -1,49 +1,37 @@
-import pandas as pd
-import numpy as np
-import yaml
-from pathlib import Path
-from datetime import datetime
-from typing import Dict, Optional
-import sys
-from pprint import pprint
+"""
+Test voltage channel configuration
+"""
 
-from voltage_ctrl import VoltageController
-
-from config import (
-    ExperimentConfig,
-    ChipState,
-    IterationData,
-    CalibrationResults,
-    config_from_dict,
-    config_to_dict,
-    measure_spectrum,
-    recover_impulse_response_from_df,
-    detect_taps,
-    calculate_all_errors,
-    calculate_power_adjustments,
-    apply_voltages_to_hardware,
-)
-
-
-def save_config(config: ExperimentConfig, output_dir: str):
-    """Save configuration to output directory."""
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-    config_dict = config_to_dict(config)
-    output_path = Path(output_dir) / "experiment_config.yaml"
-
-    with open(output_path, "w") as f:
-        yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
-
-    print(f"Configuration saved to {output_path}")
+from photonic_fir import ExperimentConfig
+from voltage_ctrl import voltage_controller
 
 
 def main():
-    channels = [1, 2, 3, 4, 5]
-    voltages = [2.5, 3.0, 1.5, 2.0, 3.5]
     config = ExperimentConfig()
-    with VoltageController(com_port="COM3", baud_rate=9600) as v_ctrl:
-        v_ctrl.set_voltages(channels, voltages, v_max=10.0)
+
+    # Test channel mapping
+    print("\nVoltage Channel Mapping:")
+    all_channels = config.chip.channel_mapping.get_all_channels()
+    for device_id, channel in sorted(all_channels.items()):
+        print(f"  {device_id:<15} → Channel {channel}")
+
+    # Validate no duplicates
+    try:
+        config.chip.channel_mapping.validate_no_duplicates()
+        print("\n✓ Channel mapping validated (no duplicates)")
+    except ValueError as e:
+        print(f"\n✗ Channel mapping error: {e}")
+
+    channels = [1, 2, 3, 4, 5, 6, 7, 8]
+    voltages = [1.4, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5]
+
+    with voltage_controller(
+        com_port="COM3",
+        baudrate=9600,
+        zero_on_exit=True,
+    ) as vc:
+        vc.set_voltages(channels, voltages)
+
     return 0
 
 
