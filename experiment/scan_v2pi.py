@@ -53,7 +53,7 @@ class V2piScanConfig:
 
     # Voltage scan parameters
     v_min: float = 0.0
-    v_max: float = 10.0
+    v_max: float = 30.0
     n_points: int = 51
 
     # Timing
@@ -116,12 +116,13 @@ def scan_mzi_v2pi(
 
     # Get MZI channel from chip configuration
     mzi_device_id = f"MZI_{scan_config.mzi_id}"
-    mzi_channel = exp_config.chip.channel_mapping.get_channel(mzi_device_id)
+    mzi_channel = exp_config.channel_mapping.get_channel(mzi_device_id)
 
     # Build MZI tree structure for PSR calculations
     mzi_ids = exp_config.chip.get_mzi_ids()
     mzi_tree = build_mzi_tree_structure(
-        n_signal_taps=exp_config.chip.n_signal_taps, mzi_ids=mzi_ids
+        n_signal_taps=exp_config.chip.n_signal_taps,
+        mzi_ids=mzi_ids,
     )
 
     # Storage for results
@@ -145,7 +146,6 @@ def scan_mzi_v2pi(
 
     # Initialise voltage controller
     with VoltageController(
-        channels=[mzi_channel],
         com_port=exp_config.measurement.voltage_controller_port,
         baud_rate=exp_config.measurement.voltage_controller_baudrate,
         zero_on_exit=True,
@@ -370,7 +370,7 @@ def save_results(
         "scan_parameters": scan_config.to_dict(),
         "mzi_info": {
             "mzi_id": scan_config.mzi_id,
-            "channel": exp_config.chip.channel_mapping.get_channel(
+            "channel": exp_config.channel_mapping.get_channel(
                 f"MZI_{scan_config.mzi_id}"
             ),
         },
@@ -410,18 +410,18 @@ def main():
     # ============================================================
 
     # Which MZI to characterise
-    MZI_ID = "4-5"  # Options: "2-1", "3-3", "3-4", "4-5", "4-6", "4-7", "4-8"
+    MZI_ID = "4-6"  # Options: "2-1", "3-3", "3-4", "4-5", "4-6", "4-7", "4-8"
 
     # Voltage scan parameters
     V_MIN = 0.0  # Minimum voltage (V)
-    V_MAX = 10.0  # Maximum voltage (V)
-    N_POINTS = 51  # Number of voltage points (51 = 0.2V steps for 0-10V)
+    V_MAX = 30.0  # Maximum voltage (V)
+    N_POINTS = 151  # Number of voltage points (151 = 0.2V steps for 0-30V)
 
     # Timing
     SETTLING_TIME = 2.0  # Thermal settling time after voltage change (seconds)
 
     # Output
-    OUTPUT_DIR = "measurments/v2pi_scan_results"
+    OUTPUT_DIR = "measurements/v2pi_scan_results_run_006"
     SAVE_RAW_DATA = True  # Save individual CSV files for each voltage point
 
     # Experiment configuration file
@@ -461,7 +461,7 @@ def main():
         power_splitting_ratios=psrs,
         mzi_phases=phases,
         scan_config=scan_config,
-        v_2pi_estimate=v_2pi,
+        v_2pi_estimate=None,
     )
 
     # Save summary
