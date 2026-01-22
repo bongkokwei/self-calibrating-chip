@@ -40,6 +40,7 @@ from photonic_fir import (
     build_mzi_tree_structure,
     tap_coeffs_to_power_splitting_ratios,
     power_splitting_ratio_to_mzi_phase,
+    load_config,
 )
 
 
@@ -420,11 +421,11 @@ def main():
     SETTLING_TIME = 2.0  # Thermal settling time after voltage change (seconds)
 
     # Output
-    OUTPUT_DIR = "./v2pi_scan_results"
+    OUTPUT_DIR = "measurments/v2pi_scan_results"
     SAVE_RAW_DATA = True  # Save individual CSV files for each voltage point
 
     # Experiment configuration file
-    CONFIG_PATH = "configs/experiment_config.yaml"
+    CONFIG_PATH = "measurements/experiment_config.yaml"
 
     # ============================================================
 
@@ -440,11 +441,7 @@ def main():
         experiment_config_path=CONFIG_PATH,
     )
 
-    # Load experiment configuration
-    print(f"Loading experiment configuration from: {CONFIG_PATH}")
-    with open(CONFIG_PATH, "r") as f:
-        config_dict = yaml.safe_load(f)
-    exp_config = config_from_dict(config_dict)
+    exp_config = load_config(CONFIG_PATH)
 
     print(f"Chip: {exp_config.chip.n_taps}-tap FIR")
     print(f"FSR: {exp_config.chip.fsr_hz/1e9:.1f} GHz\n")
