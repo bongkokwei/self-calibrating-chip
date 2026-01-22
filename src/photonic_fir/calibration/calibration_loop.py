@@ -14,6 +14,8 @@ from ..core import (
     config_from_dict,
     config_to_dict,
     calculate_all_errors,
+    load_config,
+    save_config,
 )
 
 from ..hardware import (
@@ -26,26 +28,6 @@ from ..processing import (
     recover_impulse_response_from_df,
     detect_taps,
 )
-
-
-def load_config(config_path: str) -> ExperimentConfig:
-    """Load experiment configuration from YAML file."""
-    with open(config_path, "r") as f:
-        config_dict = yaml.safe_load(f)
-    return config_from_dict(config_dict)
-
-
-def save_config(config: ExperimentConfig, output_dir: str):
-    """Save configuration to output directory."""
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-    config_dict = config_to_dict(config)
-    output_path = Path(output_dir) / "experiment_config.yaml"
-
-    with open(output_path, "w") as f:
-        yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
-
-    print(f"Configuration saved to {output_path}")
 
 
 def run_calibration_iteration(
