@@ -48,6 +48,12 @@ from .core.error_calculation import (
     calculate_rms_errors,
 )
 
+from .core.config import (
+    load_config,
+    save_config,
+    convert_numpy_types,
+)
+
 from .processing.tap_recovery import (
     recover_impulse_response,
     recover_impulse_response_from_df,
@@ -74,6 +80,10 @@ __all__ = [
     # Version info
     "__version__",
     "__author__",
+    # Config
+    "load_config",
+    "save_config",
+    "convert_numpy_types",
     # Data structures
     "ChipParameters",
     "ChipState",

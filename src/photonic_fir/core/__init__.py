@@ -31,6 +31,12 @@ from .data_structure import (
     config_to_dict,
 )
 
+from .config import (
+    load_config,
+    save_config,
+    convert_numpy_types,
+)
+
 from .power_splitting_ratio import (
     # Tree structure
     build_mzi_tree_structure,
@@ -86,4 +92,8 @@ __all__ = [
     "calculate_rms_errors",
     "calculate_all_errors",
     "wrap_phase_error",
+    # Config utilities
+    "load_config",
+    "save_config",
+    "convert_numpy_types",
 ]
