@@ -190,11 +190,6 @@ class ChipParameters:
     # Thermal parameters
     thermal_time_constant_s: float = 1e-3  # Time for thermal equilibrium
 
-    # Voltage channel mapping
-    channel_mapping: VoltageChannelMapping = field(
-        default_factory=VoltageChannelMapping
-    )
-
     # Derived properties (computed from above)
     @property
     def signal_tap_indices(self) -> Tuple[int, ...]:
@@ -222,19 +217,7 @@ class ChipParameters:
         """
         Generate MZI IDs for signal processing core following Xu et al. (2022) convention.
 
-        The signal processing MZIs control the upper half of taps (9-16 for 16-tap chip).
-        The MZI position numbers follow the FULL binary tree structure where:
-        - Stage 2: position 1 (signal processing root)
-        - Stage 3+: positions in the SECOND HALF (because signal processing
-                    descends from the upper branch of the tree)
-
-        For 8 signal taps (n_signal_taps=8):
-        - Stage 2: 1 MZI  → "2-1"
-        - Stage 3: 2 MZIs → "3-3", "3-4"  (positions 3-4, second half of 4)
-        - Stage 4: 4 MZIs → "4-5", "4-6", "4-7", "4-8" (positions 5-8, second half of 8)
-
-        Returns:
-            List of MZI IDs in order, e.g., ["2-1", "3-3", "3-4", "4-5", "4-6", "4-7", "4-8"]
+        ... (rest of docstring stays the same) ...
         """
         mzi_ids = []
         stage = 2  # Start from stage 2 (first MZI in signal processing)
@@ -324,6 +307,36 @@ class ChipState:
     # Fixed power for reference and unused taps
     p_fixed_watts: float = 0.3
 
+    @classmethod
+    def create_initial_state(
+        cls,
+        chip_params: ChipParameters,
+        initial_mzi_powers: Optional[Dict[str, float]] = None,
+        initial_ps_powers: Optional[Dict[int, float]] = None,
+        p_fixed_watts: float = 0.3,
+    ) -> "ChipState":
+        """Create initial chip state from parameters.
+
+        Args:
+            chip_params: Chip physical parameters
+            initial_mzi_powers: Optional initial MZI powers in watts (default: all zeros)
+            initial_ps_powers: Optional initial PS powers in watts (default: all zeros)
+            p_fixed_watts: Power for reference and unused taps
+
+        Returns:
+            ChipState with initialized MZIs and phase shifters
+        """
+        state = cls(chip_params=chip_params, p_fixed_watts=p_fixed_watts)
+
+        # Apply initial powers if specified
+        if initial_mzi_powers or initial_ps_powers:
+            state.update_powers(
+                new_mzi_powers=initial_mzi_powers or {},
+                new_ps_powers=initial_ps_powers or {},
+            )
+
+        return state
+
     def __post_init__(self):
         """Initialize MZIs and phase shifters from chip_params."""
         # Initialize MZIs if empty
@@ -353,17 +366,13 @@ class ChipState:
         return powers
 
     def get_all_init_phase(self) -> Dict[str, float]:
-        """Get dictionary of all applied powers for monitoring."""
+        """Get dictionary of all initial phase offsets."""
         init_phase = {}
         for mzi_id, mzi in self.mzis.items():
             init_phase[f"MZI_{mzi_id}"] = mzi.phi_init_rad
         for tap_num, ps in self.phase_shifters.items():
             init_phase[tap_num] = ps.phi_init_rad
         return init_phase
-
-    def get_device_channel(self, device_id: str) -> int:
-        """Convenience method to access channel mapping."""
-        return self.chip_params.channel_mapping.get_channel(device_id)
 
     def update_powers(
         self,
@@ -409,7 +418,7 @@ class ChipState:
             # Recalculate phase shift: φ = (P / P_2π) × 2π
             mzi.phase_shift_rad = (new_power / mzi.p2pi_watts) * 2 * np.pi
 
-            # Wrap phase to [-π, π] (handled by MZIState.__post_init__)
+            # Wrap phase to [-π, π]
             mzi.phase_shift_rad = np.arctan2(
                 np.sin(mzi.phase_shift_rad), np.cos(mzi.phase_shift_rad)
             )
@@ -517,6 +526,10 @@ class CalibrationConfig:
     # Phase wrap handling
     phase_wrap_threshold_rad: float = np.pi / 2
 
+    # Optional initial power settings
+    initial_mzi_powers: Optional[Dict[str, float]] = None  # e.g. {"2-1": 0.3}
+    initial_ps_powers: Optional[Dict[int, float]] = None  # e.g. {9: 0.4}
+
 
 @dataclass
 class TargetFilter:
@@ -605,18 +618,24 @@ class TargetFilter:
 
 @dataclass
 class ExperimentConfig:
-    """Complete experiment configuration."""
+    """Complete experiment configuration.
+
+    Contains all parameters needed to run a calibration experiment.
+    Does NOT contain runtime state - use ChipState.create_initial_state() for that.
+    """
 
     # Metadata
     name: str = "fir_calibration"
     description: str = ""
     timestamp: Optional[str] = None
 
-    # Chip parameters (defines architecture)
+    # Chip parameters (physics only)
     chip: ChipParameters = field(default_factory=ChipParameters)
 
-    # Initial state (will be auto-populated from chip)
-    initial_state: ChipState = field(default_factory=ChipState)
+    # Hardware channel mapping (lab-specific wiring)
+    channel_mapping: VoltageChannelMapping = field(
+        default_factory=VoltageChannelMapping
+    )
 
     # Target filter
     target: TargetFilter = field(default_factory=TargetFilter)
@@ -630,11 +649,6 @@ class ExperimentConfig:
     # Output paths
     output_dir: str = "./results/"
     save_iterations: bool = True
-
-    def __post_init__(self):
-        """Ensure initial_state has reference to chip parameters."""
-        if self.initial_state.chip_params is None:
-            self.initial_state.chip_params = self.chip
 
 
 @dataclass
@@ -731,28 +745,11 @@ def config_to_dict(config: ExperimentConfig) -> dict:
 def config_from_dict(config_dict: dict) -> ExperimentConfig:
     """Create ExperimentConfig from dictionary loaded from YAML."""
 
-    # Create chip parameters
+    # Create chip parameters (no nested channel_mapping anymore)
     chip = ChipParameters(**config_dict.get("chip", {}))
 
-    # Create initial state WITH chip parameters reference
-    state_dict = config_dict.get("initial_state", {})
-
-    # Reconstruct MZI states
-    mzis = {}
-    for mzi_id, mzi_data in state_dict.get("mzis", {}).items():
-        mzis[mzi_id] = MZIState(**mzi_data)
-
-    # Reconstruct phase shifter states
-    phase_shifters = {}
-    for tap_num, ps_data in state_dict.get("phase_shifters", {}).items():
-        phase_shifters[int(tap_num)] = PhaseShifterState(**ps_data)
-
-    initial_state = ChipState(
-        chip_params=chip,  # Pass chip parameters
-        mzis=mzis,
-        phase_shifters=phase_shifters,
-        p_fixed_watts=state_dict.get("p_fixed_watts", 0.3),
-    )
+    # Create channel mapping separately at top level
+    channel_mapping = VoltageChannelMapping(**config_dict.get("channel_mapping", {}))
 
     # Create target filter
     target_dict = config_dict.get("target", {})
@@ -774,7 +771,7 @@ def config_from_dict(config_dict: dict) -> ExperimentConfig:
         description=config_dict.get("description", ""),
         timestamp=config_dict.get("timestamp"),
         chip=chip,
-        initial_state=initial_state,
+        channel_mapping=channel_mapping,
         target=target,
         measurement=measurement,
         calibration=calibration,

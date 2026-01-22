@@ -32,14 +32,22 @@ config = ExperimentConfig(
 output_path = save_config(config, "measurements")
 config_from_disk = load_config(output_path)
 
-df = measure_spectrum(
-    center_wavelength_nm=config_from_disk.measurement.center_wavelength_nm,
-    wavelength_span_nm=config_from_disk.measurement.wavelength_span_nm,
-    num_averages=config_from_disk.measurement.num_averages,
-    edfa_port=config_from_disk.measurement.edfa_port,
-    edfa_baudrate=config_from_disk.measurement.edfa_baudrate,
-    edfa_output_power_dbm=config_from_disk.measurement.edfa_output_power_dbm,
-    ova_ip=config_from_disk.measurement.ova_address,
-    folder_dir="./measurements",
-    file_name="_delete_me",
-)
+pprint(config_from_disk)
+
+print(config_from_disk.channel_mapping.get_channel("MZI_4-1"))
+
+# Create initial state from config
+chip_state = ChipState.create_initial_state(config_from_disk.chip)
+print(f"Created state with {len(chip_state.mzis)} MZIs")
+
+# df = measure_spectrum(
+#     center_wavelength_nm=config_from_disk.measurement.center_wavelength_nm,
+#     wavelength_span_nm=config_from_disk.measurement.wavelength_span_nm,
+#     num_averages=config_from_disk.measurement.num_averages,
+#     edfa_port=config_from_disk.measurement.edfa_port,
+#     edfa_baudrate=config_from_disk.measurement.edfa_baudrate,
+#     edfa_output_power_dbm=config_from_disk.measurement.edfa_output_power_dbm,
+#     ova_ip=config_from_disk.measurement.ova_address,
+#     folder_dir="./measurements",
+#     file_name="_delete_me",
+# )

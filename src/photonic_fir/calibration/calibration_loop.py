@@ -16,6 +16,7 @@ from ..core import (
     calculate_all_errors,
     load_config,
     save_config,
+    build_mzi_tree_structure,
 )
 
 from ..hardware import (
@@ -214,15 +215,31 @@ def run_experiment(config_path: str):
 
     # Compute target tap coefficients
     print("\nComputing target filter response...")
-    target_amps, target_phases = config.target.compute_target_taps(
-        n_taps=config.chip.n_taps
-    )
+    target_taps = config.target.get_target_taps(n_taps=config.chip.n_signal_taps)
+    target_amps = np.abs(target_taps)
+    target_phases = np.angle(target_taps)
     print(f"Target filter: {config.target.filter_type}")
     print(f"  Number of taps: {len(target_amps)}")
     print(f"  Phase step: {config.target.phase_step_rad:.4f} rad")
 
-    # Initialize chip state
-    chip_state = config.initial_state
+    # Create initial chip state from configuration
+    chip_state = ChipState.create_initial_state(
+        chip_params=config.chip,
+        initial_mzi_powers=config.calibration.initial_mzi_powers,
+        initial_ps_powers=config.calibration.initial_ps_powers,
+    )
+
+    # Build MZI tree structure
+    mzi_tree = build_mzi_tree_structure(
+        n_signal_taps=config.chip.n_signal_taps,
+        mzi_ids=config.chip.get_mzi_ids(),
+    )
+
+    # Convert target taps to dictionary format expected by run_calibration_iteration
+    target_taps_dict = {
+        tap_num: target_taps[i]
+        for i, tap_num in enumerate(config.chip.signal_tap_numbers)
+    }
 
     # Run calibration iterations
     print("\n" + "=" * 60)
@@ -231,18 +248,21 @@ def run_experiment(config_path: str):
 
     iterations = []
     converged = False
+    prev_iter_data = None
 
     for i in range(config.calibration.max_iterations):
         # Run iteration
         iter_data = run_calibration_iteration(
             iteration=i + 1,
+            target_taps=target_taps_dict,
+            mzi_tree=mzi_tree,
             chip_state=chip_state,
-            target_amps=target_amps,
-            target_phases=target_phases,
             config=config,
+            prev_iter_data=prev_iter_data,
         )
 
         iterations.append(iter_data)
+        prev_iter_data = iter_data
 
         # Check convergence
         if check_convergence(iter_data, config):
