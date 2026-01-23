@@ -99,8 +99,9 @@ def plot_insertion_loss(
     plt.tight_layout()
 
     # Save figure
+    fig_filename = os.path.join(save_dir, f"{file_name_base}.png")
+
     if save_fig:
-        fig_filename = os.path.join(save_dir, f"{file_name_base}.png")
         fig.savefig(fig_filename, dpi=dpi, bbox_inches="tight")
         print(f"\nFigure saved to: {fig_filename}")
 
