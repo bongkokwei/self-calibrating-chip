@@ -61,6 +61,8 @@ from .processing.tap_recovery import (
     kramers_kronig_phase_recovery,
 )
 
+from .utils.file_utils import get_next_run_dir, ensure_dir
+
 # Hardware imports are kept separate to avoid import errors
 # if hardware libraries aren't installed
 try:
@@ -115,6 +117,8 @@ __all__ = [
     "recover_impulse_response_from_df",
     "detect_taps",
     "kramers_kronig_phase_recovery",
+    "get_next_run_dir",
+    "ensure_dir",
 ]
 
 # Add hardware functions to __all__ if available
