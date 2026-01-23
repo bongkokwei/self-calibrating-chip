@@ -380,7 +380,7 @@ def plot_v2pi_scan(
     fig.savefig(fig_path, dpi=300, bbox_inches="tight")
     print(f"✓ Figure saved: {fig_path}")
 
-    plt.show()
+    # plt.show()
 
 
 def estimate_v2pi(voltages: np.ndarray, mzi_phases: np.ndarray) -> float:
