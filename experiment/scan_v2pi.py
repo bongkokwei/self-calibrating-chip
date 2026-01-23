@@ -208,7 +208,6 @@ def scan_mzi_v2pi(
                 folder_dir=folder_dir,
                 file_name=file_name,
             )
-            v_ctrl._zero_channels([mzi_channel])  # Zero after measurement
 
             dataframes.append(df)
 
