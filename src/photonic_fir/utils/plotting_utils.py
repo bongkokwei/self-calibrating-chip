@@ -112,3 +112,61 @@ def plot_insertion_loss(
         plt.close(fig)
 
     return fig_filename
+
+
+def plot_impulse_response(
+    time_ps: np.ndarray,
+    h_time: np.ndarray,
+    tap_times_ps: Optional[np.ndarray] = None,
+    tap_coeffs: Optional[np.ndarray] = None,
+):
+    """
+    Plot impulse response magnitude with detected taps.
+
+    Parameters
+    ----------
+    time_ps : np.ndarray
+        Time axis in picoseconds
+    h_time : np.ndarray
+        Complex impulse response
+    tap_times_ps : np.ndarray, optional
+        Detected tap positions
+    tap_coeffs : np.ndarray, optional
+        Detected tap coefficients
+    """
+    h_magnitude = np.abs(h_time)
+
+    fig, ax = plt.subplots(1, 1, figsize=(12, 6))
+
+    # Plot impulse response
+    ax.plot(
+        time_ps,
+        10 * np.log10(h_magnitude) + 1e-12,
+        "b-",
+        linewidth=1.5,
+        label="Impulse Response",
+    )
+
+    # Mark detected taps if provided
+    if tap_times_ps is not None and tap_coeffs is not None:
+        tap_magnitudes = np.abs(tap_coeffs)
+        ax.plot(
+            tap_times_ps,
+            10 * np.log10(tap_magnitudes),
+            "ro",
+            markersize=8,
+            label="Detected Taps",
+        )
+
+    ax.set_xlabel("Time (ps)", fontsize=12)
+    ax.set_ylabel("Magnitude", fontsize=12)
+    ax.set_title("Impulse Response (Kramers-Kronig Phase Recovery)", fontsize=14)
+    ax.legend(fontsize=11)
+    ax.grid(True, alpha=0.3)
+    ax.set_ylim(bottom=-40)
+    ax.set_xlim(
+        left=-(1 / 160e9) * 1e12, right=16 * (1 / 160e9) * 1e12
+    )  # Example: 16 taps at 160 GHz FSR
+
+    plt.tight_layout()
+    plt.show()
