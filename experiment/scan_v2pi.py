@@ -30,6 +30,7 @@ from typing import List, Tuple, Dict
 from dataclasses import dataclass, asdict
 
 from voltage_ctrl import VoltageController
+from luna_ova import LunaOVA
 
 from photonic_fir import (
     ExperimentConfig,
@@ -163,6 +164,10 @@ def scan_mzi_v2pi(
     # Get voltage controller parameters
     resistance = exp_config.chip.heater_resistance_ohm
 
+    # Measure DUT length for delay calculations
+    with LunaOVA(ip=exp_config.measurement.ova_address) as ova:
+        ova.set_dut_length()
+
     # Initialise voltage controller
     with VoltageController(
         com_port=exp_config.measurement.voltage_controller_port,
@@ -203,6 +208,7 @@ def scan_mzi_v2pi(
                 folder_dir=folder_dir,
                 file_name=file_name,
             )
+            v_ctrl._zero_channels([mzi_channel])  # Zero after measurement
 
             dataframes.append(df)
 
