@@ -198,7 +198,7 @@ def scan_mzi_v2pi(
         mzi_ids = exp_config.chip.get_mzi_ids()  # Default: signal MZIs only
 
     mzi_tree = build_mzi_tree_structure(
-        n_signal_taps=len(mzi_ids),
+        n_signal_taps=2**scan_config.max_stage,
         mzi_ids=mzi_ids,
     )
 
