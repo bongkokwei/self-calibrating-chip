@@ -1,0 +1,113 @@
+import os
+import numpy as np
+import pandas as pd
+from datetime import datetime
+import matplotlib.pyplot as plt
+from typing import Optional, Tuple
+from pathlib import Path
+
+
+def plot_insertion_loss(
+    df: pd.DataFrame,
+    title: str = "Insertion Loss",
+    save_dir: str | Path = "./measurements",
+    file_name_base: str = "spectrum_test",
+    dpi: int = 300,
+    figsize: Tuple[float, float] = (10, 8),
+    wl_range: Optional[Tuple[float, float]] = None,
+    il_range: Optional[Tuple[float, float]] = None,
+    phase_range: Optional[Tuple[float, float]] = None,
+    plot_phase: bool = True,
+    save_fig: bool = False,
+    show_plot: bool = True,
+) -> str:
+    """
+    Plot insertion loss and optionally phase from optical spectrum measurement.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with columns 'wl_axis', 'IL', and optionally 'LPD'
+    title : str
+        Base title for the plot
+    save_dir : str
+        Directory to save the figure
+    file_name_base : str
+        Base name for saved files
+    show_plot : bool
+        Whether to display the plot interactively
+    dpi : int
+        Resolution for saved figure
+    figsize : tuple
+        Figure size (width, height) in inches
+    wl_range : tuple or None
+        Wavelength axis limits (min, max) in nm
+    il_range : tuple or None
+        Insertion loss axis limits (min, max) in dB
+    phase_range : tuple or None
+        Phase axis limits (min, max) in rad
+    plot_phase : bool
+        Whether to plot phase subplot (requires 'LPD' column)
+
+    Returns
+    -------
+    fig_filename : str
+        Path to saved figure
+    """
+
+    # Quick inspection
+    print("\nFirst few rows:")
+    print(df.head())
+    print(f"\nData shape: {df.shape}")
+
+    # Determine subplot layout
+    if plot_phase and "LPD" in df.columns:
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize, sharex=True)
+    else:
+        fig, ax1 = plt.subplots(1, 1, figsize=(figsize[0], figsize[1] / 2))
+        ax2 = None
+
+    # Plot insertion loss
+    ax1.plot(df["wl_axis"], df["IL"])
+    ax1.set_ylabel("Insertion Loss (dB)", fontsize=12)
+    ax1.grid(True, alpha=0.3)
+
+    # Set title with optional timestamp
+    plot_title = title
+    ax1.set_title(plot_title, fontsize=12)
+
+    # Set axis ranges if specified
+    if wl_range is not None:
+        ax1.set_xlim(wl_range)
+    if il_range is not None:
+        ax1.set_ylim(il_range)
+
+    # Plot phase if requested
+    if ax2 is not None:
+        ax2.plot(df["wl_axis"], df["LPD"])
+        ax2.set_xlabel("Wavelength (nm)", fontsize=12)
+        ax2.set_ylabel("Phase (rad)", fontsize=12)
+        ax2.grid(True, alpha=0.3)
+
+        if wl_range is not None:
+            ax2.set_xlim(wl_range)
+        if phase_range is not None:
+            ax2.set_ylim(phase_range)
+    else:
+        ax1.set_xlabel("Wavelength (nm)", fontsize=12)
+
+    plt.tight_layout()
+
+    # Save figure
+    if save_fig:
+        fig_filename = os.path.join(save_dir, f"{file_name_base}.png")
+        fig.savefig(fig_filename, dpi=dpi, bbox_inches="tight")
+        print(f"\nFigure saved to: {fig_filename}")
+
+    # Show plot if requested
+    if show_plot:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return fig_filename
