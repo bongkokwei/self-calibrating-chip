@@ -44,6 +44,65 @@ from photonic_fir import (
 )
 
 
+def get_next_run_dir(
+    base_dir: str = "measurements", prefix: str = "v2pi_batch_scan_results"
+) -> str:
+    """
+    Get the next available run directory by auto-incrementing run number.
+
+    Checks existing directories and returns the next available run number.
+    For example, if run_001 and run_002 exist, returns run_003.
+
+    Parameters
+    ----------
+    base_dir : str
+        Base directory to search in
+    prefix : str
+        Prefix for run directories (e.g., "v2pi_batch_scan_results")
+
+    Returns
+    -------
+    output_dir : str
+        Full path to next run directory (e.g., "measurements/v2pi_batch_scan_results_run_003")
+    """
+    base_path = Path(base_dir)
+
+    # Create base directory if it doesn't exist
+    base_path.mkdir(parents=True, exist_ok=True)
+
+    # Find all existing run directories matching the pattern
+    pattern = f"{prefix}_run_*"
+    existing_runs = list(base_path.glob(pattern))
+
+    if not existing_runs:
+        # No existing runs, start with run_001
+        next_run = 1
+    else:
+        # Extract run numbers from directory names
+        run_numbers = []
+        for run_dir in existing_runs:
+            # Extract number from pattern like "v2pi_batch_scan_results_run_003"
+            match = run_dir.name.split("_run_")
+            if len(match) == 2:
+                try:
+                    run_num = int(match[1])
+                    run_numbers.append(run_num)
+                except ValueError:
+                    # Skip directories that don't have valid run numbers
+                    continue
+
+        # Get next run number
+        if run_numbers:
+            next_run = max(run_numbers) + 1
+        else:
+            next_run = 1
+
+    # Format with leading zeros (e.g., run_001, run_002, ...)
+    output_dir = str(base_path / f"{prefix}_run_{next_run:03d}")
+
+    return output_dir
+
+
 @dataclass
 class V2piScanConfig:
     """Configuration for V_2π voltage scan."""
@@ -66,9 +125,21 @@ class V2piScanConfig:
     # Experiment config path
     experiment_config_path: str = "configs/v2pi_scan_config.yaml"
 
+    # MZI tree structure parameters
+    min_stage: int = 1
+    max_stage: int = 4
+
     def get_voltage_range(self) -> np.ndarray:
         """Generate voltage array from parameters."""
         return np.linspace(self.v_min, self.v_max, self.n_points)
+
+    def get_all_mzi_ids(self) -> List[str]:
+        """Generate all MZI IDs based on stage configuration."""
+        mzi_ids = []
+        for stage in range(self.min_stage, self.max_stage + 1):
+            for pos in range(1, 2 ** (stage - 1) + 1):
+                mzi_ids.append(f"{stage}-{pos}")
+        return mzi_ids
 
     def to_dict(self) -> dict:
         """Convert to dictionary for saving."""
@@ -83,6 +154,7 @@ class V2piScanConfig:
 def scan_mzi_v2pi(
     scan_config: V2piScanConfig,
     exp_config: ExperimentConfig,
+    mzi_ids: List[str] = None,  # ← New parameter
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List[pd.DataFrame]]:
     """
     Scan voltage on a single MZI to characterise P_2π.
@@ -93,6 +165,9 @@ def scan_mzi_v2pi(
         Scan configuration (voltage range, MZI ID, etc.)
     exp_config : ExperimentConfig
         Experiment configuration (chip parameters, instruments, etc.)
+    mzi_ids : List[str], optional
+        List of MZI IDs to include in tree structure.
+        If None, uses exp_config.chip.get_mzi_ids() (signal MZIs only)
 
     Returns
     -------
@@ -119,7 +194,9 @@ def scan_mzi_v2pi(
     mzi_channel = exp_config.channel_mapping.get_channel(mzi_device_id)
 
     # Build MZI tree structure for PSR calculations
-    mzi_ids = exp_config.chip.get_mzi_ids()
+    if mzi_ids is None:
+        mzi_ids = exp_config.chip.get_mzi_ids()  # Default: signal MZIs only
+
     mzi_tree = build_mzi_tree_structure(
         n_signal_taps=exp_config.chip.n_signal_taps,
         mzi_ids=mzi_ids,
@@ -402,15 +479,19 @@ def save_results(
     print(f"✓ Results summary saved: {output_path}")
 
 
-def main():
-    """Main execution - configure parameters here."""
+def run_v2pi_scan(mzi_id: str, base_output_dir: str):
+    """
+    Run V_2π scan for a single MZI.
+
+    Parameters
+    ----------
+    mzi_id : str
+        MZI identifier (e.g., "4-6", "2-1")
+    """
 
     # ============================================================
     # CONFIGURATION - Edit these parameters for your scan
     # ============================================================
-
-    # Which MZI to characterise
-    MZI_ID = "4-6"  # Options: "2-1", "3-3", "3-4", "4-5", "4-6", "4-7", "4-8"
 
     # Voltage scan parameters
     V_MIN = 0.0  # Minimum voltage (V)
@@ -420,18 +501,20 @@ def main():
     # Timing
     SETTLING_TIME = 2.0  # Thermal settling time after voltage change (seconds)
 
-    # Output
-    OUTPUT_DIR = "measurements/v2pi_scan_results_run_006"
+    # Output - use subdirectory for each MZI
+    OUTPUT_DIR = str(Path(base_output_dir) / mzi_id)
     SAVE_RAW_DATA = True  # Save individual CSV files for each voltage point
 
     # Experiment configuration file
     CONFIG_PATH = "measurements/experiment_config.yaml"
+    MIN_STAGE = 1
+    MAX_STAGE = 4
 
     # ============================================================
 
     # Create scan configuration
     scan_config = V2piScanConfig(
-        mzi_id=MZI_ID,
+        mzi_id=mzi_id,
         v_min=V_MIN,
         v_max=V_MAX,
         n_points=N_POINTS,
@@ -439,17 +522,24 @@ def main():
         output_dir=OUTPUT_DIR,
         save_raw_data=SAVE_RAW_DATA,
         experiment_config_path=CONFIG_PATH,
+        min_stage=MIN_STAGE,
+        max_stage=MAX_STAGE,
     )
 
     exp_config = load_config(CONFIG_PATH)
 
+    # Get all MZI IDs from scan config
+    all_mzi_ids = scan_config.get_all_mzi_ids()
+
     print(f"Chip: {exp_config.chip.n_taps}-tap FIR")
-    print(f"FSR: {exp_config.chip.fsr_hz/1e9:.1f} GHz\n")
+    print(f"FSR: {exp_config.chip.fsr_hz/1e9:.1f} GHz")
+    print(f"Including ALL MZIs in tree structure ({len(all_mzi_ids)} total)\n")
 
     # Run voltage scan
     voltages, psrs, phases, dataframes = scan_mzi_v2pi(
         scan_config=scan_config,
         exp_config=exp_config,
+        mzi_ids=all_mzi_ids,
     )
 
     # Estimate V_2π from linear fit
@@ -480,6 +570,48 @@ def main():
     print(f"MZI {scan_config.mzi_id}")
     print(f"Estimated V_2π: {v_2pi:.3f} V")
     print(f"Results saved to: {scan_config.output_dir}")
+    print(f"{'='*70}\n")
+
+
+def main():
+    """
+    Main execution - batch scan all MZIs.
+    """
+    # Get next available run directory
+    base_output_dir = get_next_run_dir(
+        base_dir="measurements",
+        prefix="v2pi_batch_scan_results",
+    )
+
+    # All MZIs on the chip
+    # Create a temporary config just to generate MZI IDs
+    temp_config = V2piScanConfig(min_stage=1, max_stage=4)
+    mzi_ids = temp_config.get_all_mzi_ids()
+
+    print(f"\n{'='*70}")
+    print(f"BATCH V_2π CHARACTERISATION")
+    print(f"{'='*70}")
+    print(f"Number of MZIs to scan: {len(mzi_ids)}")
+    print(f"MZI IDs: {mzi_ids}")
+    print(f"{'='*70}\n")
+
+    # Run scan for each MZI
+    for i, mzi_id in enumerate(mzi_ids):
+        print(f"\n{'#'*70}")
+        print(f"# SCANNING MZI {i+1}/{len(mzi_ids)}: {mzi_id}")
+        print(f"{'#'*70}\n")
+
+        run_v2pi_scan(mzi_id, base_output_dir)
+
+        # Add delay between scans to allow thermal settling
+        if i < len(mzi_ids) - 1:
+            print("\nWaiting 5 seconds before next scan...\n")
+            time.sleep(5)
+
+    print(f"\n{'='*70}")
+    print(f"BATCH SCAN COMPLETE!")
+    print(f"{'='*70}")
+    print(f"Scanned {len(mzi_ids)} MZIs")
     print(f"{'='*70}\n")
 
 
