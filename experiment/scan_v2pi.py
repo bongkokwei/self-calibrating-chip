@@ -198,7 +198,7 @@ def scan_mzi_v2pi(
         mzi_ids = exp_config.chip.get_mzi_ids()  # Default: signal MZIs only
 
     mzi_tree = build_mzi_tree_structure(
-        n_signal_taps=exp_config.chip.n_signal_taps,
+        n_signal_taps=len(mzi_ids),
         mzi_ids=mzi_ids,
     )
 
@@ -496,7 +496,7 @@ def run_v2pi_scan(mzi_id: str, base_output_dir: str):
     # Voltage scan parameters
     V_MIN = 0.0  # Minimum voltage (V)
     V_MAX = 30.0  # Maximum voltage (V)
-    N_POINTS = 151  # Number of voltage points (151 = 0.2V steps for 0-30V)
+    N_POINTS = 101  # Number of voltage points (101 = 0.3V steps for 0-30V)
 
     # Timing
     SETTLING_TIME = 2.0  # Thermal settling time after voltage change (seconds)
