@@ -191,7 +191,9 @@ def scan_mzi_v2pi(
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
             if scan_config.save_raw_data:
-                file_name = f"v2pi_scan_{scan_config.mzi_id}_v{voltage:.3f}_{timestamp}"
+                file_name = (
+                    f"v2pi_scan_mzi_{scan_config.mzi_id}_{voltage:.3f}v_{timestamp}"
+                )
                 folder_dir = str(output_path)
             else:
                 file_name = None
@@ -449,7 +451,7 @@ def run_v2pi_scan(mzi_id: str, base_output_dir: str):
     SETTLING_TIME = 2.0  # Thermal settling time after voltage change (seconds)
 
     # Output - use subdirectory for each MZI
-    OUTPUT_DIR = str(Path(base_output_dir) / mzi_id)
+    OUTPUT_DIR = str(Path(base_output_dir) / f"mzi_{mzi_id}")
     SAVE_RAW_DATA = True  # Save individual CSV files for each voltage point
 
     # Experiment configuration file
