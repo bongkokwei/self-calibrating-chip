@@ -262,7 +262,9 @@ def detect_taps(
     if len(peak_indices) > n_taps:
         print(f"Filtering to keep only the {n_taps} largest peaks...")
         peak_magnitudes = h_magnitude[peak_indices]
-        top_n_indices = np.argsort(peak_magnitudes)[::-1][:n_taps]
+        top_n_indices = np.argsort(peak_magnitudes)[::-1][
+            1:+n_taps
+        ]  # Exclude main peak, change to [0:+n_taps] to include main peak
         peak_indices = peak_indices[top_n_indices]
         peak_indices = np.sort(peak_indices)
 
