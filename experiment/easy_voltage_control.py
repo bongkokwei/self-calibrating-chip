@@ -1,3 +1,7 @@
+"""
+Easy Voltage Control to troubleshoot connections
+"""
+
 import numpy as np
 from voltage_ctrl import VoltageController
 
