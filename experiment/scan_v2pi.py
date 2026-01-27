@@ -233,13 +233,13 @@ def scan_mzi_v2pi(
                 height_threshold_db=exp_config.measurement.height_threshold_db,
             )
 
-            # e. Calculate power splitting ratio for target MZI
-            # Extract signal processing taps (indices 8-15 for 16-tap chip)
-            signal_tap_indices = exp_config.chip.signal_tap_indices
-            signal_taps = tap_coeffs[list(signal_tap_indices)]
+            # # e. Calculate power splitting ratio for target MZI
+            # # Extract signal processing taps (indices 8-15 for 16-tap chip)
+            # signal_tap_indices = exp_config.chip.signal_tap_indices
+            # signal_taps = tap_coeffs[list(signal_tap_indices)] # Might be the cause of the issue
 
             # Get all power splitting ratios from tap coefficients
-            psr_dict = tap_coeffs_to_power_splitting_ratios(signal_taps, mzi_tree)
+            psr_dict = tap_coeffs_to_power_splitting_ratios(tap_coeffs, mzi_tree)
 
             # Extract the specific MZI's PSR
             psr_db = psr_dict.get(scan_config.mzi_id, 0.0)
