@@ -445,7 +445,7 @@ def run_v2pi_scan(mzi_id: str, base_output_dir: str):
     # Voltage scan parameters
     V_MIN = 0.0  # Minimum voltage (V)
     V_MAX = 30.0  # Maximum voltage (V)
-    N_POINTS = 101  # Number of voltage points (101 = 0.3V steps for 0-30V)
+    N_POINTS = 51  # Number of voltage points (51 = ~0.6V steps for 0-30V)
 
     # Timing
     SETTLING_TIME = 2.0  # Thermal settling time after voltage change (seconds)
@@ -455,7 +455,7 @@ def run_v2pi_scan(mzi_id: str, base_output_dir: str):
     SAVE_RAW_DATA = True  # Save individual CSV files for each voltage point
 
     # Experiment configuration file
-    CONFIG_PATH = "measurements/experiment_config.yaml"
+    CONFIG_PATH = "measurements/experiment_config_shorter_range.yaml"
     MIN_STAGE = 1
     MAX_STAGE = 4
 

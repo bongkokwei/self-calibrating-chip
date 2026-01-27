@@ -42,17 +42,17 @@ def get_all_mzi_ids() -> List[str]:
 
 def main():
     # Get list of files to process
+    mzi_id = "4-7"
     file_list = retrive_filenames_from_directory(
-        directory_path="measurements/v2pi_batch_scan_results_run_007/4-8"
+        directory_path=f"measurements\\v2pi_batch_scan_results_run_009\\mzi_{mzi_id}"
     )
 
     # Load configuration
     config = load_config("measurements/experiment_config.yaml")
 
     # Prepare MZI tree structure
-    mzi_id = "1-1"
-    mzi_ids = get_all_mzi_ids()
 
+    mzi_ids = get_all_mzi_ids()
     mzi_tree = build_mzi_tree_structure(
         n_signal_taps=16,
         mzi_ids=mzi_ids,
