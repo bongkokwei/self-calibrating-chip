@@ -62,6 +62,7 @@ from .processing.tap_recovery import (
 )
 
 from .utils.file_utils import get_next_run_dir, ensure_dir
+from .utils.plotting_utils import plot_insertion_loss, plot_tap_coefficients
 
 # Hardware imports are kept separate to avoid import errors
 # if hardware libraries aren't installed
@@ -117,6 +118,10 @@ __all__ = [
     "recover_impulse_response_from_df",
     "detect_taps",
     "kramers_kronig_phase_recovery",
+    # Plotting utilities
+    "plot_insertion_loss",
+    "plot_tap_coefficients",
+    # File utilities
     "get_next_run_dir",
     "ensure_dir",
 ]
