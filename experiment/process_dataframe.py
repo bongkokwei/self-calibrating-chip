@@ -309,7 +309,7 @@ def main() -> None:
 
     # Process voltage scan
     voltages, psrs = process_voltage_scan(
-        directory=args.data_dir,
+        directory=args.data_dir / Path(f"mzi_{args.mzi_id}"),
         config=config,
         mzi_id=args.mzi_id,
         n_signal_taps=args.n_taps,
