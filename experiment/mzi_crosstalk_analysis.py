@@ -34,6 +34,7 @@ def generate_mzi_ids(n_stages: int = 4) -> list[str]:
 def extract_voltage_from_filename(filename: str) -> float | None:
     """Extract voltage value from filename (e.g., '1.23v' -> 1.23)."""
     import re
+
     match = re.search(r"(\d+\.?\d*)v", filename, re.IGNORECASE)
     return float(match.group(1)) if match else None
 
@@ -268,14 +269,16 @@ def main() -> None:
 
     # Analyse crosstalk
     df_results = analyse_mzi_crosstalk(
-        data_dir=args.data_dir,
+        data_dir=args.data_dir / Path(f"mzi_{args.swept_mzi}"),
         config=config,
         swept_mzi_id=args.swept_mzi,
         n_signal_taps=args.n_taps,
     )
 
     print(f"\nProcessed {len(df_results)} voltage points")
-    print(f"Voltage range: {df_results['voltage'].min():.3f} - {df_results['voltage'].max():.3f} V")
+    print(
+        f"Voltage range: {df_results['voltage'].min():.3f} - {df_results['voltage'].max():.3f} V"
+    )
 
     # Save CSV if requested
     if args.output_csv:
