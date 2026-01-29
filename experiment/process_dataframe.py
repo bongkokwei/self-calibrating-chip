@@ -17,7 +17,6 @@ import pandas as pd
 
 from photonic_fir import (
     ExperimentConfig,
-    build_mzi_tree_structure,
     detect_taps,
     load_config,
     recover_impulse_response_from_df,
@@ -200,7 +199,7 @@ def process_voltage_scan(
     # Build MZI tree structure
     n_stages = int(np.log2(n_signal_taps))
     mzi_ids = generate_mzi_ids(n_stages)
-    mzi_tree = build_mzi_tree_structure(n_signal_taps=n_signal_taps, mzi_ids=mzi_ids)
+    mzi_tree = config.signal_mzi_tree.tree
 
     # Get files and process
     csv_files = get_csv_files(directory)

@@ -216,8 +216,6 @@ class ChipParameters:
     def get_mzi_ids(self) -> List[str]:
         """
         Generate MZI IDs for signal processing core following Xu et al. (2022) convention.
-
-        ... (rest of docstring stays the same) ...
         """
         mzi_ids = []
         stage = 2  # Start from stage 2 (first MZI in signal processing)
@@ -241,6 +239,28 @@ class ChipParameters:
                 mzi_ids.append(f"{stage}-{position}")
 
             stage += 1
+
+        return mzi_ids
+
+    def get_signal_mzi_ids(self) -> List[str]:
+        """
+        Generate MZI IDs for signal processing core (stages 2-4).
+        Returns the same list as the existing get_mzi_ids() method.
+        """
+        return self.get_mzi_ids()
+
+    def get_all_mzi_ids(self) -> List[str]:
+        """
+        Get ALL MZI IDs on chip including stage 1.
+        Returns all MZIs from stages 1 to 4.
+        """
+        mzi_ids = []
+        stage = np.log2(self.n_signal_taps) + 1
+
+        for s in range(1, int(stage) + 1):
+            n_mzis_in_stage = 2 ** (s - 1)
+            for position in range(1, n_mzis_in_stage + 1):
+                mzi_ids.append(f"{s}-{position}")
 
         return mzi_ids
 
@@ -616,6 +636,101 @@ class TargetFilter:
         return amplitudes * np.exp(1j * phases)
 
 
+# ==================== Tree Structure Building ====================
+def build_mzi_tree_structure(n_signal_taps: int, mzi_ids: List[str]) -> Dict[str, Dict]:
+    """
+    Build binary tree structure mapping for MZI network.
+
+    Args:
+        n_signal_taps: Number of signal processing taps (must be power of 2)
+        mzi_ids: List of MZI identifiers in hierarchical order
+
+    Returns:
+        Dict mapping MZI ID to structure info containing:
+            - 'stage': Stage number in tree
+            - 'position': Position within stage
+            - 'lower_taps': (start, end) indices for bar port
+            - 'upper_taps': (start, end) indices for cross port
+
+    Raises:
+        ValueError: If n_signal_taps is not a power of 2
+
+    Example:
+        >>> mzi_ids = ["2-1", "3-3", "3-4", "4-5", "4-6", "4-7", "4-8"]
+        >>> tree = build_mzi_tree_structure(8, mzi_ids)
+        >>> tree["2-1"]
+        {'stage': 1, 'position': 0, 'lower_taps': (0, 4), 'upper_taps': (4, 8)}
+    """
+    # Validate power of 2
+    if n_signal_taps <= 0 or (n_signal_taps & (n_signal_taps - 1)) != 0:
+        raise ValueError(f"n_signal_taps must be a power of 2, got {n_signal_taps}")
+
+    n_stages = int(np.log2(n_signal_taps))
+    expected_mzis = n_signal_taps - 1
+
+    if len(mzi_ids) != expected_mzis:
+        raise ValueError(
+            f"Expected {expected_mzis} MZI IDs for {n_signal_taps} taps, "
+            f"got {len(mzi_ids)}"
+        )
+
+    tree_structure = {}
+    mzi_index = 0
+
+    # Process each stage
+    for stage in range(1, n_stages + 1):
+        n_mzis_in_stage = 2 ** (stage - 1)
+        group_size = n_signal_taps // (2**stage)  # Taps per MZI output
+
+        for position in range(n_mzis_in_stage):
+            mzi_id = mzi_ids[mzi_index]
+
+            # Calculate tap ranges this MZI controls
+            start_tap = position * group_size * 2
+            mid_tap = start_tap + group_size
+            end_tap = start_tap + group_size * 2
+
+            tree_structure[mzi_id] = {
+                "stage": stage,
+                "position": position,
+                "lower_taps": (start_tap, mid_tap),  # Bar port
+                "upper_taps": (mid_tap, end_tap),  # Cross port
+            }
+
+            mzi_index += 1
+
+    return tree_structure
+
+
+@dataclass
+class MZITreeStructure:
+    """Binary tree structure for MZI network."""
+
+    n_signal_taps: int
+    mzi_ids: List[str]
+    tree: Dict[str, Dict] = field(init=False)
+
+    def __post_init__(self):
+        """Build tree structure from parameters."""
+        self.tree = build_mzi_tree_structure(
+            n_signal_taps=self.n_signal_taps, mzi_ids=self.mzi_ids
+        )
+
+    @classmethod
+    def from_chip_signal_processing(cls, chip: ChipParameters) -> "MZITreeStructure":
+        """Create tree for signal processing core (stages 2-4)."""
+        return cls(n_signal_taps=chip.n_signal_taps, mzi_ids=chip.get_signal_mzi_ids())
+
+    @classmethod
+    def from_chip_full(cls, chip: ChipParameters) -> "MZITreeStructure":
+        """Create full tree for characterisation (stages 1-4)."""
+        return cls(n_signal_taps=16, mzi_ids=chip.get_all_mzi_ids())
+
+    def get_mzi_info(self, mzi_id: str) -> Dict:
+        """Get tree info for specific MZI."""
+        return self.tree[mzi_id]
+
+
 @dataclass
 class ExperimentConfig:
     """Complete experiment configuration.
@@ -646,9 +761,18 @@ class ExperimentConfig:
     # Calibration settings
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
 
+    # MZI tree structures
+    signal_mzi_tree: MZITreeStructure = field(init=False)
+    full_mzi_tree: MZITreeStructure = field(init=False)
+
     # Output paths
     output_dir: str = "./results/"
     save_iterations: bool = True
+
+    def __post_init__(self):
+        """Build MZI trees from chip parameters."""
+        self.signal_mzi_tree = MZITreeStructure.from_chip_signal_processing(self.chip)
+        self.full_mzi_tree = MZITreeStructure.from_chip_full(self.chip)
 
 
 @dataclass

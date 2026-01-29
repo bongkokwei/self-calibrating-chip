@@ -38,7 +38,6 @@ from photonic_fir import (
     measure_spectrum,
     recover_impulse_response_from_df,
     detect_taps,
-    build_mzi_tree_structure,
     tap_coeffs_to_power_splitting_ratios,
     power_splitting_ratio_to_mzi_phase,
     load_config,
@@ -140,10 +139,7 @@ def scan_mzi_v2pi(
     if mzi_ids is None:
         mzi_ids = exp_config.chip.get_mzi_ids()  # Default: signal MZIs only
 
-    mzi_tree = build_mzi_tree_structure(
-        n_signal_taps=2**scan_config.max_stage,
-        mzi_ids=mzi_ids,
-    )
+    mzi_tree = exp_config.signal_mzi_tree.tree
 
     # Storage for results
     power_splitting_ratios = np.zeros(n_voltages)
