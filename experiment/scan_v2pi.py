@@ -115,7 +115,7 @@ def set_mzi_1_1_voltage(
     """
 
     # Get MZI 1-1 channel
-    mzi_device_id = "1-1"
+    mzi_device_id = "MZI_1-1"
     mzi_channel = exp_config.channel_mapping.get_channel(mzi_device_id)
 
     print(f"Setting MZI 1-1 (channel {mzi_channel}) to {voltage:.2f} V")
@@ -506,7 +506,7 @@ def run_v2pi_scan(mzi_id: str, base_output_dir: str):
 
     # Ensure MZI 1-1 is at V_pi/2
     V_halfpi = np.sqrt(
-        (exp_config.chip.heater_resistance_ohm * exp_config.chip.power_pi_watt / 4)
+        (exp_config.chip.heater_resistance_ohm * exp_config.chip.p2pi_watts / 4)
     )
     set_mzi_1_1_voltage(voltage=V_halfpi, exp_config=exp_config)
 
