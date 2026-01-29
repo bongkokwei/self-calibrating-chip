@@ -33,7 +33,6 @@ from .core.data_structure import (
 )
 
 from .core.power_splitting_ratio import (
-    build_mzi_tree_structure,
     tap_coeffs_to_power_splitting_ratios,
     extract_tap_phases,
     power_splitting_ratio_to_mzi_phase,
@@ -102,7 +101,6 @@ __all__ = [
     "config_from_dict",
     "config_to_dict",
     # Power splitting ratio calculations
-    "build_mzi_tree_structure",
     "tap_coeffs_to_power_splitting_ratios",
     "extract_tap_phases",
     "power_splitting_ratio_to_mzi_phase",
