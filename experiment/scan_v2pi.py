@@ -139,7 +139,7 @@ def scan_mzi_v2pi(
     if mzi_ids is None:
         mzi_ids = exp_config.chip.get_mzi_ids()  # Default: signal MZIs only
 
-    mzi_tree = exp_config.signal_mzi_tree.tree
+    mzi_tree = exp_config.full_mzi_tree.tree
 
     # Storage for results
     power_splitting_ratios = np.zeros(n_voltages)

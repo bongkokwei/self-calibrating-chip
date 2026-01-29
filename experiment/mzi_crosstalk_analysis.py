@@ -14,7 +14,6 @@ import pandas as pd
 
 from photonic_fir import (
     ExperimentConfig,
-    build_mzi_tree_structure,
     detect_taps,
     load_config,
     recover_impulse_response_from_df,
@@ -67,7 +66,7 @@ def analyse_mzi_crosstalk(
     # Build MZI tree
     n_stages = int(np.log2(n_signal_taps))
     mzi_ids = generate_mzi_ids(n_stages)
-    mzi_tree = build_mzi_tree_structure(n_signal_taps=n_signal_taps, mzi_ids=mzi_ids)
+    mzi_tree = config.full_mzi_tree.tree
 
     # Get all CSV files
     csv_files = sorted(data_dir.glob("*.csv"))
