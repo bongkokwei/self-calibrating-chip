@@ -93,10 +93,51 @@ class V2piScanConfig:
         return cls(**config_dict)
 
 
+def set_mzi_1_1_voltage(
+    voltage: float,
+    exp_config: ExperimentConfig,
+    settling_time_sec: float = 2.0,
+    v_max: float = 30.0,
+) -> None:
+    """
+    Set voltage on MZI 1-1.
+
+    Parameters
+    ----------
+    voltage : float
+        Voltage to apply (V)
+    exp_config : ExperimentConfig
+        Experiment configuration object
+    settling_time_sec : float
+        Time to wait for thermal settling (seconds)
+    v_max : float
+        Maximum allowed voltage (V)
+    """
+
+    # Get MZI 1-1 channel
+    mzi_device_id = "1-1"
+    mzi_channel = exp_config.channel_mapping.get_channel(mzi_device_id)
+
+    print(f"Setting MZI 1-1 (channel {mzi_channel}) to {voltage:.2f} V")
+
+    # Apply voltage
+    with VoltageController(
+        com_port=exp_config.measurement.voltage_controller_port,
+        baud_rate=exp_config.measurement.voltage_controller_baudrate,
+        zero_on_exit=False,  # Don't zero when we're done
+    ) as v_ctrl:
+        v_ctrl.set_voltages([mzi_channel], [voltage], v_max=v_max)
+        print(f"✓ Voltage applied")
+
+        if settling_time_sec > 0:
+            print(f"Waiting {settling_time_sec} s for thermal settling...")
+            time.sleep(settling_time_sec)
+            print(f"✓ Settled")
+
+
 def scan_mzi_v2pi(
     scan_config: V2piScanConfig,
     exp_config: ExperimentConfig,
-    mzi_ids: List[str] = None,  # ← New parameter
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List[pd.DataFrame]]:
     """
     Scan voltage on a single MZI to characterise P_2π.
@@ -107,9 +148,6 @@ def scan_mzi_v2pi(
         Scan configuration (voltage range, MZI ID, etc.)
     exp_config : ExperimentConfig
         Experiment configuration (chip parameters, instruments, etc.)
-    mzi_ids : List[str], optional
-        List of MZI IDs to include in tree structure.
-        If None, uses exp_config.chip.get_mzi_ids() (signal MZIs only)
 
     Returns
     -------
@@ -136,9 +174,6 @@ def scan_mzi_v2pi(
     mzi_channel = exp_config.channel_mapping.get_channel(mzi_device_id)
 
     # Build MZI tree structure for PSR calculations
-    if mzi_ids is None:
-        mzi_ids = exp_config.chip.get_mzi_ids()  # Default: signal MZIs only
-
     mzi_tree = exp_config.full_mzi_tree.tree
 
     # Storage for results
@@ -228,11 +263,6 @@ def scan_mzi_v2pi(
                 prominence_factor_db=exp_config.measurement.prominence_factor_db,
                 height_threshold_db=exp_config.measurement.height_threshold_db,
             )
-
-            # # e. Calculate power splitting ratio for target MZI
-            # # Extract signal processing taps (indices 8-15 for 16-tap chip)
-            # signal_tap_indices = exp_config.chip.signal_tap_indices
-            # signal_taps = tap_coeffs[list(signal_tap_indices)] # Might be the cause of the issue
 
             # Get all power splitting ratios from tap coefficients
             psr_dict = tap_coeffs_to_power_splitting_ratios(tap_coeffs, mzi_tree)
@@ -324,8 +354,6 @@ def plot_v2pi_scan(
     )
     fig.savefig(fig_path, dpi=300, bbox_inches="tight")
     print(f"✓ Figure saved: {fig_path}")
-
-    # plt.show()
 
 
 def estimate_v2pi(voltages: np.ndarray, mzi_phases: np.ndarray) -> float:
@@ -473,18 +501,19 @@ def run_v2pi_scan(mzi_id: str, base_output_dir: str):
 
     exp_config = load_config(CONFIG_PATH)
 
-    # Get all MZI IDs from scan config
-    all_mzi_ids = scan_config.get_all_mzi_ids()
-
     print(f"Chip: {exp_config.chip.n_taps}-tap FIR")
     print(f"FSR: {exp_config.chip.fsr_hz/1e9:.1f} GHz")
-    print(f"Including ALL MZIs in tree structure ({len(all_mzi_ids)} total)\n")
+
+    # Ensure MZI 1-1 is at V_pi/2
+    V_halfpi = np.sqrt(
+        (exp_config.chip.heater_resistance_ohm * exp_config.chip.power_pi_watt / 4)
+    )
+    set_mzi_1_1_voltage(voltage=V_halfpi, exp_config=exp_config)
 
     # Run voltage scan
     voltages, psrs, phases, dataframes = scan_mzi_v2pi(
         scan_config=scan_config,
         exp_config=exp_config,
-        mzi_ids=all_mzi_ids,
     )
 
     # Estimate V_2π from linear fit
@@ -529,15 +558,18 @@ def main():
     )
 
     # All MZIs on the chip
-    # Create a temporary config just to generate MZI IDs
     temp_config = V2piScanConfig(min_stage=1, max_stage=4)
-    mzi_ids = temp_config.get_all_mzi_ids()
+    all_mzi_ids = temp_config.get_all_mzi_ids()
+
+    # Exclude MZI 1-1
+    mzi_ids = [mzi_id for mzi_id in all_mzi_ids if mzi_id != "1-1"]
 
     print(f"\n{'='*70}")
     print(f"BATCH V_2π CHARACTERISATION")
     print(f"{'='*70}")
     print(f"Number of MZIs to scan: {len(mzi_ids)}")
     print(f"MZI IDs: {mzi_ids}")
+    print(f"Skipping: 1-1")
     print(f"{'='*70}\n")
 
     # Run scan for each MZI
