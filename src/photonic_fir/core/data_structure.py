@@ -178,7 +178,7 @@ class ChipParameters:
     dispersion_ps_per_nm_per_km: float = 0.0  # Chromatic dispersion
 
     # Heater/Phase shifter properties
-    p2pi_watts: float = 0.75  # Power for 2π phase shift (nominal)
+    p2pi_watts: float = 0.76  # Power for 2π phase shift (nominal)
     p2pi_tolerance: float = 0.05  # Expected variation in P2π
     heater_resistance_ohm: float = 600.0
     heater_resistance_tolerance: float = 30.0
