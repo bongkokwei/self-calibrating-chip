@@ -700,7 +700,7 @@ def main():
     ) as v_ctrl:
         v_ctrl.set_voltages(
             channels=np.arange(1, 32 + 1),
-            voltages=0.0,
+            voltages=[0.0] * 32,
             v_max=30.0,
         )
 
