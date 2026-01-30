@@ -326,7 +326,7 @@ def plot_v2pi_scan(
     # Plot 2: MZI phase vs voltage
     ax2 = axes[1]
     ax2.plot(voltages, mzi_phases, "ro-", linewidth=2, markersize=4)
-    ax2.set_xlabel("Voltage (V)", fontsize=12)
+    ax2.set_xlabel("Voltage$^2$ (V$^2$)", fontsize=12)
     ax2.set_ylabel("MZI Phase (rad)", fontsize=12)
     ax2.grid(True, alpha=0.3)
 
@@ -571,7 +571,7 @@ def characterise_mzi(
 
     # Plot results
     plot_v2pi_scan(
-        voltages=voltages,
+        voltages=voltages**2,
         power_splitting_ratios=psrs,
         mzi_phases=phases,
         scan_config=scan_config,
