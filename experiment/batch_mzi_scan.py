@@ -1,22 +1,21 @@
 """
-scan_v2pi.py
+batch_mzi_scan_refactored.py
 
-Voltage scan script to characterise P_2π (V_π) for individual MZIs.
+Refactored voltage scan script to characterise V_2π and φ_init for individual MZIs.
 
-Workflow:
-1. Load experiment configuration
-2. Scan voltage range for specified MZI
-3. For each voltage setting:
-   a. Set voltage on MZI
-   b. Wait for thermal settling
-   c. Measure optical spectrum
-   d. Recover tap coefficients via Kramers-Kronig
-   e. Calculate power splitting ratio for the target MZI
-4. Plot results and estimate V_2π from linear fit
+This version uses the modular utilities from photonic_fir.utils:
+- mzi_characterisation: Nonlinear fitting functions
+- mzi_plotting: Plotting functions
+
+Key improvements:
+1. Proper tan² model fitting instead of linear approximation
+2. Simultaneous estimation of V_2π and φ_init
+3. Cleaner separation of concerns (measurement, fitting, plotting)
+4. Plot shows PSR vs V² only (no phase plot in main figure)
 
 Usage:
     # Configure parameters in main() and run
-    python scan_v2pi.py
+    python batch_mzi_scan_refactored.py
 """
 
 import numpy as np
@@ -42,6 +41,16 @@ from photonic_fir import (
     power_splitting_ratio_to_mzi_phase,
     load_config,
     get_next_run_dir,
+)
+
+# Import new utilities
+from photonic_fir.utils.mzi_characterisation import (
+    fit_mzi_v2pi_and_phi_init,
+    print_fit_results,
+)
+
+from photonic_fir.utils.mzi_plotting import (
+    plot_mzi_characterisation,
 )
 
 
@@ -70,7 +79,12 @@ class V2piScanConfig:
 
     def get_voltage_range(self) -> np.ndarray:
         """Generate voltage array from parameters."""
-        return np.linspace(self.v_min, self.v_max, self.n_points)
+        voltage_squared = np.linspace(
+            self.v_min**2,
+            self.v_max**2,
+            self.n_points,
+        )
+        return np.sqrt(voltage_squared)
 
     def get_all_mzi_ids(self) -> List[str]:
         """Generate all MZI IDs based on stage configuration."""
@@ -195,9 +209,6 @@ def perform_voltage_sweep(
     print(f"Output directory: {output_path}")
     print(f"{'='*70}\n")
 
-    # Get voltage controller parameters
-    resistance = exp_config.chip.heater_resistance_ohm
-
     # Measure DUT length for delay calculations
     with LunaOVA(ip=exp_config.measurement.ova_address) as ova:
         ova.set_dut_length()
@@ -286,129 +297,6 @@ def perform_voltage_sweep(
     return voltage_range, power_splitting_ratios, mzi_phases, dataframes
 
 
-def plot_v2pi_scan(
-    voltages: np.ndarray,
-    power_splitting_ratios: np.ndarray,
-    mzi_phases: np.ndarray,
-    scan_config: V2piScanConfig,
-    v_2pi_estimate: float = None,
-):
-    """
-    Plot V_2π scan results.
-
-    Parameters
-    ----------
-    voltages : np.ndarray
-        Voltage values
-    power_splitting_ratios : np.ndarray
-        Power splitting ratios in dB
-    mzi_phases : np.ndarray
-        MZI phases in radians
-    scan_config : V2piScanConfig
-        Scan configuration
-    v_2pi_estimate : float, optional
-        Estimated V_2π to mark on plot
-    """
-
-    fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-
-    # Plot 1: Power splitting ratio vs voltage
-    ax1 = axes[0]
-    ax1.plot(voltages, power_splitting_ratios, "bo-", linewidth=2, markersize=4)
-    ax1.set_ylabel("Power Splitting Ratio (dB)", fontsize=12)
-    ax1.set_title(
-        f"V_2π Scan for MZI {scan_config.mzi_id}", fontsize=14, fontweight="bold"
-    )
-    ax1.grid(True, alpha=0.3)
-    ax1.axhline(y=0, color="r", linestyle="--", alpha=0.5, label="50:50 split")
-    ax1.legend()
-
-    # Plot 2: MZI phase vs voltage
-    ax2 = axes[1]
-    ax2.plot(voltages, mzi_phases, "ro-", linewidth=2, markersize=4)
-    ax2.set_xlabel("Voltage$^2$ (V$^2$)", fontsize=12)
-    ax2.set_ylabel("MZI Phase (rad)", fontsize=12)
-    ax2.grid(True, alpha=0.3)
-
-    # Mark 0, π, and 2π phase levels
-    ax2.axhline(y=0, color="gray", linestyle="--", alpha=0.3, label="0")
-    ax2.axhline(y=np.pi, color="gray", linestyle="--", alpha=0.3, label="π")
-    ax2.axhline(y=2 * np.pi, color="gray", linestyle="--", alpha=0.3, label="2π")
-
-    # Mark V_2π estimate if provided
-    if v_2pi_estimate is not None:
-        ax2.axvline(
-            x=v_2pi_estimate,
-            color="green",
-            linestyle=":",
-            linewidth=2,
-            alpha=0.7,
-            label=f"V_2π ≈ {v_2pi_estimate:.2f} V",
-        )
-
-    ax2.legend()
-
-    plt.tight_layout()
-
-    # Save figure
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    fig_path = (
-        Path(scan_config.output_dir) / f"v2pi_scan_{scan_config.mzi_id}_{timestamp}.png"
-    )
-    fig.savefig(fig_path, dpi=300, bbox_inches="tight")
-    print(f"✓ Figure saved: {fig_path}")
-
-
-def estimate_v2pi(voltages: np.ndarray, mzi_phases: np.ndarray) -> float:
-    """
-    Estimate V_2π from phase vs voltage data using linear fit.
-
-    The MZI phase should follow φ = (π/V_π) × V for small phases,
-    so we fit φ = slope × V and extract V_2π = 2π/slope.
-
-    Parameters
-    ----------
-    voltages : np.ndarray
-        Voltage values
-    mzi_phases : np.ndarray
-        MZI phases in radians
-
-    Returns
-    -------
-    v_2pi : float
-        Estimated V_2π in volts
-    """
-
-    # Linear fit: phase = slope * voltage + intercept
-    coeffs = np.polyfit(voltages, mzi_phases, deg=1)
-    slope = coeffs[0]  # rad/V
-    intercept = coeffs[1]  # rad
-
-    # V_2π from slope
-    v_2pi = 2 * np.pi / slope
-
-    # Calculate R² for goodness of fit
-    phase_fit = slope * voltages + intercept
-    ss_res = np.sum((mzi_phases - phase_fit) ** 2)
-    ss_tot = np.sum((mzi_phases - np.mean(mzi_phases)) ** 2)
-    r_squared = 1 - (ss_res / ss_tot)
-
-    print(f"\n{'='*70}")
-    print("V_2π Estimation (Linear Fit)")
-    print(f"{'='*70}")
-    print(f"Slope: {slope:.4f} rad/V")
-    print(f"Intercept: {intercept:.4f} rad")
-    print(f"R²: {r_squared:.4f}")
-    print(f"Estimated V_2π: {v_2pi:.3f} V")
-
-    # Corresponding power (P = V²/R)
-    # Typical resistance ~600 Ω, but this depends on your chip
-    print(f"\nNote: For power calculation, check your heater resistance")
-    print(f"{'='*70}\n")
-
-    return v_2pi
-
-
 def save_results(
     scan_config: V2piScanConfig,
     exp_config: ExperimentConfig,
@@ -416,6 +304,9 @@ def save_results(
     psr: np.ndarray,
     phases: np.ndarray,
     v_2pi: float,
+    phi_init: float,
+    r_squared: float,
+    fit_info: Dict,
 ):
     """Save scan results to YAML file."""
 
@@ -427,8 +318,17 @@ def save_results(
                 f"MZI_{scan_config.mzi_id}"
             ),
         },
-        "results": {
-            "v_2pi_estimate": float(v_2pi),
+        "fit_results": {
+            "v_2pi_volts": float(v_2pi),
+            "phi_init_rad": float(phi_init),
+            "phi_init_deg": float(np.degrees(phi_init)),
+            "p_2pi_watts": float(fit_info["p_2pi_watts"]),
+            "p_2pi_mw": float(fit_info["p_2pi_watts"] * 1000),
+            "r_squared": float(r_squared),
+            "rmse_db": float(fit_info["rmse_db"]),
+            "resistance_ohm": float(exp_config.chip.heater_resistance_ohm),
+        },
+        "data_ranges": {
             "voltage_range": {
                 "min": float(np.min(voltages)),
                 "max": float(np.max(voltages)),
@@ -466,14 +366,14 @@ def characterise_mzi(
     save_raw_data: bool = True,
 ):
     """
-    Full characterisation workflow for a single MZI's V_2π parameter.
+    Full characterisation workflow for a single MZI's V_2π and φ_init.
 
     This is the high-level orchestration function that:
     1. Sets up the scan configuration
-    2. Initialises MZI 1-1 to V_π/2
+    2. Initialises reference MZIs (1-1, 2-1, 3-1, 4-1) to known states
     3. Performs the voltage sweep
-    4. Analyses results (V_2π estimation)
-    5. Plots results
+    4. Fits V_2π and φ_init using nonlinear least squares
+    5. Plots results (PSR vs V² and fit overlay)
     6. Saves summary
 
     Parameters
@@ -520,34 +420,26 @@ def characterise_mzi(
     print(f"FSR: {exp_config.chip.fsr_hz/1e9:.1f} GHz")
 
     # ============================================================
-    # INITIALISE MZI 1-1, MZI 2-1, MZI 3-1, MZI 4-1,
+    # INITIALISE REFERENCE MZIs (1-1, 2-1, 3-1, 4-1)
     # ============================================================
 
     R = exp_config.chip.heater_resistance_ohm
     P = exp_config.chip.p2pi_watts
+
+    # Set MZI 1-1 to π/2 (V = √(R*P/4))
     set_mzi_voltage(
         mzi_id="1-1",
         voltage=np.sqrt((R * P / 4)),
         exp_config=exp_config,
     )
 
-    set_mzi_voltage(
-        mzi_id="2-1",
-        voltage=0.0,
-        exp_config=exp_config,
-    )
-
-    set_mzi_voltage(
-        mzi_id="3-1",
-        voltage=0.0,
-        exp_config=exp_config,
-    )
-
-    set_mzi_voltage(
-        mzi_id="4-1",
-        voltage=0.0,
-        exp_config=exp_config,
-    )
+    # Set other reference MZIs to 0V
+    for ref_mzi in ["2-1", "3-1", "4-1"]:
+        set_mzi_voltage(
+            mzi_id=ref_mzi,
+            voltage=0.0,
+            exp_config=exp_config,
+        )
 
     # ============================================================
     # PERFORM VOLTAGE SWEEP
@@ -559,26 +451,54 @@ def characterise_mzi(
     )
 
     # ============================================================
-    # ANALYSE RESULTS
+    # FIT V_2π AND φ_init USING NONLINEAR LEAST SQUARES
     # ============================================================
 
-    # Estimate V_2π from linear fit
-    v_2pi = estimate_v2pi(voltages, phases)
-
-    # ============================================================
-    # PLOT AND SAVE
-    # ============================================================
-
-    # Plot results
-    plot_v2pi_scan(
-        voltages=voltages**2,
-        power_splitting_ratios=psrs,
-        mzi_phases=phases,
-        scan_config=scan_config,
-        v_2pi_estimate=None,
+    # Let the function auto-estimate initial guesses from the data
+    v_2pi, phi_init, r_squared, fit_info = fit_mzi_v2pi_and_phi_init(
+        voltages=voltages,
+        psr_db=psrs,
+        resistance_ohm=R,
     )
 
-    # Save summary
+    # Check if fit was successful
+    fit_successful = r_squared > 0.5 and fit_info["fitted_psr"] is not None
+
+    if not fit_successful:
+        print("\n⚠ Warning: Nonlinear fit did not converge well (R² < 0.5)")
+        print("   Proceeding with data-only plot")
+
+    # Print results
+    print_fit_results(
+        mzi_id=scan_config.mzi_id,
+        v_2pi=v_2pi,
+        phi_init=phi_init,
+        r_squared=r_squared,
+        fit_info=fit_info,
+        resistance_ohm=R,
+    )
+
+    # ============================================================
+    # PLOT RESULTS
+    # ============================================================
+
+    # Single plot: PSR vs V² with data and fitted curve
+    # Only show fit if it was successful
+    fig = plot_mzi_characterisation(
+        voltages=voltages,
+        psr_db=psrs,
+        mzi_id=scan_config.mzi_id,
+        v_2pi=v_2pi if fit_successful else None,
+        phi_init=phi_init if fit_successful else None,
+        fit_info=fit_info if fit_successful else None,
+        resistance_ohm=R,
+        output_dir=scan_config.output_dir,
+    )
+
+    # ============================================================
+    # SAVE SUMMARY
+    # ============================================================
+
     save_results(
         scan_config=scan_config,
         exp_config=exp_config,
@@ -586,13 +506,19 @@ def characterise_mzi(
         psr=psrs,
         phases=phases,
         v_2pi=v_2pi,
+        phi_init=phi_init,
+        r_squared=r_squared,
+        fit_info=fit_info,
     )
 
     print(f"\n{'='*70}")
     print("MZI Characterisation Complete!")
     print(f"{'='*70}")
     print(f"MZI {scan_config.mzi_id}")
-    print(f"Estimated V_2π: {v_2pi:.3f} V")
+    print(f"V_2π:   {v_2pi:.3f} V")
+    print(f"φ_init: {phi_init:.4f} rad ({np.degrees(phi_init):.2f}°)")
+    print(f"P_2π:   {fit_info['p_2pi_watts']*1000:.2f} mW")
+    print(f"R²:     {r_squared:.6f}")
     print(f"Results saved to: {scan_config.output_dir}")
     print(f"{'='*70}\n")
 
@@ -650,9 +576,9 @@ def main():
     all_mzi_ids = exp_config.chip.get_all_mzi_ids()
 
     # Exclude MZIs in the first position of each stage (plus reference MZI)
-    excluded_mzis = {"1-1", "2-1", "3-1", "4-1", "4-5"}
+    excluded_mzis = {"1-1", "2-1", "3-1", "4-1", "4-5", "4-6", "4-7", "4-8"}
     mzi_ids = [mzi_id for mzi_id in all_mzi_ids if mzi_id not in excluded_mzis]
-
+    # mzi_ids = ["4-5", "4-6", "4-7", "4-8"]  # problem mzis for testing
     print(f"\n{'='*70}")
     print(f"BATCH V_2π CHARACTERISATION")
     print(f"{'='*70}")
