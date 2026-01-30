@@ -533,19 +533,19 @@ def characterise_mzi(
 
     set_mzi_voltage(
         mzi_id="2-1",
-        voltage=np.sqrt((R * P / 2)),
+        voltage=0.0,
         exp_config=exp_config,
     )
 
     set_mzi_voltage(
         mzi_id="3-1",
-        voltage=np.sqrt((R * P / 2)),
+        voltage=0.0,
         exp_config=exp_config,
     )
 
     set_mzi_voltage(
         mzi_id="4-1",
-        voltage=np.sqrt((R * P / 2)),
+        voltage=0.0,
         exp_config=exp_config,
     )
 
@@ -607,7 +607,7 @@ def main():
     # ============================================================
 
     # Experiment configuration file
-    CONFIG_PATH = "measurements/experiment_config_shorter_range.yaml"
+    CONFIG_PATH = "measurements/experiment_config_shorter_range_reduce_num_avg.yaml"
 
     # Voltage scan parameters
     V_MIN = 0.0  # Minimum voltage (V)
@@ -652,6 +652,7 @@ def main():
     # Exclude MZIs in the first position of each stage (plus reference MZI)
     excluded_mzis = {"1-1", "2-1", "3-1", "4-1"}
     mzi_ids = [mzi_id for mzi_id in all_mzi_ids if mzi_id not in excluded_mzis]
+    mzi_ids = ["4-5", "4-6", "4-7", "4-8"]  # For testing
 
     print(f"\n{'='*70}")
     print(f"BATCH V_2π CHARACTERISATION")
@@ -698,7 +699,7 @@ def main():
         zero_on_exit=True,
     ) as v_ctrl:
         v_ctrl.set_voltages(
-            channels=np.arange(1, exp_config.channel_mapping.n_channels + 1),
+            channels=np.arange(1, 32 + 1),
             voltages=0.0,
             v_max=30.0,
         )
