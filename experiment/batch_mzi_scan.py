@@ -649,8 +649,9 @@ def main():
     # All MZIs on the chip
     all_mzi_ids = exp_config.chip.get_all_mzi_ids()
 
-    # Exclude MZI 1-1 (used as reference)
-    mzi_ids = [mzi_id for mzi_id in all_mzi_ids if mzi_id != "1-1"]
+    # Exclude MZIs in the first position of each stage (plus reference MZI)
+    excluded_mzis = {"1-1", "2-1", "3-1", "4-1"}
+    mzi_ids = [mzi_id for mzi_id in all_mzi_ids if mzi_id not in excluded_mzis]
 
     print(f"\n{'='*70}")
     print(f"BATCH V_2π CHARACTERISATION")
