@@ -317,10 +317,10 @@ def save_results(
             "v_2pi_volts": float(v_2pi),
             "phi_init_rad": float(phi_init),
             "phi_init_deg": float(np.degrees(phi_init)),
-            "p_2pi_watts": float(fit_info['p_2pi_watts']),
-            "p_2pi_mw": float(fit_info['p_2pi_watts'] * 1000),
+            "p_2pi_watts": float(fit_info["p_2pi_watts"]),
+            "p_2pi_mw": float(fit_info["p_2pi_watts"] * 1000),
             "r_squared": float(r_squared),
-            "rmse_db": float(fit_info['rmse_db']),
+            "rmse_db": float(fit_info["rmse_db"]),
             "resistance_ohm": float(exp_config.chip.heater_resistance_ohm),
         },
         "data_ranges": {
@@ -420,7 +420,7 @@ def characterise_mzi(
 
     R = exp_config.chip.heater_resistance_ohm
     P = exp_config.chip.p2pi_watts
-    
+
     # Set MZI 1-1 to π/2 (V = √(R*P/4))
     set_mzi_voltage(
         mzi_id="1-1",
@@ -564,7 +564,7 @@ def main():
     all_mzi_ids = exp_config.chip.get_all_mzi_ids()
 
     # Exclude MZIs in the first position of each stage (plus reference MZI)
-    excluded_mzis = {"1-1", "2-1", "3-1", "4-1"}
+    excluded_mzis = {"1-1", "2-1", "3-1", "4-1", "4-5", "4-6", "4-7", "4-8"}
     mzi_ids = [mzi_id for mzi_id in all_mzi_ids if mzi_id not in excluded_mzis]
     # mzi_ids = ["4-5", "4-6", "4-7", "4-8"]  # For testing
 
@@ -573,7 +573,7 @@ def main():
     print(f"{'='*70}")
     print(f"Number of MZIs to scan: {len(mzi_ids)}")
     print(f"MZI IDs: {mzi_ids}")
-    print(f"Skipping: 1-1 (reference MZI)")
+    print(f"Skipping: {excluded_mzis}")
     print(f"Base output directory: {base_output_dir}")
     print(f"{'='*70}\n")
 
