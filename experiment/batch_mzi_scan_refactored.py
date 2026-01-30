@@ -317,10 +317,10 @@ def save_results(
             "v_2pi_volts": float(v_2pi),
             "phi_init_rad": float(phi_init),
             "phi_init_deg": float(np.degrees(phi_init)),
-            "p_2pi_watts": float(fit_info["p_2pi_watts"]),
-            "p_2pi_mw": float(fit_info["p_2pi_watts"] * 1000),
+            "p_2pi_watts": float(fit_info['p_2pi_watts']),
+            "p_2pi_mw": float(fit_info['p_2pi_watts'] * 1000),
             "r_squared": float(r_squared),
-            "rmse_db": float(fit_info["rmse_db"]),
+            "rmse_db": float(fit_info['rmse_db']),
             "resistance_ohm": float(exp_config.chip.heater_resistance_ohm),
         },
         "data_ranges": {
@@ -420,7 +420,7 @@ def characterise_mzi(
 
     R = exp_config.chip.heater_resistance_ohm
     P = exp_config.chip.p2pi_watts
-
+    
     # Set MZI 1-1 to π/2 (V = √(R*P/4))
     set_mzi_voltage(
         mzi_id="1-1",
@@ -449,13 +449,19 @@ def characterise_mzi(
     # FIT V_2π AND φ_init USING NONLINEAR LEAST SQUARES
     # ============================================================
 
+    # Let the function auto-estimate initial guesses from the data
     v_2pi, phi_init, r_squared, fit_info = fit_mzi_v2pi_and_phi_init(
         voltages=voltages,
         psr_db=psrs,
         resistance_ohm=R,
-        v_2pi_initial_guess=25.0,
-        phi_init_guess=0.0,
     )
+
+    # Check if fit was successful
+    fit_successful = (r_squared > 0.5 and fit_info['fitted_psr'] is not None)
+    
+    if not fit_successful:
+        print("\n⚠ Warning: Nonlinear fit did not converge well (R² < 0.5)")
+        print("   Proceeding with data-only plot")
 
     # Print results
     print_fit_results(
@@ -472,13 +478,14 @@ def characterise_mzi(
     # ============================================================
 
     # Single plot: PSR vs V² with data and fitted curve
+    # Only show fit if it was successful
     fig = plot_mzi_characterisation(
         voltages=voltages,
         psr_db=psrs,
         mzi_id=scan_config.mzi_id,
-        v_2pi=v_2pi,
-        phi_init=phi_init,
-        fit_info=fit_info,
+        v_2pi=v_2pi if fit_successful else None,
+        phi_init=phi_init if fit_successful else None,
+        fit_info=fit_info if fit_successful else None,
         resistance_ohm=R,
         output_dir=scan_config.output_dir,
     )
@@ -564,7 +571,7 @@ def main():
     all_mzi_ids = exp_config.chip.get_all_mzi_ids()
 
     # Exclude MZIs in the first position of each stage (plus reference MZI)
-    excluded_mzis = {"1-1", "2-1", "3-1", "4-1", "4-5", "4-6", "4-7", "4-8"}
+    excluded_mzis = {"1-1", "2-1", "3-1", "4-1"}
     mzi_ids = [mzi_id for mzi_id in all_mzi_ids if mzi_id not in excluded_mzis]
     # mzi_ids = ["4-5", "4-6", "4-7", "4-8"]  # For testing
 
@@ -573,7 +580,7 @@ def main():
     print(f"{'='*70}")
     print(f"Number of MZIs to scan: {len(mzi_ids)}")
     print(f"MZI IDs: {mzi_ids}")
-    print(f"Skipping: {excluded_mzis}")
+    print(f"Skipping: 1-1 (reference MZI)")
     print(f"Base output directory: {base_output_dir}")
     print(f"{'='*70}\n")
 

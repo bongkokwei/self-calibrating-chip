@@ -24,11 +24,11 @@ def plot_mzi_characterisation(
 ) -> plt.Figure:
     """
     Plot MZI characterisation data with optional fitted model overlay.
-
+    
     Creates a single clean plot showing:
     - Measured PSR vs V² data points
     - Fitted curve (if fit parameters provided)
-
+    
     Parameters
     ----------
     voltages : np.ndarray
@@ -47,17 +47,17 @@ def plot_mzi_characterisation(
         Heater resistance (Ω)
     output_dir : str, optional
         Directory to save figure. If None, figure is not saved
-
+    
     Returns
     -------
     fig : plt.Figure
         Matplotlib figure object
-
+    
     Examples
     --------
     >>> # Plot data only
     >>> fig = plot_mzi_characterisation(voltages, psr_db, mzi_id="4-5")
-    >>>
+    >>> 
     >>> # Plot with fitted curve
     >>> v_2pi, phi_init, r2, info = fit_mzi_v2pi_and_phi_init(voltages, psr_db, 600)
     >>> fig = plot_mzi_characterisation(
@@ -66,70 +66,62 @@ def plot_mzi_characterisation(
     ...     output_dir="./results"
     ... )
     """
-    voltage_squared = voltages**2
-
+    voltage_squared = voltages ** 2
+    
     fig, ax = plt.subplots(1, 1, figsize=(10, 6))
-
+    
     # Plot measured data
     ax.plot(
-        voltage_squared,
-        psr_db,
-        "o",
+        voltage_squared, 
+        psr_db, 
+        'o', 
         markersize=7,
-        markerfacecolor="steelblue",
-        markeredgecolor="darkblue",
+        markerfacecolor='steelblue',
+        markeredgecolor='darkblue',
         markeredgewidth=1.5,
-        label="Measured",
+        label='Measured',
         zorder=3,
     )
-
+    
     # Plot fitted curve if parameters provided
-    if (
-        fit_info is not None
-        and "fitted_psr" in fit_info
-        and fit_info["fitted_psr"] is not None
-    ):
-        psr_fit = fit_info["fitted_psr"]
+    if fit_info is not None and 'fitted_psr' in fit_info and fit_info['fitted_psr'] is not None:
+        psr_fit = fit_info['fitted_psr']
         ax.plot(
             voltage_squared,
             psr_fit,
-            "-",
-            color="crimson",
+            '-',
+            color='crimson',
             linewidth=2.5,
-            label="Fitted",
+            label='Fitted',
             zorder=2,
         )
     elif v_2pi is not None or phi_init is not None:
         # User provided fit parameters but no fitted data - likely fit failed
-        print(
-            "⚠ Warning: Fit parameters provided but fitted curve unavailable (fit may have failed)"
-        )
-
+        print("⚠ Warning: Fit parameters provided but fitted curve unavailable (fit may have failed)")
+    
     # Reference line
-    ax.axhline(
-        y=0, color="grey", linestyle="--", alpha=0.5, linewidth=1.5, label="50:50 split"
-    )
-
+    ax.axhline(y=0, color='grey', linestyle='--', alpha=0.5, linewidth=1.5, label='50:50 split')
+    
     # Formatting
-    ax.set_xlabel("Voltage² (V²)", fontsize=13)
-    ax.set_ylabel("Power Splitting Ratio (dB)", fontsize=13)
+    ax.set_xlabel('Voltage² (V²)', fontsize=13)
+    ax.set_ylabel('Power Splitting Ratio (dB)', fontsize=13)
     ax.set_title(
-        f"MZI {mzi_id} Characterisation",
+        f'MZI {mzi_id} Characterisation',
         fontsize=14,
-        fontweight="bold",
+        fontweight='bold',
     )
-    ax.grid(True, alpha=0.3, linestyle="--")
-    ax.legend(fontsize=11, loc="best")
-
+    ax.grid(True, alpha=0.3, linestyle='--')
+    ax.legend(fontsize=11, loc='best')
+    
     plt.tight_layout()
-
+    
     # Save if output directory specified
     if output_dir is not None:
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"mzi_{mzi_id}_characterisation_{timestamp}.png"
-        fig.savefig(output_path / filename, dpi=300, bbox_inches="tight")
+        fig.savefig(output_path / filename, dpi=300, bbox_inches='tight')
         print(f"✓ Figure saved: {output_path / filename}")
-
+    
     return fig

@@ -89,12 +89,93 @@ def mzi_psr_model(
     return psr_db
 
 
+def estimate_initial_parameters(
+    voltages: np.ndarray,
+    psr_db: np.ndarray,
+) -> Tuple[float, float]:
+    """
+    Estimate initial V_2π and φ_init from measured data.
+    
+    Strategy:
+    1. φ_init from PSR at V=0: 
+       At V=0, φ = φ_init, so PSR(0) = 20·log₁₀|cot(φ_init/2)|
+       Inverting: φ_init = 2·arctan(10^(-PSR(0)/20))
+    
+    2. V_2π from PSR oscillation range:
+       PSR oscillates from +∞ to -∞ as phase goes from 0 to π.
+       The voltage range between PSR_max and PSR_min corresponds to π phase shift.
+       Since φ = 2π·V²/V_2π², we have:
+       π = 2π·(V_max² - V_min²)/V_2π²
+       V_2π = √(2·(V_max² - V_min²))
+    
+    Parameters
+    ----------
+    voltages : np.ndarray
+        Applied voltage values (V)
+    psr_db : np.ndarray
+        Measured power splitting ratios (dB)
+    
+    Returns
+    -------
+    v_2pi_guess : float
+        Estimated V_2π (V)
+    phi_init_guess : float
+        Estimated φ_init (radians)
+    
+    Examples
+    --------
+    >>> voltages = np.linspace(0, 30, 50)
+    >>> psr = mzi_psr_model(voltages**2, 25**2, 0.1, 600)
+    >>> v_2pi_est, phi_init_est = estimate_initial_parameters(voltages, psr)
+    >>> np.isclose(v_2pi_est, 25.0, rtol=0.2)
+    True
+    >>> np.isclose(phi_init_est, 0.1, rtol=0.5)
+    True
+    """
+    # 1. Estimate φ_init from PSR at V=0
+    psr_at_zero = psr_db[0]  # First point should be at V=0
+    
+    # PSR = 20·log₁₀|cot(φ/2)| → φ = 2·arctan(10^(-PSR/20))
+    # Add bounds to handle extreme PSR values
+    psr_at_zero_clipped = np.clip(psr_at_zero, -50, 50)  # Avoid numerical issues
+    phi_init_guess = 2 * np.arctan(10 ** (-psr_at_zero_clipped / 20))
+    
+    # 2. Estimate V_2π from PSR oscillation range
+    # Find voltages where PSR is maximum and minimum
+    idx_max = np.argmax(psr_db)
+    idx_min = np.argmin(psr_db)
+    
+    v_max = voltages[idx_max]
+    v_min = voltages[idx_min]
+    
+    # Voltage range for π phase shift
+    # π = 2π·(V_max² - V_min²)/V_2π² → V_2π = √(2·ΔV²)
+    delta_v_squared = abs(v_max**2 - v_min**2)
+    
+    if delta_v_squared > 0:
+        v_2pi_guess = np.sqrt(2 * delta_v_squared)
+    else:
+        # Fallback if no clear oscillation
+        v_2pi_guess = voltages[-1]  # Use max voltage as rough guess
+    
+    # Sanity checks
+    if v_2pi_guess < 5.0 or v_2pi_guess > 50.0:
+        # Unreasonable V_2π, use default
+        v_2pi_guess = 25.0
+    
+    if phi_init_guess < -np.pi or phi_init_guess > np.pi:
+        # Unreasonable φ_init, use default
+        phi_init_guess = 0.0
+    
+    return v_2pi_guess, phi_init_guess
+
+
 def fit_mzi_v2pi_and_phi_init(
     voltages: np.ndarray,
     psr_db: np.ndarray,
     resistance_ohm: float,
-    v_2pi_initial_guess: float = 25.0,
-    phi_init_guess: float = 0.0,
+    v_2pi_initial_guess: float = None,
+    phi_init_guess: float = None,
 ) -> Tuple[float, float, float, Dict]:
     """
     Fit MZI V_2π and φ_init from PSR vs voltage data using nonlinear least squares.
@@ -110,10 +191,10 @@ def fit_mzi_v2pi_and_phi_init(
         Measured power splitting ratios (dB)
     resistance_ohm : float
         Heater resistance (Ω)
-    v_2pi_initial_guess : float
-        Initial guess for V_2π (V), default 25.0
-    phi_init_guess : float
-        Initial guess for φ_init (radians), default 0.0
+    v_2pi_initial_guess : float, optional
+        Initial guess for V_2π (V). If None, estimated from data.
+    phi_init_guess : float, optional
+        Initial guess for φ_init (radians). If None, estimated from PSR at V=0.
     
     Returns
     -------
@@ -134,6 +215,7 @@ def fit_mzi_v2pi_and_phi_init(
     --------
     >>> voltages = np.linspace(0, 30, 50)
     >>> psr_measured = mzi_psr_model(voltages**2, 25**2, 0.1, 600)
+    >>> # Let it estimate initial guesses automatically
     >>> v_2pi, phi_init, r2, info = fit_mzi_v2pi_and_phi_init(
     ...     voltages, psr_measured, resistance_ohm=600)
     >>> np.isclose(v_2pi, 25.0, rtol=0.01)
@@ -141,28 +223,26 @@ def fit_mzi_v2pi_and_phi_init(
     >>> np.isclose(phi_init, 0.1, rtol=0.1)
     True
     """
+    # Use smart initial guesses if not provided
+    if v_2pi_initial_guess is None or phi_init_guess is None:
+        v_2pi_auto, phi_init_auto = estimate_initial_parameters(voltages, psr_db)
+        
+        if v_2pi_initial_guess is None:
+            v_2pi_initial_guess = v_2pi_auto
+            print(f"Auto-estimated V_2π initial guess: {v_2pi_initial_guess:.2f} V")
+        
+        if phi_init_guess is None:
+            phi_init_guess = phi_init_auto
+            print(f"Auto-estimated φ_init initial guess: {phi_init_guess:.4f} rad ({np.degrees(phi_init_guess):.2f}°)")
+    
     # Convert to voltage squared for fitting
     voltage_squared = voltages ** 2
-    
-    # Estimate initial guess from data if not provided
-    # V_2π estimation: find voltage range that covers approximately 2π phase
-    psr_range = np.max(psr_db) - np.min(psr_db)
-    v_range = np.max(voltages) - np.min(voltages)
-    
-    # If PSR range is large, data likely covers significant phase range
-    # Use data-driven estimate if provided guess seems wrong
-    if psr_range > 10:  # dB, indicates significant phase modulation
-        # Estimate V_2π from voltage range that gives ~2π phase
-        # Assume we're covering roughly 1-2π in the data
-        v_2pi_estimate = v_range * np.sqrt(2)  # Rough estimate
-        if abs(v_2pi_estimate - v_2pi_initial_guess) / v_2pi_initial_guess > 0.5:
-            v_2pi_initial_guess = v_2pi_estimate
     
     # Initial parameter guess: [V_2π², φ_init]
     p0 = [v_2pi_initial_guess ** 2, phi_init_guess]
     
     # More relaxed bounds: V_2π from 10-50V, φ_init in [-π, π]
-    bounds = ([100.0, -np.pi], [2500.0, np.pi])  # V_2π² from 10²to 50²
+    bounds = ([100.0, -np.pi], [2500.0, np.pi])  # V_2π² from 10² to 50²
     
     try:
         # Perform nonlinear least squares fit
