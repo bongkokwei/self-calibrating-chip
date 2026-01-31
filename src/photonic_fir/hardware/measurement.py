@@ -108,9 +108,9 @@ def measure_spectrum(
         output_path = output_dir / f"{file_name}.csv"
         df.to_csv(output_path, mode="a", index=False)
 
-    print(f"Data saved to: {output_path}")
-    print(f"Columns saved: {list(df.columns)}")
-    print(f"Number of data points: {len(df)}")
+        print(f"Data saved to: {output_path}")
+        print(f"Columns saved: {list(df.columns)}")
+        print(f"Number of data points: {len(df)}")
 
     return df
 
