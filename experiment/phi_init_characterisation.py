@@ -60,7 +60,7 @@ def apply_raw_voltages(
     for mzi_id, power_watts in mzi_powers.items():
         voltage = np.sqrt(power_watts * R)
         channel = config.channel_mapping.get_channel(f"MZI_{mzi_id}")
-        voltage_ctrl.set_voltage(channel=channel, voltage=voltage)
+        voltage_ctrl.set_voltages(channels=[channel], voltages=[voltage], v_max=30)
         print(f"    MZI {mzi_id} (ch {channel}): {voltage:.4f} V ({power_watts:.4f} W)")
 
     # Wait for thermal settling
@@ -179,7 +179,11 @@ def characterise_mzi_phi_init(
     )
 
     # Create voltage controller
-    voltage_ctrl = VoltageController(port=config.measurement.voltage_controller_port)
+    voltage_ctrl = VoltageController(
+        com_port=config.measurement.voltage_controller_port,
+        baud_rate=config.measurement.voltage_controller_baudrate,
+        zero_on_exit=True,
+    )
 
     # -------------------------------------------------------------------------
     # STEP 1: Baseline measurement (all MZIs at 0W)
@@ -319,7 +323,9 @@ if __name__ == "__main__":
     from photonic_fir.core.data_structure import ChipState
 
     # Load configuration
-    config = load_config("example_config.yaml")
+    config = load_config(
+        "measurements/experiment_config_shorter_range_reduce_num_avg.yaml"
+    )
 
     print("=" * 70)
     print("COMPLETE CALIBRATION WORKFLOW")
