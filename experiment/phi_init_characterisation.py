@@ -1,8 +1,13 @@
 """
-phi_init_characterisation.py
+phi_init_characterisation.py (REFACTORED)
 
 Two-step method for determining initial phase offsets (φ_init) of MZIs.
 This characterises the chip_state in place BEFORE running calibration.
+
+Key improvements:
+- Fixed voltage application to use set_voltages() API correctly
+- Simplified logic: no need to store power dicts since we perturb one MZI at a time
+- Batch voltage application for efficiency
 
 Key principle: We create ChipState with default φ_init = 0.0, then measure
 and populate the accurate values directly into the MZI objects.
@@ -38,27 +43,48 @@ class MZICharacterisationResult:
     delta_psr_db: float  # Change in PSR
 
 
-def apply_raw_voltages(
-    mzi_powers: Dict[str, float],
+def apply_single_mzi_perturbation(
+    mzi_ids: list,
+    perturb_mzi_id: str | None,
+    perturbation_power_watts: float,
     config: ExperimentConfig,
     voltage_ctrl: VoltageController,
+    v_max: float = 30.0,
 ) -> None:
     """
-    Apply raw voltages to MZI heaters.
+    Apply perturbation power to a single MZI, set all others to 0W.
 
     Args:
-        mzi_powers: Dictionary mapping MZI IDs to powers in watts
-        config: Experiment configuration (for channel mapping and resistance)
+        mzi_ids: List of all MZI IDs on the chip
+        perturb_mzi_id: MZI to apply perturbation to (None = all at 0W for baseline)
+        perturbation_power_watts: Power to apply to perturbed MZI
+        config: Experiment configuration
         voltage_ctrl: VoltageController instance
+        v_max: Maximum allowed voltage (V)
     """
     R = config.chip.heater_resistance_ohm
 
+    # Prepare channel and voltage lists for batch application
+    channels = []
+    voltages = []
+
     print("  Applying voltages:")
-    for mzi_id, power_watts in mzi_powers.items():
+    for mzi_id in mzi_ids:
+        # Apply perturbation to target MZI, 0V to all others
+        power_watts = perturbation_power_watts if mzi_id == perturb_mzi_id else 0.0
         voltage = np.sqrt(power_watts * R)
         channel = config.channel_mapping.get_channel(f"MZI_{mzi_id}")
-        voltage_ctrl.set_voltage(channel=channel, voltage=voltage)
-        print(f"    MZI {mzi_id} (ch {channel}): {voltage:.4f} V ({power_watts:.4f} W)")
+
+        channels.append(channel)
+        voltages.append(voltage)
+
+        if power_watts > 0:
+            print(
+                f"    MZI {mzi_id} (ch {channel}): {voltage:.4f} V ({power_watts:.4f} W)"
+            )
+
+    # Apply all voltages at once using correct API
+    voltage_ctrl.set_voltages(channels=channels, voltages=voltages, v_max=v_max)
 
     # Wait for thermal settling
     settling_time = config.chip.thermal_time_constant_s * 5  # 5 time constants
@@ -139,7 +165,7 @@ def characterise_mzi_phi_init(
     2. Perturbations: Each MZI at perturbation power → measure its PSR
     3. From ΔPSR, determine branch and calculate φ_init
 
-    Total measurements: 8 (1 baseline + 7 individual perturbations)
+    Total measurements: N+1 (1 baseline + N individual perturbations)
 
     Args:
         chip_state: ChipState to populate with φ_init values
@@ -154,6 +180,7 @@ def characterise_mzi_phi_init(
         >>> characterise_mzi_phi_init(chip_state, config, voltage_ctrl)
         >>> # Now chip_state.mzis have accurate phi_init_rad values!
     """
+
     print("\n" + "=" * 70)
     print("φ_init CHARACTERISATION - Two-Step Method")
     print("=" * 70)
@@ -173,8 +200,13 @@ def characterise_mzi_phi_init(
     # STEP 1: Baseline measurement (all MZIs at 0W)
     # -------------------------------------------------------------------------
     print("\n### STEP 1: Baseline (all MZIs at 0W) ###")
-    baseline_powers = {mzi_id: 0.0 for mzi_id in mzi_ids}
-    apply_raw_voltages(baseline_powers, config, voltage_ctrl)
+    apply_single_mzi_perturbation(
+        mzi_ids=mzi_ids,
+        perturb_mzi_id=None,  # None = all at 0W
+        perturbation_power_watts=0.0,
+        config=config,
+        voltage_ctrl=voltage_ctrl,
+    )
 
     psr_baseline = measure_and_extract_psrs(config, mzi_tree)
     print("\nBaseline PSRs (dB):")
@@ -190,9 +222,13 @@ def characterise_mzi_phi_init(
         print(f"\n--- Characterising {mzi_id} ---")
 
         # Apply perturbation to this MZI only
-        perturbed_powers = {mid: 0.0 for mid in mzi_ids}
-        perturbed_powers[mzi_id] = perturbation_power_watts
-        apply_raw_voltages(perturbed_powers, config, voltage_ctrl)
+        apply_single_mzi_perturbation(
+            mzi_ids=mzi_ids,
+            perturb_mzi_id=mzi_id,
+            perturbation_power_watts=perturbation_power_watts,
+            config=config,
+            voltage_ctrl=voltage_ctrl,
+        )
 
         # Measure PSRs
         psr_perturbed = measure_and_extract_psrs(config, mzi_tree)
@@ -248,8 +284,13 @@ def characterise_mzi_phi_init(
     # -------------------------------------------------------------------------
     # STEP 3: Reset to baseline
     # -------------------------------------------------------------------------
-    baseline_powers = {mzi_id: 0.0 for mzi_id in mzi_ids}
-    apply_raw_voltages(baseline_powers, config, voltage_ctrl)
+    apply_single_mzi_perturbation(
+        mzi_ids=mzi_ids,
+        perturb_mzi_id=None,  # All at 0W
+        perturbation_power_watts=0.0,
+        config=config,
+        voltage_ctrl=voltage_ctrl,
+    )
     print("\nReset all MZIs to 0W")
 
     # -------------------------------------------------------------------------
@@ -310,8 +351,9 @@ if __name__ == "__main__":
 
     # Initialize hardware
     voltage_ctrl = VoltageController(
-        ip_address=config.voltage_controller.ip_address,
-        port=config.voltage_controller.port,
+        com_port=config.measurement.voltage_controller_port,
+        baud_rate=config.measurement.voltage_controller_baudrate,
+        zero_on_exit=True,
     )
 
     try:
