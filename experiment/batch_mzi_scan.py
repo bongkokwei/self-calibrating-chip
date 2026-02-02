@@ -578,7 +578,7 @@ def main():
     # Exclude MZIs in the first position of each stage (plus reference MZI)
     excluded_mzis = {"1-1", "2-1", "3-1", "4-1", "4-5", "4-6", "4-7", "4-8"}
     mzi_ids = [mzi_id for mzi_id in all_mzi_ids if mzi_id not in excluded_mzis]
-    # mzi_ids = ["4-5", "4-6", "4-7", "4-8"]  # problem mzis for testing
+
     print(f"\n{'='*70}")
     print(f"BATCH V_2π CHARACTERISATION")
     print(f"{'='*70}")
@@ -598,16 +598,21 @@ def main():
         print(f"# CHARACTERISING MZI {i+1}/{len(mzi_ids)}: {mzi_id}")
         print(f"{'#'*70}\n")
 
-        characterise_mzi(
-            mzi_id=mzi_id,
-            base_output_dir=base_output_dir,
-            exp_config=exp_config,
-            v_min=V_MIN,
-            v_max=V_MAX,
-            n_points=N_POINTS,
-            settling_time=SETTLING_TIME,
-            save_raw_data=SAVE_RAW_DATA,
-        )
+        try:
+            characterise_mzi(
+                mzi_id=mzi_id,
+                base_output_dir=base_output_dir,
+                exp_config=exp_config,
+                v_min=V_MIN,
+                v_max=V_MAX,
+                n_points=N_POINTS,
+                settling_time=SETTLING_TIME,
+                save_raw_data=SAVE_RAW_DATA,
+            )
+        except Exception as e:
+            print(f"⚠ FAILED to characterise MZI {mzi_id}: {e}")
+            print(f"Continuing with next MZI...\n")
+            continue
 
         # Add delay between scans to allow thermal settling
         if i < len(mzi_ids) - 1:
