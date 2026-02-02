@@ -1,13 +1,14 @@
 """
-phi_init_characterisation.py (REFACTORED)
+phi_init_characterisation.py (CORRECTED)
 
 Two-step method for determining initial phase offsets (φ_init) of MZIs.
 This characterises the chip_state in place BEFORE running calibration.
 
 Key improvements:
 - Fixed voltage application to use set_voltages() API correctly
-- Simplified logic: no need to store power dicts since we perturb one MZI at a time
-- Batch voltage application for efficiency
+- Simplified logic: perturb one MZI at a time, no power dicts needed
+- Correct mathematics: uses arctan (not arccos) per paper's tan² formula
+- No P_2π assumption: determines φ_init from PSR_0 and ΔPSR sign only
 
 Key principle: We create ChipState with default φ_init = 0.0, then measure
 and populate the accurate values directly into the MZI objects.
@@ -160,10 +161,25 @@ def characterise_mzi_phi_init(
 
     This modifies chip_state.mzis[mzi_id].phi_init_rad in place.
 
-    The two-step method:
+    The two-step method (from Xu et al. 2022 paper):
     1. Baseline: All MZIs at 0W → measure PSRs
     2. Perturbations: Each MZI at perturbation power → measure its PSR
-    3. From ΔPSR, determine branch and calculate φ_init
+    3. From ΔPSR sign, determine branch and calculate φ_init
+
+    Mathematics:
+    -----------
+    From the paper: PSR = 10*log₁₀(tan²(φ/2))
+
+    At baseline: φ = φ_init
+    Therefore: tan²(φ_init/2) = 10^(PSR_0/10)
+               |tan(φ_init/2)| = 10^(PSR_0/20)
+
+    The sign is determined by ΔPSR (slope direction):
+    - ΔPSR > 0: sin(φ_init) > 0, so φ_init ∈ (0, π)  → use positive arctan
+    - ΔPSR < 0: sin(φ_init) < 0, so φ_init ∈ (-π, 0) → use negative arctan
+
+    Key advantage: No assumption about P_2π needed! We only use the perturbation
+    to determine the slope direction, not the magnitude.
 
     Total measurements: N+1 (1 baseline + N individual perturbations)
 
@@ -242,31 +258,33 @@ def characterise_mzi_phi_init(
         print(f"  PSR at {perturbation_power_watts:.3f}W: {psr_1:+7.2f} dB")
         print(f"  ΔPSR:          {delta_psr:+7.2f} dB")
 
-        # Calculate φ_init from ΔPSR
-        # PSR = 20*log10(|cos(φ/2)|) where φ = φ_applied + φ_init
-        # At 0W: φ = φ_init
-        # At perturbation: φ = (P_pert / P_2π) * 2π + φ_init
+        # =====================================================================
+        # Calculate φ_init from PSR_0 and ΔPSR sign
+        # =====================================================================
+        # From paper: PSR = 10*log₁₀(tan²(φ/2))
+        # At baseline: φ = φ_init
+        # Therefore: tan²(φ_init/2) = 10^(PSR_0/10)
+        #            |tan(φ_init/2)| = 10^(PSR_0/20)
+        #
+        # The sign is determined by the slope direction:
+        # dPSR/dφ = 20/(ln(10)*sin(φ))
+        #
+        # For small positive perturbation Δφ:
+        # - If ΔPSR > 0: sin(φ_init) > 0, so 0 < φ_init < π
+        # - If ΔPSR < 0: sin(φ_init) < 0, so -π < φ_init < 0
 
-        # φ_applied at perturbation
-        phi_applied = (perturbation_power_watts / config.chip.p2pi_watts) * 2 * np.pi
-
-        # Determine branch from sign of ΔPSR
         if delta_psr > 0:
-            # Positive slope: moving away from π
-            # φ_init is on [0, π/2] or [-π, -π/2]
-            # Use positive slope formula
-            phi_init = np.arccos(10 ** (psr_0 / 20)) - phi_applied / 2
-            print(f"  → ΔPSR > 0: positive slope branch")
+            # Positive slope: 0 < φ_init < π
+            # Use positive arctan
+            phi_init = 2 * np.arctan(10 ** (psr_0 / 20))
+            print(f"  → ΔPSR > 0: positive slope branch (0 < φ < π)")
         else:
-            # Negative slope: moving toward π
-            # φ_init is on [π/2, π] or [-π/2, 0]
-            # Use negative slope formula
-            phi_init = -np.arccos(10 ** (psr_0 / 20)) - phi_applied / 2
-            print(f"  → ΔPSR < 0: negative slope branch")
+            # Negative slope: -π < φ_init < 0
+            # Use negative arctan
+            phi_init = 2 * np.arctan(-(10 ** (psr_0 / 20)))
+            print(f"  → ΔPSR < 0: negative slope branch (-π < φ < 0)")
 
-        # Wrap to [-π, π]
-        phi_init = np.arctan2(np.sin(phi_init), np.cos(phi_init))
-
+        # Result is already in [-π, π], no wrapping needed
         print(f"  → φ_init = {phi_init:+7.3f} rad ({np.degrees(phi_init):+7.1f}°)")
 
         # *** DIRECTLY SET φ_init IN CHIP STATE ***
