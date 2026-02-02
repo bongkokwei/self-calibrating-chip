@@ -327,36 +327,6 @@ class ChipState:
     # Fixed power for reference and unused taps
     p_fixed_watts: float = 0.3
 
-    @classmethod
-    def create_initial_state(
-        cls,
-        chip_params: ChipParameters,
-        initial_mzi_powers: Optional[Dict[str, float]] = None,
-        initial_ps_powers: Optional[Dict[int, float]] = None,
-        p_fixed_watts: float = 0.3,
-    ) -> "ChipState":
-        """Create initial chip state from parameters.
-
-        Args:
-            chip_params: Chip physical parameters
-            initial_mzi_powers: Optional initial MZI powers in watts (default: all zeros)
-            initial_ps_powers: Optional initial PS powers in watts (default: all zeros)
-            p_fixed_watts: Power for reference and unused taps
-
-        Returns:
-            ChipState with initialized MZIs and phase shifters
-        """
-        state = cls(chip_params=chip_params, p_fixed_watts=p_fixed_watts)
-
-        # Apply initial powers if specified
-        if initial_mzi_powers or initial_ps_powers:
-            state.update_powers(
-                new_mzi_powers=initial_mzi_powers or {},
-                new_ps_powers=initial_ps_powers or {},
-            )
-
-        return state
-
     def __post_init__(self):
         """Initialize MZIs and phase shifters from chip_params."""
         # Initialize MZIs if empty

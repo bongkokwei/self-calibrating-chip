@@ -1,11 +1,11 @@
 """
 phi_init_characterisation.py
 
-Two-step method for determining initial phase offsets (φ_init) of MZIs
-BEFORE creating chip state. This is a pre-calibration characterisation step.
+Two-step method for determining initial phase offsets (φ_init) of MZIs.
+This characterises the chip_state in place BEFORE running calibration.
 
-Key principle: We don't use ChipState during characterisation because we don't
-yet know the accurate φ_init values that ChipState would need!
+Key principle: We create ChipState with default φ_init = 0.0, then measure
+and populate the accurate values directly into the MZI objects.
 """
 
 import numpy as np
@@ -24,17 +24,17 @@ from photonic_fir.processing.tap_recovery import (
 from photonic_fir.core.power_splitting_ratio import (
     tap_coeffs_to_power_splitting_ratios,
 )
-from photonic_fir.core.data_structure import ExperimentConfig
+from photonic_fir.core.data_structure import ExperimentConfig, ChipState
 
 
 @dataclass
-class MZICharacterisation:
-    """Results from MZI initial phase characterisation."""
+class MZICharacterisationResult:
+    """Results from a single MZI characterisation measurement."""
 
     mzi_id: str
-    phi_init_rad: float  # Initial phase offset
+    phi_init_rad: float  # Measured initial phase offset
     psr_at_zero_db: float  # PSR when MZI at 0W
-    psr_at_perturbation_db: float  # PSR when MZI at 0.05W
+    psr_at_perturbation_db: float  # PSR when MZI at perturbation power
     delta_psr_db: float  # Change in PSR
 
 
@@ -44,10 +44,7 @@ def apply_raw_voltages(
     voltage_ctrl: VoltageController,
 ) -> None:
     """
-    Apply raw voltages to MZI heaters without using chip_state.
-
-    This is the low-level function used during characterisation when we
-    don't yet have accurate φ_init values for chip_state.
+    Apply raw voltages to MZI heaters.
 
     Args:
         mzi_powers: Dictionary mapping MZI IDs to powers in watts
@@ -60,7 +57,7 @@ def apply_raw_voltages(
     for mzi_id, power_watts in mzi_powers.items():
         voltage = np.sqrt(power_watts * R)
         channel = config.channel_mapping.get_channel(f"MZI_{mzi_id}")
-        voltage_ctrl.set_voltages(channels=[channel], voltages=[voltage], v_max=30)
+        voltage_ctrl.set_voltage(channel=channel, voltage=voltage)
         print(f"    MZI {mzi_id} (ch {channel}): {voltage:.4f} V ({power_watts:.4f} W)")
 
     # Wait for thermal settling
@@ -127,98 +124,72 @@ def measure_and_extract_psrs(
 
 
 def characterise_mzi_phi_init(
+    chip_state: ChipState,
     config: ExperimentConfig,
+    voltage_ctrl: VoltageController,
     perturbation_power_watts: float = 0.05,
-) -> Dict[str, float]:
+) -> None:
     """
-    Determine initial phase offsets (φ_init) for all MZIs using two-step method.
+    Measure and populate φ_init for all MZIs directly in chip_state.
 
-    This runs BEFORE creating ChipState because we need φ_init values to
-    create an accurate ChipState.
+    This modifies chip_state.mzis[mzi_id].phi_init_rad in place.
 
-    The method:
+    The two-step method:
     1. Baseline: All MZIs at 0W → measure PSRs
-    2. Perturbations: Each MZI at 0.05W → measure its PSR
+    2. Perturbations: Each MZI at perturbation power → measure its PSR
     3. From ΔPSR, determine branch and calculate φ_init
 
     Total measurements: 8 (1 baseline + 7 individual perturbations)
 
     Args:
+        chip_state: ChipState to populate with φ_init values
         config: Experiment configuration
+        voltage_ctrl: VoltageController instance
         perturbation_power_watts: Perturbation power to apply (default 0.05W)
-
-    Returns:
-        Dictionary mapping MZI IDs to φ_init in radians
 
     Example:
         >>> config = load_config("config.yaml")
-        >>> phi_init = characterise_mzi_phi_init(config)
-        >>> # Now create chip_state with these values
-        >>> chip_state = ChipState.create_initial_state(
-        ...     chip_params=config.chip,
-        ...     p_fixed_watts=0.3,
-        ...     mzi_phi_init=phi_init,  # Use measured values!
-        ... )
+        >>> chip_state = ChipState(chip_params=config.chip, p_fixed_watts=0.3)
+        >>> voltage_ctrl = VoltageController(...)
+        >>> characterise_mzi_phi_init(chip_state, config, voltage_ctrl)
+        >>> # Now chip_state.mzis have accurate phi_init_rad values!
     """
-    mzi_tree = config.signal_mzi_tree.tree
-    mzi_ids = list(mzi_tree.keys())
-    p2pi_nominal_watts = config.chip.p2pi_watts
-
     print("\n" + "=" * 70)
-    print("TWO-STEP φ_init CHARACTERISATION")
+    print("φ_init CHARACTERISATION - Two-Step Method")
     print("=" * 70)
+
+    # Get MZI IDs and tree structure
+    mzi_ids = config.chip.get_signal_mzi_ids()
+    mzi_tree = config.signal_mzi_tree.tree
+
     print(f"MZIs to characterise: {mzi_ids}")
-    print(f"Perturbation power: {perturbation_power_watts:.3f} W")
-    print(f"P_2π: {p2pi_nominal_watts:.3f} W")
+    print(f"Perturbation power: {perturbation_power_watts:.4f} W")
+    print(f"Total measurements: {len(mzi_ids) + 1}")
 
-    # Calculate expected phase shift
-    phi_perturbation = (perturbation_power_watts / p2pi_nominal_watts) * 2 * np.pi
-    print(
-        f"Expected phase shift: {phi_perturbation:.3f} rad "
-        f"({np.degrees(phi_perturbation):.1f}°)"
-    )
-
-    # Create voltage controller
-    voltage_ctrl = VoltageController(
-        com_port=config.measurement.voltage_controller_port,
-        baud_rate=config.measurement.voltage_controller_baudrate,
-        zero_on_exit=True,
-    )
+    # Store characterisation results for logging
+    char_results = {}
 
     # -------------------------------------------------------------------------
     # STEP 1: Baseline measurement (all MZIs at 0W)
     # -------------------------------------------------------------------------
-    print("\n" + "-" * 70)
-    print("STEP 1: Baseline measurement (all MZIs at 0W)")
-    print("-" * 70)
-
+    print("\n### STEP 1: Baseline (all MZIs at 0W) ###")
     baseline_powers = {mzi_id: 0.0 for mzi_id in mzi_ids}
     apply_raw_voltages(baseline_powers, config, voltage_ctrl)
 
-    print("Measuring spectrum and recovering tap coefficients...")
     psr_baseline = measure_and_extract_psrs(config, mzi_tree)
-
-    print("\nBaseline PSRs:")
-    for mzi_id in mzi_ids:
-        psr = psr_baseline.get(mzi_id)
-        if psr is not None:
-            print(f"  {mzi_id}: {psr:7.2f} dB")
-        else:
-            print(f"  {mzi_id}: NOT FOUND")
+    print("\nBaseline PSRs (dB):")
+    for mzi_id, psr in psr_baseline.items():
+        print(f"  {mzi_id}: {psr:+7.2f} dB")
 
     # -------------------------------------------------------------------------
-    # STEP 2: Individual perturbations
+    # STEP 2: Perturbation measurements (one MZI at a time)
     # -------------------------------------------------------------------------
-    print("\n" + "-" * 70)
-    print("STEP 2: Individual perturbations (one MZI at a time)")
-    print("-" * 70)
-
-    results = {}
+    print("\n### STEP 2: Individual perturbations ###")
 
     for mzi_id in mzi_ids:
-        print(f"\n--- Characterising MZI {mzi_id} ---")
+        print(f"\n--- Characterising {mzi_id} ---")
 
-        # Set only this MZI to perturbation power
+        # Apply perturbation to this MZI only
         perturbed_powers = {mid: 0.0 for mid in mzi_ids}
         perturbed_powers[mzi_id] = perturbation_power_watts
         apply_raw_voltages(perturbed_powers, config, voltage_ctrl)
@@ -226,40 +197,35 @@ def characterise_mzi_phi_init(
         # Measure PSRs
         psr_perturbed = measure_and_extract_psrs(config, mzi_tree)
 
-        # Get PSRs for this MZI
-        psr_0 = psr_baseline.get(mzi_id)
-        psr_1 = psr_perturbed.get(mzi_id)
-
-        if psr_0 is None or psr_1 is None:
-            print(f"ERROR: Could not measure PSR for MZI {mzi_id}")
-            continue
-
+        # Extract this MZI's PSR values
+        psr_0 = psr_baseline[mzi_id]
+        psr_1 = psr_perturbed[mzi_id]
         delta_psr = psr_1 - psr_0
 
-        print(f"  PSR at 0W:     {psr_0:7.2f} dB")
-        print(f"  PSR at 0.05W:  {psr_1:7.2f} dB")
+        print(f"  PSR at 0W:     {psr_0:+7.2f} dB")
+        print(f"  PSR at {perturbation_power_watts:.3f}W: {psr_1:+7.2f} dB")
         print(f"  ΔPSR:          {delta_psr:+7.2f} dB")
 
-        # -------------------------------------------------------------------------
-        # Calculate φ_init from PSR and branch determination
-        # -------------------------------------------------------------------------
-        # PSR = 10·log₁₀[tan²(φ_total/2)] where φ_total = φ_MZI + φ_init
+        # Calculate φ_init from ΔPSR
+        # PSR = 20*log10(|cos(φ/2)|) where φ = φ_applied + φ_init
+        # At 0W: φ = φ_init
+        # At perturbation: φ = (P_pert / P_2π) * 2π + φ_init
 
-        # Convert PSR₀ from dB to linear
-        tan_squared = 10 ** (psr_0 / 10)
-        tan_value = np.sqrt(tan_squared)
+        # φ_applied at perturbation
+        phi_applied = (perturbation_power_watts / config.chip.p2pi_watts) * 2 * np.pi
 
+        # Determine branch from sign of ΔPSR
         if delta_psr > 0:
-            # PSR increased → positive slope branch
-            # φ_init/2 is between 0 and π/2
-            half_phi = np.arctan(tan_value)
-            phi_init = 2 * half_phi
+            # Positive slope: moving away from π
+            # φ_init is on [0, π/2] or [-π, -π/2]
+            # Use positive slope formula
+            phi_init = np.arccos(10 ** (psr_0 / 20)) - phi_applied / 2
             print(f"  → ΔPSR > 0: positive slope branch")
         else:
-            # PSR decreased → negative slope branch
-            # φ_init/2 is between π/2 and π
-            half_phi = np.pi - np.arctan(tan_value)
-            phi_init = 2 * half_phi
+            # Negative slope: moving toward π
+            # φ_init is on [π/2, π] or [-π/2, 0]
+            # Use negative slope formula
+            phi_init = -np.arccos(10 ** (psr_0 / 20)) - phi_applied / 2
             print(f"  → ΔPSR < 0: negative slope branch")
 
         # Wrap to [-π, π]
@@ -267,8 +233,11 @@ def characterise_mzi_phi_init(
 
         print(f"  → φ_init = {phi_init:+7.3f} rad ({np.degrees(phi_init):+7.1f}°)")
 
-        # Store results
-        results[mzi_id] = MZICharacterisation(
+        # *** DIRECTLY SET φ_init IN CHIP STATE ***
+        chip_state.mzis[mzi_id].phi_init_rad = phi_init
+
+        # Store for summary
+        char_results[mzi_id] = MZICharacterisationResult(
             mzi_id=mzi_id,
             phi_init_rad=phi_init,
             psr_at_zero_db=psr_0,
@@ -276,7 +245,9 @@ def characterise_mzi_phi_init(
             delta_psr_db=delta_psr,
         )
 
-    # Reset all MZIs to 0W
+    # -------------------------------------------------------------------------
+    # STEP 3: Reset to baseline
+    # -------------------------------------------------------------------------
     baseline_powers = {mzi_id: 0.0 for mzi_id in mzi_ids}
     apply_raw_voltages(baseline_powers, config, voltage_ctrl)
     print("\nReset all MZIs to 0W")
@@ -285,27 +256,19 @@ def characterise_mzi_phi_init(
     # Summary
     # -------------------------------------------------------------------------
     print("\n" + "=" * 70)
-    print("CHARACTERISATION SUMMARY")
+    print("CHARACTERISATION COMPLETE")
     print("=" * 70)
-
-    phi_init_dict = {}
-    for mzi_id, result in results.items():
-        phi_init_dict[mzi_id] = result.phi_init_rad
+    print("\nφ_init values populated in chip_state:")
+    for mzi_id, result in char_results.items():
         print(
-            f"{mzi_id}: φ_init = {result.phi_init_rad:+7.3f} rad "
+            f"  {mzi_id}: φ_init = {result.phi_init_rad:+7.3f} rad "
             f"({np.degrees(result.phi_init_rad):+7.1f}°), "
             f"ΔPSR = {result.delta_psr_db:+6.2f} dB"
         )
 
     print("\n" + "=" * 70)
-    print("READY TO CREATE CHIP STATE")
+    print("ChipState ready for calibration!")
     print("=" * 70)
-    print("Use these φ_init values to create ChipState:")
-    print(
-        f"  chip_state = ChipState.create_initial_state(..., mzi_phi_init={phi_init_dict})"
-    )
-
-    return phi_init_dict
 
 
 # ==============================================================================
@@ -315,50 +278,63 @@ def characterise_mzi_phi_init(
 if __name__ == "__main__":
     """
     Example showing the complete workflow:
-    1. Characterise φ_init (without ChipState)
-    2. Create ChipState with measured φ_init
+    1. Create ChipState (with default φ_init = 0.0)
+    2. Characterise φ_init (populates chip_state in place)
     3. Run calibration
     """
     from photonic_fir import load_config
     from photonic_fir.core.data_structure import ChipState
+    from voltage_ctrl import VoltageController
 
     # Load configuration
-    config = load_config(
-        "measurements/experiment_config_shorter_range_reduce_num_avg.yaml"
-    )
+    config = load_config("example_config.yaml")
 
     print("=" * 70)
     print("COMPLETE CALIBRATION WORKFLOW")
     print("=" * 70)
 
     # -------------------------------------------------------------------------
-    # STEP 1: Characterise φ_init (no ChipState needed!)
+    # STEP 1: Create ChipState with defaults
     # -------------------------------------------------------------------------
-    print("\n### STEP 1: Characterise φ_init ###")
-    phi_init_dict = characterise_mzi_phi_init(
-        config=config,
-        perturbation_power_watts=0.05,
-    )
-
-    # -------------------------------------------------------------------------
-    # STEP 2: Create ChipState with accurate φ_init
-    # -------------------------------------------------------------------------
-    print("\n### STEP 2: Create ChipState with measured φ_init ###")
-    chip_state = ChipState.create_initial_state(
+    print("\n### STEP 1: Create ChipState ###")
+    chip_state = ChipState(
         chip_params=config.chip,
         p_fixed_watts=0.3,
-        mzi_phi_init=phi_init_dict,  # Use the measured values!
+    )
+    print("ChipState created with default φ_init = 0.0 for all MZIs")
+
+    # -------------------------------------------------------------------------
+    # STEP 2: Characterise φ_init (mutates chip_state in place)
+    # -------------------------------------------------------------------------
+    print("\n### STEP 2: Characterise φ_init ###")
+
+    # Initialize hardware
+    voltage_ctrl = VoltageController(
+        ip_address=config.voltage_controller.ip_address,
+        port=config.voltage_controller.port,
     )
 
-    print("ChipState created with accurate φ_init values:")
-    for mzi_id, mzi in chip_state.mzis.items():
-        print(f"  MZI {mzi_id}: φ_init = {mzi.phi_init_rad:+7.3f} rad")
+    try:
+        # Measure and populate φ_init
+        characterise_mzi_phi_init(
+            chip_state=chip_state,
+            config=config,
+            voltage_ctrl=voltage_ctrl,
+            perturbation_power_watts=0.05,
+        )
+
+        print("\nVerifying φ_init values in chip_state:")
+        for mzi_id, mzi in chip_state.mzis.items():
+            print(f"  MZI {mzi_id}: φ_init = {mzi.phi_init_rad:+7.3f} rad")
+
+    finally:
+        voltage_ctrl.close()
 
     # -------------------------------------------------------------------------
     # STEP 3: Run main calibration loop
     # -------------------------------------------------------------------------
     print("\n### STEP 3: Ready for calibration ###")
-    print("Now chip_state has accurate φ_init and can be used for calibration!")
+    print("ChipState now has accurate φ_init values!")
 
     # from photonic_fir.calibration import run_calibration_loop
     # calibration_results = run_calibration_loop(chip_state, config)
