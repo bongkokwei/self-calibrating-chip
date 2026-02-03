@@ -346,7 +346,9 @@ if __name__ == "__main__":
     from voltage_ctrl import VoltageController
 
     # Load configuration
-    config = load_config("example_config.yaml")
+    config = load_config(
+        "measurements/experiment_config_shorter_range_reduce_num_avg.yaml"
+    )
 
     print("=" * 70)
     print("COMPLETE CALIBRATION WORKFLOW")
@@ -388,7 +390,7 @@ if __name__ == "__main__":
             print(f"  MZI {mzi_id}: φ_init = {mzi.phi_init_rad:+7.3f} rad")
 
     finally:
-        voltage_ctrl.close()
+        voltage_ctrl._close_serial()
 
     # -------------------------------------------------------------------------
     # STEP 3: Run main calibration loop
