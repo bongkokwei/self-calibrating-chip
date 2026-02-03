@@ -14,12 +14,9 @@ from ..core import (
     ChipState,
     IterationData,
     CalibrationResults,
-    config_from_dict,
-    config_to_dict,
     calculate_all_errors,
     load_config,
     save_config,
-    build_mzi_tree_structure,
 )
 
 from ..hardware import (
@@ -51,6 +48,7 @@ def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
             config=config,
             voltage_ctrl=voltage_ctrl,
             perturbation_power_watts=0.05,
+            mzi_ids=config.signal_mzi_tree.keys(),
         )
 
         print("\nVerifying φ_init values in chip_state:")
@@ -64,7 +62,7 @@ def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
 def run_calibration_iteration(
     iteration: int,
     target_taps: Dict[int, complex],
-    mzi_tree: Dict[str, Dict],  # TODO: incorporate this into data structures
+    mzi_tree: Dict[str, Dict],
     chip_state: ChipState,
     config: ExperimentConfig,
     prev_iter_data: Optional[IterationData] = None,
@@ -241,9 +239,7 @@ def run_experiment(config_path: str):
 
     # Create output directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = (
-        Path(config.output_dir + f"_{timestamp}") / f"{config.name}_{timestamp}"
-    )
+    output_dir = Path(config.output_dir) / f"{config.name}_{timestamp}"
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"Output directory: {output_dir}")
 
@@ -259,11 +255,12 @@ def run_experiment(config_path: str):
     print(f"  Number of taps: {len(target_amps)}")
     print(f"  Phase step: {config.target.phase_step_rad:.4f} rad")
 
-    # Measurement phi_init
+    # Measure phi_init, and populate chip_state
+    print("\nMeasuring initial MZI phases (φ_init)...")
     phi_init_measurement(config, chip_state)
 
     # Build MZI tree structure
-    mzi_tree = config.full_mzi_tree.tree
+    mzi_tree = config.signal_mzi_tree.tree
 
     # Convert target taps to dictionary format expected by run_calibration_iteration
     target_taps_dict = {
