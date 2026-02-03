@@ -6,6 +6,9 @@ from datetime import datetime
 from typing import Dict, Optional
 import sys
 
+from .phi_init_characterisation import characterise_mzi_phi_init
+
+
 from ..core import (
     ExperimentConfig,
     ChipState,
@@ -29,6 +32,33 @@ from ..processing import (
     recover_impulse_response_from_df,
     detect_taps,
 )
+
+from voltage_ctrl import VoltageController
+
+
+def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
+    # Initialize hardware
+    voltage_ctrl = VoltageController(
+        com_port=config.measurement.voltage_controller_port,
+        baud_rate=config.measurement.voltage_controller_baudrate,
+        zero_on_exit=True,
+    )
+
+    try:
+        # Measure and populate φ_init
+        characterise_mzi_phi_init(
+            chip_state=chip_state,
+            config=config,
+            voltage_ctrl=voltage_ctrl,
+            perturbation_power_watts=0.05,
+        )
+
+        print("\nVerifying φ_init values in chip_state:")
+        for mzi_id, mzi in chip_state.mzis.items():
+            print(f"  MZI {mzi_id}: φ_init = {mzi.phi_init_rad:+7.3f} rad")
+
+    finally:
+        voltage_ctrl._close_serial()
 
 
 def run_calibration_iteration(
@@ -204,9 +234,16 @@ def run_experiment(config_path: str):
     print(f"Experiment: {config.name}")
     print(f"Description: {config.description}")
 
+    # Create initial chip state
+    chip_state = ChipState(
+        chip_params=config.chip,
+    )
+
     # Create output directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = Path(config.output_dir) / f"{config.name}_{timestamp}"
+    output_dir = (
+        Path(config.output_dir + f"_{timestamp}") / f"{config.name}_{timestamp}"
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"Output directory: {output_dir}")
 
@@ -222,18 +259,11 @@ def run_experiment(config_path: str):
     print(f"  Number of taps: {len(target_amps)}")
     print(f"  Phase step: {config.target.phase_step_rad:.4f} rad")
 
-    # Create initial chip state from configuration
-    chip_state = ChipState.create_initial_state(
-        chip_params=config.chip,
-        initial_mzi_powers=config.calibration.initial_mzi_powers,
-        initial_ps_powers=config.calibration.initial_ps_powers,
-    )
+    # Measurement phi_init
+    phi_init_measurement(config, chip_state)
 
     # Build MZI tree structure
-    mzi_tree = build_mzi_tree_structure(
-        n_signal_taps=config.chip.n_signal_taps,
-        mzi_ids=config.chip.get_mzi_ids(),
-    )
+    mzi_tree = config.full_mzi_tree.tree
 
     # Convert target taps to dictionary format expected by run_calibration_iteration
     target_taps_dict = {

@@ -325,7 +325,7 @@ class ChipState:
     phase_shifters: Dict[int, PhaseShifterState] = field(default_factory=dict)
 
     # Fixed power for reference and unused taps
-    p_fixed_watts: float = 0.3
+    p_fixed_watts: float = 0.01
 
     def __post_init__(self):
         """Initialize MZIs and phase shifters from chip_params."""
