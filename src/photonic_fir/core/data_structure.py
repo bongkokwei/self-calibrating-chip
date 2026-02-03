@@ -225,7 +225,7 @@ class ChipParameters:
 
             if stage == 2:
                 # Stage 2: signal processing starts at position 1
-                position_start = 1
+                position_start = 2
             else:
                 # Stages 3+: signal processing uses second half of positions
                 # Total positions at stage s = 2^(s-1)
@@ -676,29 +676,29 @@ def build_mzi_tree_structure(n_signal_taps: int, mzi_ids: List[str]) -> Dict[str
 class MZITreeStructure:
     """Binary tree structure for MZI network."""
 
-    n_signal_taps: int
-    mzi_ids: List[str]
+    chip: ChipParameters  # Need full chip to build complete tree
+    mzi_ids: List[str]  # Which MZIs to include after filtering
     tree: Dict[str, Dict] = field(init=False)
 
     def __post_init__(self):
-        """Build tree structure from parameters."""
-        self.tree = build_mzi_tree_structure(
-            n_signal_taps=self.n_signal_taps, mzi_ids=self.mzi_ids
+        """Build full tree and filter to requested MZIs."""
+        # Build full tree with all MZIs
+        full_tree = build_mzi_tree_structure(
+            n_signal_taps=16, mzi_ids=self.chip.get_all_mzi_ids()
         )
+
+        # Filter to requested MZIs
+        self.tree = {mzi_id: full_tree[mzi_id] for mzi_id in self.mzi_ids}
 
     @classmethod
     def from_chip_signal_processing(cls, chip: ChipParameters) -> "MZITreeStructure":
         """Create tree for signal processing core (stages 2-4)."""
-        return cls(n_signal_taps=chip.n_signal_taps, mzi_ids=chip.get_signal_mzi_ids())
+        return cls(chip=chip, mzi_ids=chip.get_signal_mzi_ids())
 
     @classmethod
     def from_chip_full(cls, chip: ChipParameters) -> "MZITreeStructure":
         """Create full tree for characterisation (stages 1-4)."""
-        return cls(n_signal_taps=16, mzi_ids=chip.get_all_mzi_ids())
-
-    def get_mzi_info(self, mzi_id: str) -> Dict:
-        """Get tree info for specific MZI."""
-        return self.tree[mzi_id]
+        return cls(chip=chip, mzi_ids=chip.get_all_mzi_ids())
 
 
 @dataclass
