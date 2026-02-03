@@ -736,7 +736,7 @@ class ExperimentConfig:
     full_mzi_tree: MZITreeStructure = field(init=False)
 
     # Output paths
-    output_dir: str = "./results/"
+    output_dir: str = "./measurements/calibration_results/"
     save_iterations: bool = True
 
     def __post_init__(self):
