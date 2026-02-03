@@ -147,7 +147,10 @@ def calculate_power_adjustments(
     return new_mzi_powers, new_ps_powers, phi_init_adjustments
 
 
-def apply_voltages_to_hardware(chip_state: ChipState, config: ExperimentConfig):
+def apply_voltages_to_hardware(
+    chip_state: ChipState,
+    config: ExperimentConfig,
+):
     """
     Apply voltages to hardware based on current chip state.
 
@@ -161,25 +164,42 @@ def apply_voltages_to_hardware(chip_state: ChipState, config: ExperimentConfig):
         config: Experiment configuration containing channel mapping
     """
 
-    voltage_ctrl = VoltageController(port=config.measurement.voltage_controller_port)
+    voltage_ctrl = VoltageController(
+        port=config.measurement.voltage_controller_port,
+        baud_rate=config.measurement.voltage_controller_baudrate,
+        zero_on_exit=False,
+    )
     R = config.chip.heater_resistance_ohm
 
     print("\n  Applying voltages to hardware:")
 
-    # Apply MZI voltages
+    # Collect all channels and voltages
+    channels = []
+    voltages = []
+
+    # Collect MZI voltages
     for mzi_id, mzi in chip_state.mzis.items():
         voltage = np.sqrt(mzi.applied_power_watts * R)
         channel = config.channel_mapping.get_channel(f"MZI_{mzi_id}")
-        voltage_ctrl.set_voltage(channel=channel, voltage=voltage)
+        channels.append(channel)
+        voltages.append(voltage)
         print(
             f"    MZI {mzi_id} (ch {channel}): {voltage:.4f} V ({mzi.applied_power_watts:.4f} W)"
         )
 
-    # Apply phase shifter voltages
+    # Collect phase shifter voltages
     for tap_num, ps in chip_state.phase_shifters.items():
         voltage = np.sqrt(ps.applied_power_watts * R)
         channel = config.channel_mapping.get_channel(f"PS_{tap_num}")
-        voltage_ctrl.set_voltage(channel=channel, voltage=voltage)
+        channels.append(channel)
+        voltages.append(voltage)
         print(
             f"    PS {tap_num} (ch {channel}): {voltage:.4f} V ({ps.applied_power_watts:.4f} W)"
         )
+
+    # Apply all voltages in a single batch call
+    voltage_ctrl.set_voltages(
+        channels=channels,
+        voltages=voltages,
+        v_max=config.measurement.voltage_controller_v_max,
+    )
