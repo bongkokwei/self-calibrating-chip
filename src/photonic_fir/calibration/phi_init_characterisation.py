@@ -155,6 +155,7 @@ def characterise_mzi_phi_init(
     config: ExperimentConfig,
     voltage_ctrl: VoltageController,
     perturbation_power_watts: float = 0.05,
+    mzi_ids: list = None,
 ) -> None:
     """
     Measure and populate φ_init for all MZIs directly in chip_state.
@@ -202,8 +203,9 @@ def characterise_mzi_phi_init(
     print("=" * 70)
 
     # Get MZI IDs and tree structure
-    mzi_ids = config.chip.get_signal_mzi_ids()
-    mzi_tree = config.signal_mzi_tree.tree
+    if mzi_ids is None:
+        mzi_ids = chip_state.get_all_mzi_ids()
+    mzi_tree = config.full_mzi_tree.tree
 
     print(f"MZIs to characterise: {mzi_ids}")
     print(f"Perturbation power: {perturbation_power_watts:.4f} W")
