@@ -66,7 +66,7 @@ def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
             config=config,
             voltage_ctrl=voltage_ctrl,
             perturbation_power_watts=0.05,
-            mzi_ids=config.signal_mzi_tree.mzi_ids,
+            mzi_ids=config.full_mzi_tree.mzi_ids,
         )
 
         print("\nVerifying φ_init values in chip_state:")
