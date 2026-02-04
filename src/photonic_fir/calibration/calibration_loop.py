@@ -155,6 +155,7 @@ def run_calibration_iteration(
         phase_errors_rad=all_errors["tap_phase_errors"],
         rms_amplitude_error_db=all_errors["rms_amplitude_error"],
         rms_phase_error_rad=all_errors["rms_phase_error"],
+        mzi_psr_errors_db=all_errors["mzi_psr_errors"],
         chip_state=chip_state.copy(),
     )
 
