@@ -204,7 +204,7 @@ def characterise_mzi_phi_init(
 
     # Get MZI IDs and tree structure
     if mzi_ids is None:
-        mzi_ids = chip_state.get_all_mzi_ids()
+        mzi_ids = config.chip.get_all_mzi_ids()
     mzi_tree = config.full_mzi_tree.tree
 
     print(f"MZIs to characterise: {mzi_ids}")
