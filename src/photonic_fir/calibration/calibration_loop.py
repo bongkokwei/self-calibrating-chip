@@ -56,7 +56,7 @@ def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
 
 def run_calibration_iteration(
     iteration: int,
-    target_taps: Dict[int, complex],
+    target_taps: np.ndarray,
     mzi_tree: Dict[str, Dict],
     chip_state: ChipState,
     config: ExperimentConfig,
@@ -124,10 +124,10 @@ def run_calibration_iteration(
         prev_mzi_psr_errors=(
             prev_iter_data.mzi_psr_errors_db if prev_iter_data else None
         ),
-        current_mzi_powers=chip_state.get_all_applied_power(),
-        current_ps_powers=chip_state.get_all_ps_applied_power(),
-        mzi_phi_init=chip_state.get_all_init_phase(),
-        ps_phi_init=chip_state.get_all_ps_init_phase(),
+        current_mzi_powers=chip_state.get_mzi_applied_powers(),
+        current_ps_powers=chip_state.get_ps_applied_powers(),
+        mzi_phi_init=chip_state.get_mzi_init_phase(),
+        ps_phi_init=chip_state.get_ps_init_phase(),
         power_for_2pi=config.chip.p2pi_watts,
         learning_rate=config.calibration.learning_rate,
         min_power=config.calibration.min_power_watts,
@@ -250,12 +250,6 @@ def run_experiment(config_path: str):
     # Build MZI tree structure
     mzi_tree = config.signal_mzi_tree.tree
 
-    # Convert target taps to dictionary format expected by run_calibration_iteration
-    target_taps_dict = {
-        tap_num: target_taps[i]
-        for i, tap_num in enumerate(config.chip.signal_tap_numbers)
-    }
-
     # Run calibration iterations
     print("\n" + "=" * 60)
     print("Starting calibration...")
@@ -269,7 +263,7 @@ def run_experiment(config_path: str):
         # Run iteration
         iter_data = run_calibration_iteration(
             iteration=i + 1,
-            target_taps=target_taps_dict,
+            target_taps=target_taps,
             mzi_tree=mzi_tree,
             chip_state=chip_state,
             config=config,
