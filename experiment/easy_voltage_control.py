@@ -54,7 +54,7 @@ def main():
     )
     parser.add_argument("--com-port", default="COM3", help="COM port (default: COM3)")
     parser.add_argument(
-        "--baud-rate", type=int, default=9700, help="Baud rate (default: 9700)"
+        "--baud-rate", type=int, default=9600, help="Baud rate (default: 9600)"
     )
     parser.add_argument(
         "--v-max", type=float, default=30.0, help="Maximum voltage limit (default: 30V)"
