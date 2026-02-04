@@ -45,6 +45,7 @@ def maximise_ref_tap(config: ExperimentConfig):
             mzi_id=mzi_id,
             voltage=np.sqrt(power * config.chip.heater_resistance_ohm),
             v_max=config.measurement.voltage_controller_v_max,
+            config=config,
         )
 
 
