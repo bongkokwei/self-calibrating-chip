@@ -21,8 +21,6 @@ from .tap_recovery import (
     recover_impulse_response_from_df,
     # Tap detection
     detect_taps,
-    # Visualisation
-    plot_impulse_response,
 )
 
 __all__ = [
@@ -30,5 +28,4 @@ __all__ = [
     "recover_impulse_response",
     "recover_impulse_response_from_df",
     "detect_taps",
-    "plot_impulse_response",
 ]
