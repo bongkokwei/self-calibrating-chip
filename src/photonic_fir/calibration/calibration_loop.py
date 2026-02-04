@@ -302,6 +302,18 @@ def run_experiment(config_path: str):
     print("=" * 60)
     save_results(results, str(output_dir))
 
+    with VoltageController(
+        com_port=config.measurement.voltage_controller_port,
+        baud_rate=config.measurement.voltage_controller_baudrate,
+        zero_on_exit=True,
+    ) as voltage_ctrl:
+        voltage_ctrl.set_voltages(
+            channels=np.arange(1, 33),
+            voltages=[0.0] * 32,
+            v_max=config.measurement.voltage_controller_v_max,
+        )
+        print("\nResetting voltages to zero...")
+
     return results
 
 

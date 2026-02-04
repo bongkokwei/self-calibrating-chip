@@ -168,14 +168,7 @@ def apply_voltages_to_hardware(
         config: Experiment configuration containing channel mapping
     """
 
-    voltage_ctrl = VoltageController(
-        port=config.measurement.voltage_controller_port,
-        baud_rate=config.measurement.voltage_controller_baudrate,
-        zero_on_exit=False,
-    )
     R = config.chip.heater_resistance_ohm
-
-    print("\n  Applying voltages to hardware:")
 
     # Collect all channels and voltages
     channels = []
@@ -201,9 +194,15 @@ def apply_voltages_to_hardware(
             f"    PS {tap_num} (ch {channel}): {voltage:.4f} V ({ps.applied_power_watts:.4f} W)"
         )
 
-    # Apply all voltages in a single batch call
-    voltage_ctrl.set_voltages(
-        channels=channels,
-        voltages=voltages,
-        v_max=config.measurement.voltage_controller_v_max,
-    )
+    with VoltageController(
+        port=config.measurement.voltage_controller_port,
+        baud_rate=config.measurement.voltage_controller_baudrate,
+        zero_on_exit=False,
+    ) as voltage_ctrl:
+        # Apply all voltages in a single batch call
+        print("\n  Applying voltages to hardware:")
+        voltage_ctrl.set_voltages(
+            channels=channels,
+            voltages=voltages,
+            v_max=config.measurement.voltage_controller_v_max,
+        )
