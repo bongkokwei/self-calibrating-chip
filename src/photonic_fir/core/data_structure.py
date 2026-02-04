@@ -764,6 +764,17 @@ class ExperimentConfig:
         self.signal_mzi_tree = MZITreeStructure.from_chip_signal_processing(self.chip)
         self.full_mzi_tree = MZITreeStructure.from_chip_full(self.chip)
 
+        self.calibration.initial_mzi_powers = {
+            "1-1": self.chip.p2pi_watts / 4,
+            "2-1": 0,
+            "3-1": 0,
+            "4-1": 0,
+        }
+
+
+config = ExperimentConfig()
+print(config.calibration.initial_mzi_powers)
+
 
 @dataclass
 class IterationData:

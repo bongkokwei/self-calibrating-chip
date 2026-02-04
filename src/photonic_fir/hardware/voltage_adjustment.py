@@ -1,5 +1,6 @@
 from typing import Dict, Optional, Tuple
 import numpy as np
+import time
 
 from ..core.data_structure import (
     ChipState,
@@ -206,3 +207,48 @@ def apply_voltages_to_hardware(
             voltages=voltages,
             v_max=config.measurement.voltage_controller_v_max,
         )
+
+
+def set_mzi_voltage(
+    mzi_id: str,
+    voltage: float,
+    exp_config: ExperimentConfig,
+    settling_time_sec: float = 2.0,
+    v_max: float = 30.0,
+) -> None:
+    """
+    Set voltage on a specified MZI.
+
+    Parameters
+    ----------
+    mzi_id : str
+        MZI identifier (e.g., "1-1", "2-1", "4-6")
+    voltage : float
+        Voltage to apply (V)
+    exp_config : ExperimentConfig
+        Experiment configuration object
+    settling_time_sec : float
+        Time to wait for thermal settling (seconds)
+    v_max : float
+        Maximum allowed voltage (V)
+    """
+
+    # Get MZI channel from mapping
+    mzi_device_id = f"MZI_{mzi_id}"
+    mzi_channel = exp_config.channel_mapping.get_channel(mzi_device_id)
+
+    print(f"Setting MZI {mzi_id} (channel {mzi_channel}) to {voltage:.2f} V")
+
+    # Apply voltage
+    with VoltageController(
+        com_port=exp_config.measurement.voltage_controller_port,
+        baud_rate=exp_config.measurement.voltage_controller_baudrate,
+        zero_on_exit=False,  # Don't zero when we're done
+    ) as v_ctrl:
+        v_ctrl.set_voltages([mzi_channel], [voltage], v_max=v_max)
+        print(f"✓ Voltage applied")
+
+        if settling_time_sec > 0:
+            print(f"Waiting {settling_time_sec} s for thermal settling...")
+            time.sleep(settling_time_sec)
+            print(f"✓ Settled")

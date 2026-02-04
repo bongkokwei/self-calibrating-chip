@@ -1,8 +1,9 @@
 import pandas as pd
 import numpy as np
+import voltage_ctrl
 import yaml
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, time
 from typing import Dict, Optional
 import sys
 
@@ -23,6 +24,7 @@ from ..hardware import (
     measure_spectrum,
     calculate_power_adjustments,
     apply_voltages_to_hardware,
+    set_mzi_voltage,
 )
 
 from ..processing import (
@@ -33,7 +35,24 @@ from ..processing import (
 from voltage_ctrl import VoltageController
 
 
+def maximise_ref_tap(config: ExperimentConfig):
+    """Set voltages to maximise the reference tap power."""
+    print("\nMaximising reference tap power...")
+    # Assuming ref tap corresponds to MZI IDs in config
+    for mzi_id, power in config.calibration.initial_mzi_powers.items():
+        print(f"  Maximising MZI {mzi_id}...")
+        set_mzi_voltage(
+            mzi_id=mzi_id,
+            voltage=np.sqrt(power * config.chip.resistance_ohms),
+            v_max=config.measurement.voltage_controller_v_max,
+        )
+
+
 def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
+    """Measure and populate φ_init values in chip_state."""
+    # Maximise reference tap before starting
+    maximise_ref_tap(config)
+
     # Initialize hardware
     with VoltageController(
         com_port=config.measurement.voltage_controller_port,
@@ -61,6 +80,7 @@ def run_calibration_iteration(
     chip_state: ChipState,
     config: ExperimentConfig,
     prev_iter_data: Optional[IterationData] = None,
+    output_dir: str = "",
 ) -> IterationData:
     """
     Run a single calibration iteration.
@@ -79,6 +99,8 @@ def run_calibration_iteration(
         edfa_baudrate=config.measurement.edfa_baudrate,
         edfa_output_power_dbm=config.measurement.edfa_output_power_dbm,
         ova_ip=config.measurement.ova_address,
+        folder_dir=output_dir,
+        file_name=f"iteration_{iteration}_spectrum",
     )
 
     # 2. Recover impulse response (using DataFrame wrapper)
@@ -259,6 +281,9 @@ def run_experiment(config_path: str):
     converged = False
     prev_iter_data = None
 
+    # Initial maximise reference tap
+    maximise_ref_tap(config)
+
     for i in range(config.calibration.max_iterations):
         # Run iteration
         iter_data = run_calibration_iteration(
@@ -268,6 +293,7 @@ def run_experiment(config_path: str):
             chip_state=chip_state,
             config=config,
             prev_iter_data=prev_iter_data,
+            output_dir=str(output_dir),
         )
 
         iterations.append(iter_data)

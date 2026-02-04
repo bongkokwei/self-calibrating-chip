@@ -20,6 +20,7 @@ try:
     from .voltage_adjustment import (
         calculate_power_adjustments,
         apply_voltages_to_hardware,
+        set_mzi_voltage,
     )
 
     _HARDWARE_AVAILABLE = True
@@ -43,6 +44,7 @@ __all__ = [
     "measure_spectrum",
     "calculate_power_adjustments",
     "apply_voltages_to_hardware",
+    "set_mzi_voltage",
 ]
 
 
