@@ -290,7 +290,7 @@ def characterise_mzi_phi_init(
         print(f"  → φ_init = {phi_init:+7.3f} rad ({np.degrees(phi_init):+7.1f}°)")
 
         # *** DIRECTLY SET φ_init IN CHIP STATE ***
-        chip_state.mzis[mzi_id].phi_init_rad = phi_init
+        chip_state.mzis[f"MZI_{mzi_id}"].phi_init_rad = phi_init
 
         # Store for summary
         char_results[mzi_id] = MZICharacterisationResult(
