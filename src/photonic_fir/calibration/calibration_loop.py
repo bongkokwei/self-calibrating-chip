@@ -43,7 +43,7 @@ def maximise_ref_tap(config: ExperimentConfig):
         print(f"  Maximising MZI {mzi_id}...")
         set_mzi_voltage(
             mzi_id=mzi_id,
-            voltage=np.sqrt(power * config.chip.resistance_ohms),
+            voltage=np.sqrt(power * config.chip.heater_resistance_ohm),
             v_max=config.measurement.voltage_controller_v_max,
         )
 
