@@ -93,12 +93,14 @@ def calculate_power_adjustments(
                     f"({prev_err:.2f} → {curr_err:.2f} dB), adding π to φ_init"
                 )
 
-        # Calculate power adjustment: ΔP = (φ_err / 2π) × P_2π × LR
-        delta_P = (
-            ((phi_err - mzi_phi_init.get(mzi_id, 0.0)) / (2 * np.pi))
-            * power_for_2pi
-            * learning_rate
-        )
+        # # Calculate power adjustment: ΔP = (φ_err / 2π) × P_2π × LR
+        # delta_P = (
+        #     ((phi_err - mzi_phi_init.get(mzi_id, 0.0)) / (2 * np.pi))
+        #     * power_for_2pi
+        #     * learning_rate
+        # )
+
+        delta_P = ((phi_err) / (2 * np.pi)) * power_for_2pi * learning_rate
 
         # Get current power
         current_P = current_mzi_powers.get(mzi_id, 0.0)
@@ -120,12 +122,14 @@ def calculate_power_adjustments(
     # Process each phase shifter
     new_ps_powers = {}
     for tap_num, phi_err in ps_phase_errors.items():
-        # Calculate power adjustment
-        delta_P = (
-            ((phi_err - ps_phi_init.get(tap_num, 0.0)) / (2 * np.pi))
-            * power_for_2pi
-            * learning_rate
-        )
+        # # Calculate power adjustment
+        # delta_P = (
+        #     ((phi_err - ps_phi_init.get(tap_num, 0.0)) / (2 * np.pi))
+        #     * power_for_2pi
+        #     * learning_rate
+        # )
+
+        delta_P = ((phi_err) / (2 * np.pi)) * power_for_2pi * learning_rate
 
         # Get current power
         current_P = current_ps_powers.get(tap_num, 0.0)
