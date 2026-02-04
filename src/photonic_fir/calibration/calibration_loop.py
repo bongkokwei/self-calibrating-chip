@@ -264,9 +264,9 @@ def run_experiment(config_path: str):
     print(f"  Number of taps: {len(target_amps)}")
     print(f"  Phase step: {config.target.phase_step_rad:.4f} rad")
 
-    # Measure phi_init, and populate chip_state
-    print("\nMeasuring initial MZI phases (φ_init)...")
-    phi_init_measurement(config, chip_state)
+    # # Measure phi_init, and populate chip_state
+    # print("\nMeasuring initial MZI phases (φ_init)...")
+    # phi_init_measurement(config, chip_state)
 
     # Build MZI tree structure
     mzi_tree = config.signal_mzi_tree.tree
@@ -305,6 +305,7 @@ def run_experiment(config_path: str):
                 converged = True
                 break
     except Exception as e:
+        print(f"\nError during calibration at iteration {i + 1}: {e}")
         with VoltageController(
             com_port=config.measurement.voltage_controller_port,
             baud_rate=config.measurement.voltage_controller_baudrate,
@@ -323,8 +324,8 @@ def run_experiment(config_path: str):
         iterations=iterations,
         converged=converged,
         final_iteration=len(iterations),
-        final_amplitudes=iterations[-1].tap_amplitudes,
-        final_phases_rad=iterations[-1].tap_phases_rad,
+        final_amplitudes=iterations[-1].tap_amplitudes if iterations else None,
+        final_phases_rad=iterations[-1].tap_phases_rad if iterations else None,
         final_state=chip_state,
     )
 
