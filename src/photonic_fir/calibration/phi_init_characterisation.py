@@ -141,11 +141,8 @@ def measure_and_extract_psrs(
         height_threshold_db=config.measurement.height_threshold_db,
     )
 
-    # 4. Extract signal processing taps
-    signal_tap_coeffs = tap_coeffs[list(config.chip.signal_tap_indices)]
-
     # 5. Calculate PSRs
-    psr_dict = tap_coeffs_to_power_splitting_ratios(signal_tap_coeffs, mzi_tree)
+    psr_dict = tap_coeffs_to_power_splitting_ratios(tap_coeffs, mzi_tree)
 
     return psr_dict
 
