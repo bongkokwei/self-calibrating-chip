@@ -772,10 +772,6 @@ class ExperimentConfig:
         }
 
 
-config = ExperimentConfig()
-print(config.calibration.initial_mzi_powers)
-
-
 @dataclass
 class IterationData:
     """Data from a single calibration iteration."""
