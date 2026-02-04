@@ -331,7 +331,7 @@ class ChipState:
         """Initialize MZIs and phase shifters from chip_params."""
         # Initialize MZIs if empty
         if not self.mzis:
-            mzi_ids = self.chip_params.get_mzi_ids()
+            mzi_ids = self.chip_params.get_all_mzi_ids()
             self.mzis = {
                 mzi_id: MZIState(mzi_id=mzi_id, p2pi_watts=self.chip_params.p2pi_watts)
                 for mzi_id in mzi_ids
