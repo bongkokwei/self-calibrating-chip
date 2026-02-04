@@ -51,8 +51,6 @@ def maximise_ref_tap(config: ExperimentConfig):
 
 def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
     """Measure and populate φ_init values in chip_state."""
-    # Maximise reference tap before starting
-    maximise_ref_tap(config)
 
     # Initialize hardware
     with VoltageController(
@@ -282,29 +280,42 @@ def run_experiment(config_path: str):
     converged = False
     prev_iter_data = None
 
-    # Initial maximise reference tap
-    maximise_ref_tap(config)
+    try:
+        # Initial maximise reference tap
+        maximise_ref_tap(config)
 
-    for i in range(config.calibration.max_iterations):
-        # Run iteration
-        iter_data = run_calibration_iteration(
-            iteration=i + 1,
-            target_taps=target_taps,
-            mzi_tree=mzi_tree,
-            chip_state=chip_state,
-            config=config,
-            prev_iter_data=prev_iter_data,
-            output_dir=str(output_dir),
-        )
+        for i in range(config.calibration.max_iterations):
+            # Run iteration
+            iter_data = run_calibration_iteration(
+                iteration=i + 1,
+                target_taps=target_taps,
+                mzi_tree=mzi_tree,
+                chip_state=chip_state,
+                config=config,
+                prev_iter_data=prev_iter_data,
+                output_dir=str(output_dir),
+            )
 
-        iterations.append(iter_data)
-        prev_iter_data = iter_data
+            iterations.append(iter_data)
+            prev_iter_data = iter_data
 
-        # Check convergence
-        if check_convergence(iter_data, config):
-            print(f"\n*** Converged at iteration {i + 1} ***")
-            converged = True
-            break
+            # Check convergence
+            if check_convergence(iter_data, config):
+                print(f"\n*** Converged at iteration {i + 1} ***")
+                converged = True
+                break
+    except Exception as e:
+        with VoltageController(
+            com_port=config.measurement.voltage_controller_port,
+            baud_rate=config.measurement.voltage_controller_baudrate,
+            zero_on_exit=True,
+        ) as voltage_ctrl:
+            voltage_ctrl.set_voltages(
+                channels=np.arange(1, 33),
+                voltages=[0.0] * 32,
+                v_max=config.measurement.voltage_controller_v_max,
+            )
+            print("\nResetting voltages to zero...")
 
     # Create results object
     results = CalibrationResults(
@@ -322,18 +333,6 @@ def run_experiment(config_path: str):
     print("Calibration complete")
     print("=" * 60)
     save_results(results, str(output_dir))
-
-    with VoltageController(
-        com_port=config.measurement.voltage_controller_port,
-        baud_rate=config.measurement.voltage_controller_baudrate,
-        zero_on_exit=True,
-    ) as voltage_ctrl:
-        voltage_ctrl.set_voltages(
-            channels=np.arange(1, 33),
-            voltages=[0.0] * 32,
-            v_max=config.measurement.voltage_controller_v_max,
-        )
-        print("\nResetting voltages to zero...")
 
     return results
 
