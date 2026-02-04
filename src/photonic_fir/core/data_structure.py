@@ -457,12 +457,6 @@ class ChipState:
         return copy.deepcopy(self)
 
 
-from pprint import pprint
-
-chip_state = ChipState()
-pprint(chip_state.get_all_applied_powers())
-
-
 @dataclass
 class MeasurementConfig:
     """Configuration for spectral measurements."""
@@ -799,6 +793,8 @@ class IterationData:
     # Additional metrics
     max_amplitude_error_db: float = field(init=False)
     max_phase_error_rad: float = field(init=False)
+
+    mzi_psr_errors_db: Dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self):
         """Calculate derived metrics."""

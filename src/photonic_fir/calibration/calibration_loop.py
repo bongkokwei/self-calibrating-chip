@@ -35,13 +35,11 @@ from voltage_ctrl import VoltageController
 
 def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
     # Initialize hardware
-    voltage_ctrl = VoltageController(
+    with VoltageController(
         com_port=config.measurement.voltage_controller_port,
         baud_rate=config.measurement.voltage_controller_baudrate,
         zero_on_exit=True,
-    )
-
-    try:
+    ) as voltage_ctrl:
         # Measure and populate φ_init
         characterise_mzi_phi_init(
             chip_state=chip_state,
@@ -54,9 +52,6 @@ def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
         print("\nVerifying φ_init values in chip_state:")
         for mzi_id, mzi in chip_state.mzis.items():
             print(f"  MZI {mzi_id}: φ_init = {mzi.phi_init_rad:+7.3f} rad")
-
-    finally:
-        voltage_ctrl._close_serial()
 
 
 def run_calibration_iteration(
@@ -113,8 +108,8 @@ def run_calibration_iteration(
         signal_tap_indices=config.chip.signal_tap_indices,
         signal_tap_numbers=config.chip.signal_tap_numbers,
         mzi_tree=mzi_tree,
-        mzi_phi_init=chip_state.get_all_init_phase(),
-        ps_phi_init=chip_state.get_all_init_phase(),
+        mzi_phi_init=chip_state.get_mzi_init_phase(),
+        ps_phi_init=chip_state.get_ps_init_phase(),
     )
 
     # 5. Calculate power adjustments
@@ -156,10 +151,10 @@ def run_calibration_iteration(
         insertion_loss_db=df[config.measurement.insertion_loss_col],
         tap_amplitudes=np.abs(tap_coeffs),
         tap_phases_rad=np.angle(tap_coeffs),
-        amplitude_errors_db=all_errors["amplitude_errors_db"],
-        phase_errors_rad=all_errors["phase_errors_rad"],
-        rms_amplitude_error_db=all_errors["rms_amplitude_error_db"],
-        rms_phase_error_rad=all_errors["rms_phase_error_rad"],
+        amplitude_errors_db=all_errors["tap_amplitude_errors"],
+        phase_errors_rad=all_errors["tap_phase_errors"],
+        rms_amplitude_error_db=all_errors["rms_amplitude_error"],
+        rms_phase_error_rad=all_errors["rms_phase_error"],
         chip_state=chip_state.copy(),
     )
 

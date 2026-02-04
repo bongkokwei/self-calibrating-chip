@@ -183,14 +183,16 @@ def calculate_all_errors(
     tap_amp_errors = target_amps - measured_amps
 
     # Calculate tap phase errors (wrapped)
-    tap_phase_errors = {
-        tap_num: wrap_phase_error(err) for tap_num, err in ps_phase_errors.items()
-    }
-
+    tap_phase_errors = np.array(
+        [
+            wrap_phase_error(ps_phase_errors[tap_num])
+            for tap_num in sorted(ps_phase_errors.keys())
+        ]
+    )
     # Calculate RMS errors
     rms_amp, rms_phase = calculate_rms_errors(
         amplitude_errors=tap_amp_errors,
-        phase_errors=np.array(list(ps_phase_errors.values())),
+        phase_errors=tap_phase_errors,
     )
 
     return {
