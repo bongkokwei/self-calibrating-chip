@@ -369,7 +369,7 @@ class ChipState:
         """Get dictionary of all applied powers for monitoring."""
         powers = {}
         for mzi_id, mzi in self.mzis.items():
-            powers[f"MZI_{mzi_id}"] = mzi.applied_power_watts
+            powers[mzi_id] = mzi.applied_power_watts
         for tap_num, ps in self.phase_shifters.items():
             powers[tap_num] = ps.applied_power_watts
         return powers
@@ -378,7 +378,7 @@ class ChipState:
         """Get dictionary of all initial phase offsets."""
         init_phase = {}
         for mzi_id, mzi in self.mzis.items():
-            init_phase[f"MZI_{mzi_id}"] = mzi.phi_init_rad
+            init_phase[mzi_id] = mzi.phi_init_rad
         for tap_num, ps in self.phase_shifters.items():
             init_phase[tap_num] = ps.phi_init_rad
         return init_phase
@@ -455,6 +455,12 @@ class ChipState:
         import copy
 
         return copy.deepcopy(self)
+
+
+from pprint import pprint
+
+chip_state = ChipState()
+pprint(chip_state.get_all_applied_powers())
 
 
 @dataclass
