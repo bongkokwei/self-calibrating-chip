@@ -129,18 +129,10 @@ def run_calibration_iteration(
         prev_mzi_psr_errors=(
             prev_iter_data.mzi_psr_errors_db if prev_iter_data else None
         ),
-        current_mzi_powers={
-            mzi_id: mzi.applied_power_watts for mzi_id, mzi in chip_state.mzis.items()
-        },
-        current_ps_powers={
-            tap: ps.applied_power_watts for tap, ps in chip_state.phase_shifters.items()
-        },
-        mzi_phi_init={
-            mzi_id: mzi.phi_init_rad for mzi_id, mzi in chip_state.mzis.items()
-        },
-        ps_phi_init={
-            tap: ps.phi_init_rad for tap, ps in chip_state.phase_shifters.items()
-        },
+        current_mzi_powers=chip_state.get_all_applied_power(),
+        current_ps_powers=chip_state.get_all_ps_applied_power(),
+        mzi_phi_init=chip_state.get_all_init_phase(),
+        ps_phi_init=chip_state.get_all_ps_init_phase(),
         power_for_2pi=config.chip.p2pi_watts,
         learning_rate=config.calibration.learning_rate,
         min_power=config.calibration.min_power_watts,

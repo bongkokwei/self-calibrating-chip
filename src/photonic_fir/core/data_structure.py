@@ -346,6 +346,25 @@ class ChipState:
                 for tap_num in self.chip_params.signal_tap_numbers
             }
 
+    def get_mzi_applied_powers(self) -> Dict[str, float]:
+        """Get dictionary of MZI applied powers for monitoring."""
+        return {mzi_id: mzi.applied_power_watts for mzi_id, mzi in self.mzis.items()}
+
+    def get_ps_applied_powers(self) -> Dict[int, float]:
+        """Get dictionary of phase shifter applied powers for monitoring."""
+        return {
+            tap_num: ps.applied_power_watts
+            for tap_num, ps in self.phase_shifters.items()
+        }
+
+    def get_mzi_init_phase(self) -> Dict[str, float]:
+        """Get dictionary of MZI initial phase offsets."""
+        return {mzi_id: mzi.phi_init_rad for mzi_id, mzi in self.mzis.items()}
+
+    def get_ps_init_phase(self) -> Dict[int, float]:
+        """Get dictionary of phase shifter initial phase offsets."""
+        return {tap_num: ps.phi_init_rad for tap_num, ps in self.phase_shifters.items()}
+
     def get_all_applied_powers(self) -> Dict[str, float]:
         """Get dictionary of all applied powers for monitoring."""
         powers = {}
