@@ -7,6 +7,7 @@ from datetime import datetime, time
 from typing import Dict, Optional
 import sys
 
+
 from .phi_init_characterisation import characterise_mzi_phi_init
 
 
@@ -31,6 +32,9 @@ from ..processing import (
     recover_impulse_response_from_df,
     detect_taps,
 )
+
+from ..utils.calibration_plotting import CalibrationPlotter
+
 
 from voltage_ctrl import VoltageController
 
@@ -264,12 +268,21 @@ def run_experiment(config_path: str):
     print(f"  Number of taps: {len(target_amps)}")
     print(f"  Phase step: {config.target.phase_step_rad:.4f} rad")
 
-    # # Measure phi_init, and populate chip_state
-    # print("\nMeasuring initial MZI phases (φ_init)...")
-    # phi_init_measurement(config, chip_state)
+    # Measure phi_init, and populate chip_state
+    print("\nMeasuring initial MZI phases (φ_init)...")
+    phi_init_measurement(config, chip_state)
 
     # Build MZI tree structure
     mzi_tree = config.signal_mzi_tree.tree
+
+    # Initialise plotter after config is loaded
+    plotter = CalibrationPlotter(
+        num_taps=config.chip.n_signal_taps,  # 8 taps
+        num_mzis=len(config.signal_mzi_tree.mzi_ids),  # Number of MZIs
+    )
+
+    # Optional: Add separate MZI error plot
+    plotter.add_mzi_plot()
 
     # Run calibration iterations
     print("\n" + "=" * 60)
@@ -317,6 +330,10 @@ def run_experiment(config_path: str):
                 v_max=config.measurement.voltage_controller_v_max,
             )
             print("\nResetting voltages to zero...")
+    finally:
+        # Save plots before closing
+        plotter.save_plots(str(output_dir))
+        plotter.close()
 
     # Create results object
     results = CalibrationResults(
