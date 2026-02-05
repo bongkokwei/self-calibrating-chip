@@ -105,7 +105,7 @@ def run_calibration_iteration(
     # 2. Recover impulse response (using DataFrame wrapper)
     time_ps, h_time = recover_impulse_response_from_df(
         df=df,
-        chip_params=config.chip,
+        fsr_hz=config.chip.fsr_hz,
         wavelength_col=config.measurement.wavelength_col,
         freq_col=config.measurement.frequency_col,
         insertion_loss_col=config.measurement.insertion_loss_col,
