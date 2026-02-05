@@ -312,6 +312,8 @@ def run_experiment(config_path: str):
             iterations.append(iter_data)
             prev_iter_data = iter_data
 
+            plotter.update(iter_data)
+
             # Check convergence
             if check_convergence(iter_data, config):
                 print(f"\n*** Converged at iteration {i + 1} ***")
