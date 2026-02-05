@@ -115,9 +115,9 @@ def run_calibration_iteration(
     tap_times, tap_coeffs = detect_taps(
         time_ps=time_ps,
         h_time=h_time,
-        chip_params=config.chip,
+        fsr_hz=config.chip.fsr_hz,
+        delay_step_s=config.chip.delay_step_s,
         n_taps=config.chip.n_taps,
-        use_db_scale=config.measurement.use_db_scale,
         prominence_factor_db=config.measurement.prominence_factor_db,
         height_threshold_db=config.measurement.height_threshold_db,
     )
