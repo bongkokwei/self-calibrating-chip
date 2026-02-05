@@ -62,6 +62,10 @@ from .processing.tap_recovery import (
 
 from .utils.file_utils import get_next_run_dir, ensure_dir
 from .utils.plotting_utils import plot_insertion_loss, plot_impulse_response
+from .utils.calibration_plotting import (
+    CalibrationPlotter,
+    plot_calibration_errors,
+)
 
 # Hardware imports are kept separate to avoid import errors
 # if hardware libraries aren't installed
@@ -120,6 +124,9 @@ __all__ = [
     # Plotting utilities
     "plot_insertion_loss",
     "plot_impulse_response",
+    # Calibration plotting
+    "CalibrationPlotter",
+    "plot_calibration_errors",
     # File utilities
     "get_next_run_dir",
     "ensure_dir",

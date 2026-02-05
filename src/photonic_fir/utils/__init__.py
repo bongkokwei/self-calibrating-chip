@@ -9,6 +9,11 @@ from .plotting_utils import (
     plot_insertion_loss,
 )
 
+from .calibration_plotting import (
+    CalibrationPlotter,
+    plot_calibration_errors,
+)
+
 __all__ = [
     # File utilities
     "get_next_run_dir",
@@ -16,4 +21,7 @@ __all__ = [
     # Plotting utilities
     "plot_impulse_response",
     "plot_insertion_loss",
+    # Calibration plotting
+    "CalibrationPlotter",
+    "plot_calibration_errors",
 ]
