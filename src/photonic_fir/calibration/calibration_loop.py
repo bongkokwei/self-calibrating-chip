@@ -281,9 +281,6 @@ def run_experiment(config_path: str):
         num_mzis=len(config.signal_mzi_tree.mzi_ids),  # Number of MZIs
     )
 
-    # Optional: Add separate MZI error plot
-    plotter.add_mzi_plot()
-
     # Run calibration iterations
     print("\n" + "=" * 60)
     print("Starting calibration...")
@@ -313,6 +310,7 @@ def run_experiment(config_path: str):
             prev_iter_data = iter_data
 
             plotter.update(iter_data)
+            plotter.add_mzi_plot()
 
             # Check convergence
             if check_convergence(iter_data, config):
