@@ -310,7 +310,6 @@ def run_experiment(config_path: str):
             prev_iter_data = iter_data
 
             plotter.update(iter_data)
-            plotter.add_mzi_plot()
 
             # Check convergence
             if check_convergence(iter_data, config):
