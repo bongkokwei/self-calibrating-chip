@@ -196,7 +196,7 @@ def apply_voltages_to_hardware(
         )
 
     with VoltageController(
-        port=config.measurement.voltage_controller_port,
+        com_port=config.measurement.voltage_controller_port,
         baud_rate=config.measurement.voltage_controller_baudrate,
         zero_on_exit=False,
     ) as voltage_ctrl:
