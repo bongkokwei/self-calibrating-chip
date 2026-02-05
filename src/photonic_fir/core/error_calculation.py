@@ -155,9 +155,22 @@ def calculate_all_errors(
     # Extract signal processing taps
     measured_signal_taps = measured_taps[list(signal_tap_indices)]
 
-    # Calculate PSRs using power_splitting_ratio.py
-    measured_psr = tap_coeffs_to_power_splitting_ratios(measured_signal_taps, mzi_tree)
-    target_psr = tap_coeffs_to_power_splitting_ratios(target_taps, mzi_tree)
+    # ============================================================================
+    # NORMALISE TO UNIT SIGNAL TAP POWER
+    # This makes all comparisons relative, independent of insertion loss,
+    # reference tap power, and absolute input power. We care only about the
+    # shape of the filter's power distribution.
+    # ============================================================================
+    measured_power = np.sum(np.abs(measured_signal_taps) ** 2)
+    target_power = np.sum(np.abs(target_taps) ** 2)
+
+    measured_norm = measured_signal_taps / np.sqrt(measured_power)
+    target_norm = target_taps / np.sqrt(target_power)
+
+    # Calculate PSRs using normalised taps
+    # PSRs describe relative power distribution, which is what we're calibrating
+    measured_psr = tap_coeffs_to_power_splitting_ratios(measured_norm, mzi_tree)
+    target_psr = tap_coeffs_to_power_splitting_ratios(target_norm, mzi_tree)
 
     # Calculate MZI errors
     mzi_psr_errors, mzi_phase_errors = calculate_mzi_errors(
@@ -166,7 +179,8 @@ def calculate_all_errors(
         mzi_phi_init=mzi_phi_init,
     )
 
-    # Extract phases using power_splitting_ratio.py
+    # Extract phases - use original (unnormalised) taps since phase is unaffected
+    # by amplitude scaling
     measured_phases = extract_tap_phases(measured_signal_taps, signal_tap_numbers)
     target_phases = extract_tap_phases(target_taps, signal_tap_numbers)
 
@@ -177,9 +191,10 @@ def calculate_all_errors(
         ps_phi_init=ps_phi_init,
     )
 
-    # Calculate tap amplitude errors (in dB)
-    measured_amps = 20 * np.log10(np.abs(measured_signal_taps) + 1e-12)
-    target_amps = 20 * np.log10(np.abs(target_taps) + 1e-12)
+    # Calculate tap amplitude errors using normalised taps
+    # Errors now represent deviations in relative power distribution
+    measured_amps = 20 * np.log10(np.abs(measured_norm) + 1e-12)
+    target_amps = 20 * np.log10(np.abs(target_norm) + 1e-12)
     tap_amp_errors = target_amps - measured_amps
 
     # Calculate tap phase errors (wrapped)
@@ -189,6 +204,7 @@ def calculate_all_errors(
             for tap_num in sorted(ps_phase_errors.keys())
         ]
     )
+
     # Calculate RMS errors
     rms_amp, rms_phase = calculate_rms_errors(
         amplitude_errors=tap_amp_errors,
