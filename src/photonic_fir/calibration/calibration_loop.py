@@ -11,6 +11,7 @@ import sys
 from .phi_init_characterisation import characterise_mzi_phi_init
 
 import logging
+from photonic_fir import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -237,6 +238,13 @@ def run_experiment(config_path: str):
     Args:
         config_path: Path to YAML configuration file
     """
+    # Create output directory
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = Path(config.output_dir) / f"{config.name}_{timestamp}"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Output directory: {output_dir}")
+
+    setup_logging(log_dir=output_dir, log_level=logging.INFO)
 
     logger.info("=" * 60)
     logger.info("FIR Chip Calibration Experiment")
@@ -252,12 +260,6 @@ def run_experiment(config_path: str):
     chip_state = ChipState(
         chip_params=config.chip,
     )
-
-    # Create output directory
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = Path(config.output_dir) / f"{config.name}_{timestamp}"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Output directory: {output_dir}")
 
     # Save configuration
     save_config(config, str(output_dir))
