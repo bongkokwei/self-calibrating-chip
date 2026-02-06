@@ -144,8 +144,8 @@ if _HARDWARE_AVAILABLE:
         ]
     )
 
-
 import logging
+import sys
 
 
 def setup_logging(log_file="app.log", level="INFO"):
@@ -156,9 +156,22 @@ def setup_logging(log_file="app.log", level="INFO"):
         log_file: Path to log file (default: 'app.log')
         level: Logging level - 'DEBUG', 'INFO', 'WARNING', 'ERROR' (default: 'INFO')
     """
+    # Create handlers with explicit UTF-8 encoding
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+
+    # Force UTF-8 for console on Windows
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.stream = open(
+        sys.stdout.fileno(),
+        mode="w",
+        encoding="utf-8",
+        buffering=1,
+    )
+
+    # Configure logging
     logging.basicConfig(
         level=getattr(logging, level.upper()),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
-        handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
+        handlers=[file_handler, console_handler],
     )

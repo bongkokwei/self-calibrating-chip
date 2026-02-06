@@ -238,23 +238,26 @@ def run_experiment(config_path: str):
     Args:
         config_path: Path to YAML configuration file
     """
+
+    # Load configuration
+    config = load_config(config_path)
+
     # Create output directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = Path(config.output_dir) / f"{config.name}_{timestamp}"
     output_dir.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Output directory: {output_dir}")
 
+    # Configure logging to file in output directory
     setup_logging(
-        log_file=str(output_dir / f"experiment_log_{timestamp}.log"), level="INFO"
+        log_file=str(output_dir / f"experiment_log_{timestamp}.log"),
+        level="INFO",
     )
 
     logger.info("=" * 60)
     logger.info("FIR Chip Calibration Experiment")
     logger.info("=" * 60)
 
-    # Load configuration
     logger.info(f"\nLoading configuration from: {config_path}")
-    config = load_config(config_path)
     logger.info(f"Experiment: {config.name}")
     logger.info(f"Description: {config.description}")
 
