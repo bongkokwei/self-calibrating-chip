@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 import os
 import numpy as np
 import pandas as pd
@@ -56,9 +60,9 @@ def plot_insertion_loss(
     """
 
     # Quick inspection
-    print("\nFirst few rows:")
-    print(df.head())
-    print(f"\nData shape: {df.shape}")
+    logger.info("\nFirst few rows:")
+    logger.info(df.head())
+    logger.info(f"\nData shape: {df.shape}")
 
     # Determine subplot layout
     if plot_phase and "LPD" in df.columns:
@@ -103,7 +107,7 @@ def plot_insertion_loss(
 
     if save_fig:
         fig.savefig(fig_filename, dpi=dpi, bbox_inches="tight")
-        print(f"\nFigure saved to: {fig_filename}")
+        logger.info(f"\nFigure saved to: {fig_filename}")
 
     # Show plot if requested
     if show_plot:

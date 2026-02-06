@@ -25,6 +25,11 @@ The PSR vs voltage² relationship is:
 Where V_2π = √(R * P_2π)
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 import numpy as np
 from scipy.optimize import curve_fit
 from typing import Tuple, Dict
@@ -229,11 +234,13 @@ def fit_mzi_v2pi_and_phi_init(
 
         if v_2pi_initial_guess is None:
             v_2pi_initial_guess = v_2pi_auto
-            print(f"Auto-estimated V_2π initial guess: {v_2pi_initial_guess:.2f} V")
+            logger.info(
+                f"Auto-estimated V_2π initial guess: {v_2pi_initial_guess:.2f} V"
+            )
 
         if phi_init_guess is None:
             phi_init_guess = phi_init_auto
-            print(
+            logger.info(
                 f"Auto-estimated φ_init initial guess: {phi_init_guess:.4f} rad ({np.degrees(phi_init_guess):.2f}°)"
             )
 
@@ -289,8 +296,8 @@ def fit_mzi_v2pi_and_phi_init(
         }
 
     except (RuntimeError, ValueError) as e:
-        print(f"Fit failed: {e}")
-        print("Returning initial guesses with R² = 0")
+        logger.info(f"Fit failed: {e}")
+        logger.info("Returning initial guesses with R² = 0")
         v_2pi = v_2pi_initial_guess
         phi_init = phi_init_guess
         r_squared = 0.0
@@ -332,15 +339,15 @@ def print_fit_results(
     resistance_ohm : float
         Heater resistance (Ω)
     """
-    print(f"\n{'='*70}")
-    print(f"MZI {mzi_id} - Fitted Parameters (Nonlinear Least Squares)")
-    print(f"{'='*70}")
-    print(f"V_2π:        {v_2pi:.3f} V")
-    print(f"φ_init:      {phi_init:.4f} rad ({np.degrees(phi_init):.2f}°)")
-    print(
+    logger.info(f"\n{'='*70}")
+    logger.info(f"MZI {mzi_id} - Fitted Parameters (Nonlinear Least Squares)")
+    logger.info(f"{'='*70}")
+    logger.info(f"V_2π:        {v_2pi:.3f} V")
+    logger.info(f"φ_init:      {phi_init:.4f} rad ({np.degrees(phi_init):.2f}°)")
+    logger.info(
         f"P_2π:        {fit_info['p_2pi_watts']:.4f} W ({fit_info['p_2pi_watts']*1000:.2f} mW)"
     )
-    print(f"R²:          {r_squared:.6f}")
-    print(f"RMSE:        {fit_info['rmse_db']:.3f} dB")
-    print(f"Resistance:  {resistance_ohm:.1f} Ω")
-    print(f"{'='*70}\n")
+    logger.info(f"R²:          {r_squared:.6f}")
+    logger.info(f"RMSE:        {fit_info['rmse_db']:.3f} dB")
+    logger.info(f"Resistance:  {resistance_ohm:.1f} Ω")
+    logger.info(f"{'='*70}\n")

@@ -5,6 +5,10 @@ Tap coefficient extraction from measured spectral data compatible with data_stru
 Uses Kramers-Kronig phase recovery and inverse Fourier transform.
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import numpy as np
 import pandas as pd
 from scipy.fft import ifft, fftshift
@@ -93,14 +97,14 @@ def recover_impulse_response(
     # Calculate frequency spacing
     df_hz = np.mean(np.diff(freq_hz))
 
-    print(f"Frequency range: {freq_hz[0]/1e9:.2f} to {freq_hz[-1]/1e9:.2f} GHz")
-    print(f"Number of frequency points: {len(freq_hz)}")
-    print(f"Expected FSR: {fsr_hz/1e9:.2f} GHz")
+    logger.info(f"Frequency range: {freq_hz[0]/1e9:.2f} to {freq_hz[-1]/1e9:.2f} GHz")
+    logger.info(f"Number of frequency points: {len(freq_hz)}")
+    logger.info(f"Expected FSR: {fsr_hz/1e9:.2f} GHz")
 
     # Recover phase using Kramers-Kronig
-    print("\nRecovering phase using Kramers-Kronig relationship...")
+    logger.info("\nRecovering phase using Kramers-Kronig relationship...")
     phase_rad = kramers_kronig_phase_recovery(insertion_loss_db)
-    print("Phase recovery complete!")
+    logger.info("Phase recovery complete!")
 
     # Convert insertion loss (dB) to amplitude (linear)
     amplitude = 10 ** (insertion_loss_db / 20)
@@ -118,9 +122,9 @@ def recover_impulse_response(
     time_s_shifted = np.fft.fftshift(time_s)
     time_ps = time_s_shifted * 1e12  # Convert to picoseconds
 
-    print(f"\nTime domain:")
-    print(f"Time resolution: {np.mean(np.diff(time_ps)):.3f} ps")
-    print(f"Time span: {time_ps[0]:.1f} to {time_ps[-1]:.1f} ps")
+    logger.info(f"\nTime domain:")
+    logger.info(f"Time resolution: {np.mean(np.diff(time_ps)):.3f} ps")
+    logger.info(f"Time span: {time_ps[0]:.1f} to {time_ps[-1]:.1f} ps")
 
     return time_ps, h_time_shifted
 
@@ -217,16 +221,16 @@ def detect_taps(
     max_magnitude = np.max(h_magnitude)
 
     # Convert to dB scale if requested
-    print("\n=== Using dB scale for peak detection ===")
+    logger.info("\n=== Using dB scale for peak detection ===")
     h_magnitude_normalised = h_magnitude / max_magnitude
     h_magnitude_db = 20 * np.log10(h_magnitude_normalised + 1e-12)
     detection_signal = h_magnitude_db
     height_min = height_threshold_db
     prominence_min = prominence_factor_db
 
-    print(f"Maximum magnitude (linear): {max_magnitude:.6f}")
-    print(f"Height threshold: {height_threshold_db:.1f} dB")
-    print(f"Prominence threshold: {prominence_factor_db:.1f} dB")
+    logger.info(f"Maximum magnitude (linear): {max_magnitude:.6f}")
+    logger.info(f"Height threshold: {height_threshold_db:.1f} dB")
+    logger.info(f"Prominence threshold: {prominence_factor_db:.1f} dB")
 
     # Calculate time resolution
     dt_ps = np.mean(np.diff(time_ps))
@@ -237,13 +241,15 @@ def detect_taps(
         tap_spacing_ps = tap_spacing_s * 1e12
         min_distance_ps = tap_spacing_ps * 0.8
 
-        print(f"\nFSR: {fsr_hz/1e9:.2f} GHz")
-        print(f"Expected tap spacing: {tap_spacing_ps:.3f} ps")
-        print(f"Using min_distance: {min_distance_ps:.3f} ps")
+        logger.info(f"\nFSR: {fsr_hz/1e9:.2f} GHz")
+        logger.info(f"Expected tap spacing: {tap_spacing_ps:.3f} ps")
+        logger.info(f"Using min_distance: {min_distance_ps:.3f} ps")
 
     # Convert to samples
     min_distance = max(int(min_distance_ps / dt_ps), 1)
-    print(f"Minimum distance: {min_distance} samples ({min_distance * dt_ps:.3f} ps)")
+    logger.info(
+        f"Minimum distance: {min_distance} samples ({min_distance * dt_ps:.3f} ps)"
+    )
 
     # Find peaks
     peak_indices, peak_properties = find_peaks(
@@ -253,14 +259,14 @@ def detect_taps(
         distance=min_distance,
     )
 
-    print(f"\nInitial peaks found: {len(peak_indices)}")
+    logger.info(f"\nInitial peaks found: {len(peak_indices)}")
 
     # Filter to N largest if specified
     if n_taps is None:
         n_taps = n_taps
 
     if len(peak_indices) > n_taps:
-        print(f"Filtering to keep only the {n_taps} largest peaks...")
+        logger.info(f"Filtering to keep only the {n_taps} largest peaks...")
         peak_magnitudes = h_magnitude[peak_indices]
         top_n_indices = np.argsort(peak_magnitudes)[::-1][0:n_taps]
         peak_indices = peak_indices[top_n_indices]
@@ -270,22 +276,22 @@ def detect_taps(
     tap_coefficients = h_time[peak_indices]
     tap_times_ps = time_ps[peak_indices]
 
-    print(f"\nFinal detected taps: {len(tap_coefficients)}")
+    logger.info(f"\nFinal detected taps: {len(tap_coefficients)}")
 
     # Display tap information
-    print("\nTap Coefficients:")
-    print(
+    logger.info("\nTap Coefficients:")
+    logger.info(
         f"{'Tap':<5} {'Time (ps)':<12} {'Magnitude':<12} {'dB':<10} "
         f"{'Phase (rad)':<12} {'Phase (deg)':<12}"
     )
-    print("-" * 75)
+    logger.info("-" * 75)
 
     for i, (t, coeff) in enumerate(zip(tap_times_ps, tap_coefficients)):
         mag = np.abs(coeff)
         mag_db = 20 * np.log10(mag / max_magnitude)
         phase_rad = np.angle(coeff)
         phase_deg = np.degrees(phase_rad)
-        print(
+        logger.info(
             f"{i+1:<5} {t:<12.3f} {mag:<12.6f} {mag_db:<10.2f} "
             f"{phase_rad:<12.4f} {phase_deg:<12.2f}"
         )

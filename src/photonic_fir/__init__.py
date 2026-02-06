@@ -143,3 +143,22 @@ if _HARDWARE_AVAILABLE:
             "set_mzi_voltage",
         ]
     )
+
+
+import logging
+
+
+def setup_logging(log_file="app.log", level="INFO"):
+    """
+    Basic logging setup - console + file
+
+    Args:
+        log_file: Path to log file (default: 'app.log')
+        level: Logging level - 'DEBUG', 'INFO', 'WARNING', 'ERROR' (default: 'INFO')
+    """
+    logging.basicConfig(
+        level=getattr(logging, level.upper()),
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
+    )

@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 """Configuration loading and saving utilities."""
 
 from pathlib import Path
@@ -89,5 +93,5 @@ def save_config(config: ExperimentConfig, output_dir: str):
     with open(output_path, "w") as f:
         yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
 
-    print(f"Configuration saved to {output_path}")
+    logger.info(f"Configuration saved to {output_path}")
     return output_path

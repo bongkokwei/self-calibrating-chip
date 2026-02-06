@@ -2,6 +2,10 @@
 Live plotting utilities for calibration loop.
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import List, Optional, Dict, Union
@@ -234,7 +238,7 @@ class CalibrationPlotter:
                 output_path / "mzi_psr_errors.png", dpi=300, bbox_inches="tight"
             )
 
-        print(f"Plots saved to {output_dir}")
+        logger.info(f"Plots saved to {output_dir}")
 
     def close(self):
         """Close all plot windows."""
@@ -256,7 +260,7 @@ def plot_calibration_errors(
         If provided, save plots to this directory
     """
     if not iterations:
-        print("No iteration data to plot")
+        logger.info("No iteration data to plot")
         return
 
     # Extract data
@@ -318,14 +322,14 @@ def plot_calibration_errors(
         fig.savefig(
             output_path / "calibration_results.png", dpi=300, bbox_inches="tight"
         )
-        print(f"Plot saved to {output_dir}")
+        logger.info(f"Plot saved to {output_dir}")
 
     plt.show()
 
 
 if __name__ == "__main__":
     # Example usage
-    print("Example: Live plotting during calibration")
+    logger.info("Example: Live plotting during calibration")
 
     # Initialise plotter (8 taps, 15 MZIs)
     plotter = CalibrationPlotter(num_taps=8, num_mzis=15)
@@ -379,6 +383,6 @@ if __name__ == "__main__":
     # Save final plots
     plotter.save_plots("/mnt/user-data/outputs")
 
-    print("\nPress Enter to close plots...")
+    logger.info("\nPress Enter to close plots...")
     input()
     plotter.close()

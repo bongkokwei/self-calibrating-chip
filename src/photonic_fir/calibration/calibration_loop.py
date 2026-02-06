@@ -10,6 +10,9 @@ import sys
 
 from .phi_init_characterisation import characterise_mzi_phi_init
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 from ..core import (
     ExperimentConfig,
@@ -41,10 +44,10 @@ from voltage_ctrl import VoltageController
 
 def maximise_ref_tap(config: ExperimentConfig):
     """Set voltages to maximise the reference tap power."""
-    print("\nMaximising reference tap power...")
+    logger.info("\nMaximising reference tap power...")
     # Assuming ref tap corresponds to MZI IDs in config
     for mzi_id, power in config.calibration.initial_mzi_powers.items():
-        print(f"  Maximising MZI {mzi_id}...")
+        logger.info(f"  Maximising MZI {mzi_id}...")
         set_mzi_voltage(
             mzi_id=mzi_id,
             voltage=np.sqrt(power * config.chip.heater_resistance_ohm),
@@ -71,9 +74,9 @@ def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
             mzi_ids=config.full_mzi_tree.mzi_ids,
         )
 
-        print("\nVerifying φ_init values in chip_state:")
+        logger.info("\nVerifying φ_init values in chip_state:")
         for mzi_id, mzi in chip_state.mzis.items():
-            print(f"  MZI {mzi_id}: φ_init = {mzi.phi_init_rad:+7.3f} rad")
+            logger.info(f"  MZI {mzi_id}: φ_init = {mzi.phi_init_rad:+7.3f} rad")
 
 
 def run_calibration_iteration(
@@ -91,7 +94,7 @@ def run_calibration_iteration(
     Returns:
         IterationData containing measurements and errors for this iteration
     """
-    print(f"\nIteration {iteration}:")
+    logger.info(f"\nIteration {iteration}:")
 
     # 1. Measure spectrum
     df = measure_spectrum(
@@ -224,7 +227,7 @@ def save_results(results: CalibrationResults, output_dir: str):
             )
             f.write(f"  RMS phase error: {last_iter.rms_phase_error_rad:.4f} rad\n")
 
-    print(f"\nResults saved to {output_dir}")
+    logger.info(f"\nResults saved to {output_dir}")
 
 
 def run_experiment(config_path: str):
@@ -235,15 +238,15 @@ def run_experiment(config_path: str):
         config_path: Path to YAML configuration file
     """
 
-    print("=" * 60)
-    print("FIR Chip Calibration Experiment")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("FIR Chip Calibration Experiment")
+    logger.info("=" * 60)
 
     # Load configuration
-    print(f"\nLoading configuration from: {config_path}")
+    logger.info(f"\nLoading configuration from: {config_path}")
     config = load_config(config_path)
-    print(f"Experiment: {config.name}")
-    print(f"Description: {config.description}")
+    logger.info(f"Experiment: {config.name}")
+    logger.info(f"Description: {config.description}")
 
     # Create initial chip state
     chip_state = ChipState(
@@ -254,22 +257,22 @@ def run_experiment(config_path: str):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = Path(config.output_dir) / f"{config.name}_{timestamp}"
     output_dir.mkdir(parents=True, exist_ok=True)
-    print(f"Output directory: {output_dir}")
+    logger.info(f"Output directory: {output_dir}")
 
     # Save configuration
     save_config(config, str(output_dir))
 
     # Compute target tap coefficients
-    print("\nComputing target filter response...")
+    logger.info("\nComputing target filter response...")
     target_taps = config.target.get_target_taps(n_taps=config.chip.n_signal_taps)
     target_amps = np.abs(target_taps)
     target_phases = np.angle(target_taps)
-    print(f"Target filter: {config.target.filter_type}")
-    print(f"  Number of taps: {len(target_amps)}")
-    print(f"  Phase step: {config.target.phase_step_rad:.4f} rad")
+    logger.info(f"Target filter: {config.target.filter_type}")
+    logger.info(f"  Number of taps: {len(target_amps)}")
+    logger.info(f"  Phase step: {config.target.phase_step_rad:.4f} rad")
 
     # Measure phi_init, and populate chip_state
-    print("\nMeasuring initial MZI phases (φ_init)...")
+    logger.info("\nMeasuring initial MZI phases (φ_init)...")
     phi_init_measurement(config, chip_state)
 
     # Build MZI tree structure
@@ -282,9 +285,9 @@ def run_experiment(config_path: str):
     )
 
     # Run calibration iterations
-    print("\n" + "=" * 60)
-    print("Starting calibration...")
-    print("=" * 60)
+    logger.info("\n" + "=" * 60)
+    logger.info("Starting calibration...")
+    logger.info("=" * 60)
 
     iterations = []
     converged = False
@@ -313,11 +316,11 @@ def run_experiment(config_path: str):
 
             # Check convergence
             if check_convergence(iter_data, config):
-                print(f"\n*** Converged at iteration {i + 1} ***")
+                logger.info(f"\n*** Converged at iteration {i + 1} ***")
                 converged = True
                 break
     except Exception as e:
-        print(f"\nError during calibration at iteration {i + 1}: {e}")
+        logger.info(f"\nError during calibration at iteration {i + 1}: {e}")
         with VoltageController(
             com_port=config.measurement.voltage_controller_port,
             baud_rate=config.measurement.voltage_controller_baudrate,
@@ -328,7 +331,7 @@ def run_experiment(config_path: str):
                 voltages=[0.0] * 32,
                 v_max=config.measurement.voltage_controller_v_max,
             )
-            print("\nResetting voltages to zero...")
+            logger.info("\nResetting voltages to zero...")
     finally:
         # Save plots before closing
         plotter.save_plots(str(output_dir))
@@ -346,9 +349,9 @@ def run_experiment(config_path: str):
     )
 
     # Save results
-    print("\n" + "=" * 60)
-    print("Calibration complete")
-    print("=" * 60)
+    logger.info("\n" + "=" * 60)
+    logger.info("Calibration complete")
+    logger.info("=" * 60)
     save_results(results, str(output_dir))
 
     return results
@@ -366,6 +369,6 @@ if __name__ == "__main__":
     # Run experiment
     results = run_experiment(config_path)
 
-    print(f"\nExperiment complete!")
-    print(f"Converged: {results.converged}")
-    print(f"Final iteration: {results.final_iteration}")
+    logger.info(f"\nExperiment complete!")
+    logger.info(f"Converged: {results.converged}")
+    logger.info(f"Final iteration: {results.final_iteration}")

@@ -2,6 +2,11 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import time
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 from ..core.data_structure import (
     ChipState,
     MZIState,
@@ -89,7 +94,7 @@ def calculate_power_adjustments(
             if curr_err - prev_err > psr_increase_threshold_db:
                 # Add π to initial phase to flip to correct branch
                 phi_init_adjustments[mzi_id] = np.pi
-                print(
+                logger.info(
                     f"  MZI {mzi_id}: PSR error increased "
                     f"({prev_err:.2f} → {curr_err:.2f} dB), adding π to φ_init"
                 )
@@ -110,7 +115,7 @@ def calculate_power_adjustments(
         # Rule (b): Handle negative power (2π phase wrapping)
         if new_P < 0:
             new_P = new_P + power_for_2pi
-            print(
+            logger.info(
                 f"  MZI {mzi_id}: Wrapped negative power "
                 f"({current_P + delta_P:.4f} → {new_P:.4f} W)"
             )
@@ -139,7 +144,7 @@ def calculate_power_adjustments(
         # Handle negative power
         if new_P < 0:
             new_P = new_P + power_for_2pi
-            print(
+            logger.info(
                 f"  PS {tap_num}: Wrapped negative power "
                 f"({current_P + delta_P:.4f} → {new_P:.4f} W)"
             )
@@ -181,7 +186,7 @@ def apply_voltages_to_hardware(
         channel = config.channel_mapping.get_channel(f"MZI_{mzi_id}")
         channels.append(channel)
         voltages.append(voltage)
-        print(
+        logger.info(
             f"    MZI {mzi_id} (ch {channel}): {voltage:.4f} V ({mzi.applied_power_watts:.4f} W)"
         )
 
@@ -191,7 +196,7 @@ def apply_voltages_to_hardware(
         channel = config.channel_mapping.get_channel(f"PS_{tap_num}")
         channels.append(channel)
         voltages.append(voltage)
-        print(
+        logger.info(
             f"    PS {tap_num} (ch {channel}): {voltage:.4f} V ({ps.applied_power_watts:.4f} W)"
         )
 
@@ -201,7 +206,7 @@ def apply_voltages_to_hardware(
         zero_on_exit=False,
     ) as voltage_ctrl:
         # Apply all voltages in a single batch call
-        print("\n  Applying voltages to hardware:")
+        logger.info("\n  Applying voltages to hardware:")
         voltage_ctrl.set_voltages(
             channels=channels,
             voltages=voltages,
@@ -237,7 +242,7 @@ def set_mzi_voltage(
     mzi_device_id = f"MZI_{mzi_id}"
     mzi_channel = exp_config.channel_mapping.get_channel(mzi_device_id)
 
-    print(f"Setting MZI {mzi_id} (channel {mzi_channel}) to {voltage:.2f} V")
+    logger.info(f"Setting MZI {mzi_id} (channel {mzi_channel}) to {voltage:.2f} V")
 
     # Apply voltage
     with VoltageController(
@@ -246,9 +251,9 @@ def set_mzi_voltage(
         zero_on_exit=False,  # Don't zero when we're done
     ) as v_ctrl:
         v_ctrl.set_voltages([mzi_channel], [voltage], v_max=v_max)
-        print(f"✓ Voltage applied")
+        logger.info(f"✓ Voltage applied")
 
         if settling_time_sec > 0:
-            print(f"Waiting {settling_time_sec} s for thermal settling...")
+            logger.info(f"Waiting {settling_time_sec} s for thermal settling...")
             time.sleep(settling_time_sec)
-            print(f"✓ Settled")
+            logger.info(f"✓ Settled")

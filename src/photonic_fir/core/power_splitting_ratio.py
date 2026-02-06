@@ -4,6 +4,10 @@ power_splitting_ratio.py
 Functional power splitting ratio calculations for binary tree MZI architectures.
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import numpy as np
 from typing import Dict, Tuple, List
 
@@ -156,11 +160,11 @@ def print_tree_structure(
     """
     n_stages = int(np.log2(n_signal_taps))
 
-    print("\n" + "=" * 80)
-    print(f"Binary Tree Structure for {n_signal_taps} Taps")
-    print(f"Total Stages: {n_stages}")
-    print(f"Total MZIs: {len(mzi_tree)}")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info(f"Binary Tree Structure for {n_signal_taps} Taps")
+    logger.info(f"Total Stages: {n_stages}")
+    logger.info(f"Total MZIs: {len(mzi_tree)}")
+    logger.info("=" * 80)
 
     # Group by stage
     stages = {}
@@ -173,10 +177,10 @@ def print_tree_structure(
     # Print each stage
     for stage in sorted(stages.keys()):
         group_size = n_signal_taps // (2**stage)
-        print(
+        logger.info(
             f"\nStage {stage}: {len(stages[stage])} MZIs, group size = {group_size} taps"
         )
-        print("-" * 80)
+        logger.info("-" * 80)
 
         for mzi_id in stages[stage]:
             info = mzi_tree[mzi_id]
@@ -187,7 +191,7 @@ def print_tree_structure(
             lower_nums = f"{lower[0]+signal_tap_start}-{lower[1]+signal_tap_start-1}"
             upper_nums = f"{upper[0]+signal_tap_start}-{upper[1]+signal_tap_start-1}"
 
-            print(f"  {mzi_id:<8} controls taps [{lower_nums}] vs [{upper_nums}]")
+            logger.info(f"  {mzi_id:<8} controls taps [{lower_nums}] vs [{upper_nums}]")
 
 
 def print_psr_summary(psr_dict: Dict[str, float], mzi_tree: Dict[str, Dict]):
@@ -198,18 +202,18 @@ def print_psr_summary(psr_dict: Dict[str, float], mzi_tree: Dict[str, Dict]):
         psr_dict: Power splitting ratios in dB
         mzi_tree: Tree structure (for stage grouping)
     """
-    print("\n" + "=" * 80)
-    print("Power Splitting Ratios")
-    print("=" * 80)
-    print(
+    logger.info("\n" + "=" * 80)
+    logger.info("Power Splitting Ratios")
+    logger.info("=" * 80)
+    logger.info(
         f"{'MZI ID':<10} {'Stage':<8} {'PSR (dB)':<12} {'Phase (rad)':<12} {'Phase (deg)':<12}"
     )
-    print("-" * 80)
+    logger.info("-" * 80)
 
     for mzi_id, psr in psr_dict.items():
         stage = mzi_tree[mzi_id]["stage"]
         phase = power_splitting_ratio_to_mzi_phase(psr)
-        print(
+        logger.info(
             f"{mzi_id:<10} {stage:<8} {psr:+8.3f}     {phase:8.4f}      {np.degrees(phase):8.2f}"
         )
 

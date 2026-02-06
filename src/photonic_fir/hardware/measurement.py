@@ -5,6 +5,11 @@ Spectral measurement script compatible with data_structure.py configuration syst
 Uses MeasurementConfig dataclass for all settings.
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
@@ -68,19 +73,19 @@ def measure_spectrum(
 
         # Get device info for metadata
         device_info = edfa.get_identification()
-        print(f"EDFA connected: {device_info}")
+        logger.info(f"EDFA connected: {device_info}")
 
         # Configure EDFA
         edfa.set_driving_mode(1, DrivingMode.ALC)
         edfa.set_alc_output_level(1, edfa_output_power_dbm)
         edfa.set_output_active(True)
 
-        print(f"EDFA output active at {edfa_output_power_dbm} dBm")
+        logger.info(f"EDFA output active at {edfa_output_power_dbm} dBm")
 
         try:
             # Connect to OVA and measure
             with LunaOVA(ip=ova_ip) as ova:
-                print("Performing OVA measurement...")
+                logger.info("Performing OVA measurement...")
 
                 data = ova.measure_full(
                     center_wavelength_nm=center_wavelength_nm,
@@ -88,12 +93,12 @@ def measure_spectrum(
                     num_averages=num_averages,
                 )
 
-                print("Measurement complete")
+                logger.info("Measurement complete")
 
         finally:
             # Always deactivate EDFA output
             edfa.set_output_active(False)
-            print("EDFA output deactivated")
+            logger.info("EDFA output deactivated")
 
     # Create DataFrame from all returned data
     df = pd.DataFrame(data)
@@ -108,9 +113,9 @@ def measure_spectrum(
         output_path = output_dir / f"{file_name}.csv"
         df.to_csv(output_path, mode="a", index=False)
 
-        print(f"Data saved to: {output_path}")
-        print(f"Columns saved: {list(df.columns)}")
-        print(f"Number of data points: {len(df)}")
+        logger.info(f"Data saved to: {output_path}")
+        logger.info(f"Columns saved: {list(df.columns)}")
+        logger.info(f"Number of data points: {len(df)}")
 
     return df
 
@@ -137,9 +142,9 @@ if __name__ == "__main__":
     )
 
     # Quick inspection
-    print("\nFirst few rows:")
-    print(df.head())
-    print(f"\nData shape: {df.shape}")
+    logger.info("\nFirst few rows:")
+    logger.info(df.head())
+    logger.info(f"\nData shape: {df.shape}")
 
     # Plot insertion loss and phase
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
@@ -162,6 +167,6 @@ if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     fig_filename = f"./measurements/config_based_test_plot_{timestamp}.png"
     fig.savefig(fig_filename, dpi=300, bbox_inches="tight")
-    print(f"\nFigure saved to: {fig_filename}")
+    logger.info(f"\nFigure saved to: {fig_filename}")
 
     plt.close(fig)

@@ -14,6 +14,10 @@ Key principle: We create ChipState with default φ_init = 0.0, then measure
 and populate the accurate values directly into the MZI objects.
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import numpy as np
 import time
 from typing import Dict
@@ -69,7 +73,7 @@ def apply_single_mzi_perturbation(
     channels = []
     voltages = []
 
-    print("  Applying voltages:")
+    logger.info("  Applying voltages:")
     for mzi_id in mzi_ids:
         # Apply perturbation to target MZI, 0V to all others
         power_watts = perturbation_power_watts if mzi_id == perturb_mzi_id else 0.0
@@ -80,7 +84,7 @@ def apply_single_mzi_perturbation(
         voltages.append(voltage)
 
         if power_watts > 0:
-            print(
+            logger.info(
                 f"    MZI {mzi_id} (ch {channel}): {voltage:.4f} V ({power_watts:.4f} W)"
             )
 
@@ -89,7 +93,7 @@ def apply_single_mzi_perturbation(
 
     # Wait for thermal settling
     settling_time = config.chip.thermal_time_constant_s * 5  # 5 time constants
-    print(f"  Waiting {settling_time:.3f}s for thermal settling...")
+    logger.info(f"  Waiting {settling_time:.3f}s for thermal settling...")
     time.sleep(settling_time)
 
 
@@ -195,18 +199,18 @@ def characterise_mzi_phi_init(
         >>> # Now chip_state.mzis have accurate phi_init_rad values!
     """
 
-    print("\n" + "=" * 70)
-    print("φ_init CHARACTERISATION - Two-Step Method")
-    print("=" * 70)
+    logger.info("\n" + "=" * 70)
+    logger.info("φ_init CHARACTERISATION - Two-Step Method")
+    logger.info("=" * 70)
 
     # Get MZI IDs and tree structure
     if mzi_ids is None:
         mzi_ids = config.chip.get_all_mzi_ids()
     mzi_tree = config.full_mzi_tree.tree
 
-    print(f"MZIs to characterise: {mzi_ids}")
-    print(f"Perturbation power: {perturbation_power_watts:.4f} W")
-    print(f"Total measurements: {len(mzi_ids) + 1}")
+    logger.info(f"MZIs to characterise: {mzi_ids}")
+    logger.info(f"Perturbation power: {perturbation_power_watts:.4f} W")
+    logger.info(f"Total measurements: {len(mzi_ids) + 1}")
 
     # Store characterisation results for logging
     char_results = {}
@@ -214,7 +218,7 @@ def characterise_mzi_phi_init(
     # -------------------------------------------------------------------------
     # STEP 1: Baseline measurement (all MZIs at 0W)
     # -------------------------------------------------------------------------
-    print("\n### STEP 1: Baseline (all MZIs at 0W) ###")
+    logger.info("\n### STEP 1: Baseline (all MZIs at 0W) ###")
     apply_single_mzi_perturbation(
         mzi_ids=mzi_ids,
         perturb_mzi_id=None,  # None = all at 0W
@@ -224,17 +228,17 @@ def characterise_mzi_phi_init(
     )
 
     psr_baseline = measure_and_extract_psrs(config, mzi_tree)
-    print("\nBaseline PSRs (dB):")
+    logger.info("\nBaseline PSRs (dB):")
     for mzi_id, psr in psr_baseline.items():
-        print(f"  {mzi_id}: {psr:+7.2f} dB")
+        logger.info(f"  {mzi_id}: {psr:+7.2f} dB")
 
     # -------------------------------------------------------------------------
     # STEP 2: Perturbation measurements (one MZI at a time)
     # -------------------------------------------------------------------------
-    print("\n### STEP 2: Individual perturbations ###")
+    logger.info("\n### STEP 2: Individual perturbations ###")
 
     for mzi_id in mzi_ids:
-        print(f"\n--- Characterising {mzi_id} ---")
+        logger.info(f"\n--- Characterising {mzi_id} ---")
 
         # Apply perturbation to this MZI only
         apply_single_mzi_perturbation(
@@ -253,9 +257,9 @@ def characterise_mzi_phi_init(
         psr_1 = psr_perturbed[mzi_id]
         delta_psr = psr_1 - psr_0
 
-        print(f"  PSR at 0W:     {psr_0:+7.2f} dB")
-        print(f"  PSR at {perturbation_power_watts:.3f}W: {psr_1:+7.2f} dB")
-        print(f"  ΔPSR:          {delta_psr:+7.2f} dB")
+        logger.info(f"  PSR at 0W:     {psr_0:+7.2f} dB")
+        logger.info(f"  PSR at {perturbation_power_watts:.3f}W: {psr_1:+7.2f} dB")
+        logger.info(f"  ΔPSR:          {delta_psr:+7.2f} dB")
 
         # =====================================================================
         # Calculate φ_init from PSR_0 and ΔPSR sign
@@ -276,15 +280,17 @@ def characterise_mzi_phi_init(
             # Positive slope: 0 < φ_init < π
             # Use positive arctan
             phi_init = 2 * np.arctan(10 ** (psr_0 / 20))
-            print(f"  → ΔPSR > 0: positive slope branch (0 < φ < π)")
+            logger.info(f"  → ΔPSR > 0: positive slope branch (0 < φ < π)")
         else:
             # Negative slope: -π < φ_init < 0
             # Use negative arctan
             phi_init = 2 * np.arctan(-(10 ** (psr_0 / 20)))
-            print(f"  → ΔPSR < 0: negative slope branch (-π < φ < 0)")
+            logger.info(f"  → ΔPSR < 0: negative slope branch (-π < φ < 0)")
 
         # Result is already in [-π, π], no wrapping needed
-        print(f"  → φ_init = {phi_init:+7.3f} rad ({np.degrees(phi_init):+7.1f}°)")
+        logger.info(
+            f"  → φ_init = {phi_init:+7.3f} rad ({np.degrees(phi_init):+7.1f}°)"
+        )
 
         # *** DIRECTLY SET φ_init IN CHIP STATE ***
         chip_state.mzis[mzi_id].phi_init_rad = phi_init
@@ -308,25 +314,25 @@ def characterise_mzi_phi_init(
         config=config,
         voltage_ctrl=voltage_ctrl,
     )
-    print("\nReset all MZIs to 0W")
+    logger.info("\nReset all MZIs to 0W")
 
     # -------------------------------------------------------------------------
     # Summary
     # -------------------------------------------------------------------------
-    print("\n" + "=" * 70)
-    print("CHARACTERISATION COMPLETE")
-    print("=" * 70)
-    print("\nφ_init values populated in chip_state:")
+    logger.info("\n" + "=" * 70)
+    logger.info("CHARACTERISATION COMPLETE")
+    logger.info("=" * 70)
+    logger.info("\nφ_init values populated in chip_state:")
     for mzi_id, result in char_results.items():
-        print(
+        logger.info(
             f"  {mzi_id}: φ_init = {result.phi_init_rad:+7.3f} rad "
             f"({np.degrees(result.phi_init_rad):+7.1f}°), "
             f"ΔPSR = {result.delta_psr_db:+6.2f} dB"
         )
 
-    print("\n" + "=" * 70)
-    print("ChipState ready for calibration!")
-    print("=" * 70)
+    logger.info("\n" + "=" * 70)
+    logger.info("ChipState ready for calibration!")
+    logger.info("=" * 70)
 
 
 # ==============================================================================
@@ -349,24 +355,24 @@ if __name__ == "__main__":
         "measurements/experiment_config_shorter_range_reduce_num_avg.yaml"
     )
 
-    print("=" * 70)
-    print("COMPLETE CALIBRATION WORKFLOW")
-    print("=" * 70)
+    logger.info("=" * 70)
+    logger.info("COMPLETE CALIBRATION WORKFLOW")
+    logger.info("=" * 70)
 
     # -------------------------------------------------------------------------
     # STEP 1: Create ChipState with defaults
     # -------------------------------------------------------------------------
-    print("\n### STEP 1: Create ChipState ###")
+    logger.info("\n### STEP 1: Create ChipState ###")
     chip_state = ChipState(
         chip_params=config.chip,
         p_fixed_watts=0.3,
     )
-    print("ChipState created with default φ_init = 0.0 for all MZIs")
+    logger.info("ChipState created with default φ_init = 0.0 for all MZIs")
 
     # -------------------------------------------------------------------------
     # STEP 2: Characterise φ_init (mutates chip_state in place)
     # -------------------------------------------------------------------------
-    print("\n### STEP 2: Characterise φ_init ###")
+    logger.info("\n### STEP 2: Characterise φ_init ###")
 
     # Initialize hardware
     voltage_ctrl = VoltageController(
@@ -384,9 +390,9 @@ if __name__ == "__main__":
             perturbation_power_watts=0.05,
         )
 
-        print("\nVerifying φ_init values in chip_state:")
+        logger.info("\nVerifying φ_init values in chip_state:")
         for mzi_id, mzi in chip_state.mzis.items():
-            print(f"  MZI {mzi_id}: φ_init = {mzi.phi_init_rad:+7.3f} rad")
+            logger.info(f"  MZI {mzi_id}: φ_init = {mzi.phi_init_rad:+7.3f} rad")
 
     finally:
         voltage_ctrl._close_serial()
@@ -394,8 +400,8 @@ if __name__ == "__main__":
     # -------------------------------------------------------------------------
     # STEP 3: Run main calibration loop
     # -------------------------------------------------------------------------
-    print("\n### STEP 3: Ready for calibration ###")
-    print("ChipState now has accurate φ_init values!")
+    logger.info("\n### STEP 3: Ready for calibration ###")
+    logger.info("ChipState now has accurate φ_init values!")
 
     # from photonic_fir.calibration import run_calibration_loop
     # calibration_results = run_calibration_loop(chip_state, config)
