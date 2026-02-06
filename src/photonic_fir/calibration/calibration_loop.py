@@ -244,7 +244,9 @@ def run_experiment(config_path: str):
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Output directory: {output_dir}")
 
-    setup_logging(log_dir=output_dir, log_level=logging.INFO)
+    setup_logging(
+        log_file=str(output_dir / f"experiment_log_{timestamp}.log"), level="INFO"
+    )
 
     logger.info("=" * 60)
     logger.info("FIR Chip Calibration Experiment")
