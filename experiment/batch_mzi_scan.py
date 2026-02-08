@@ -427,18 +427,12 @@ def characterise_mzi(
     R = exp_config.chip.heater_resistance_ohm
     P = exp_config.chip.p2pi_watts
 
-    # Set MZI 1-1 to π/2 (V = √(R*P/4))
-    set_mzi_voltage(
-        mzi_id="1-1",
-        voltage=np.sqrt((R * P / 4)),
-        exp_config=exp_config,
-    )
+    init_mzi_voltage = {"1-1": 11.23, "2-1": 6.00, "3-1": 4.24, "4-1": 13.42}
 
-    # Set other reference MZIs to 0V
-    for ref_mzi in ["2-1", "3-1", "4-1"]:
+    for ref_mzi, voltage in init_mzi_voltage.items():
         set_mzi_voltage(
             mzi_id=ref_mzi,
-            voltage=0.0,
+            voltage=voltage,
             exp_config=exp_config,
         )
 
