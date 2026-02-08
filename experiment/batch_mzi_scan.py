@@ -41,6 +41,7 @@ from photonic_fir import (
     power_splitting_ratio_to_mzi_phase,
     load_config,
     get_next_run_dir,
+    setup_logging,
 )
 
 # Import new utilities
@@ -572,11 +573,15 @@ def main():
         prefix="v2pi_batch_scan_results",
     )
 
+    Path(base_output_dir).mkdir(parents=True, exist_ok=True)
+    setup_logging(log_file=f"{base_output_dir}/batch_mzi_scan.log", level="INFO")
+
     # All MZIs on the chip
     all_mzi_ids = exp_config.chip.get_all_mzi_ids()
 
     # Exclude MZIs in the first position of each stage (plus reference MZI)
     excluded_mzis = {"1-1", "2-1", "3-1", "4-1", "4-5", "4-6", "4-7", "4-8"}
+    excluded_mzis = {}
     mzi_ids = [mzi_id for mzi_id in all_mzi_ids if mzi_id not in excluded_mzis]
 
     print(f"\n{'='*70}")
@@ -608,6 +613,9 @@ def main():
                 n_points=N_POINTS,
                 settling_time=SETTLING_TIME,
                 save_raw_data=SAVE_RAW_DATA,
+            )
+            print(
+                f"⚠ Skipping MZI {mzi_id} (characterisation function commented out for testing)"
             )
         except Exception as e:
             print(f"⚠ FAILED to characterise MZI {mzi_id}: {e}")
