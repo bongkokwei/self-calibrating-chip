@@ -537,6 +537,12 @@ class CalibrationConfig:
     phase_wrap_threshold_rad: float = np.pi / 2
 
     # Optional initial power settings
+    initial_mzi_voltages: Optional[Dict[str, float]] = {
+        "1-1": 11.23,
+        "2-1": 6.00,
+        "3-1": 4.24,
+        "4-1": 13.42,
+    }
     initial_mzi_powers: Optional[Dict[str, float]] = None  # e.g. {"2-1": 0.3}
     initial_ps_powers: Optional[Dict[int, float]] = None  # e.g. {9: 0.4}
 

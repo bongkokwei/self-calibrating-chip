@@ -214,48 +214,58 @@ def perform_voltage_sweep(
     with LunaOVA(ip=exp_config.measurement.ova_address) as ova:
         ova.set_dut_length()
 
-    # Initialise voltage controller
-    with VoltageController(
-        com_port=exp_config.measurement.voltage_controller_port,
-        baud_rate=exp_config.measurement.voltage_controller_baudrate,
-        zero_on_exit=True,
-    ) as v_ctrl:
-
-        print("✓ Voltage controller initialised\n")
-
         # Scan through voltages
         for i, voltage in enumerate(voltage_range):
             print(f"[{i+1}/{n_voltages}] Voltage: {voltage:.3f} V")
 
-            # a. Set voltage
-            v_ctrl.set_voltages([mzi_channel], [voltage], v_max=scan_config.v_max)
-
-            # b. Wait for thermal settling
-            time.sleep(scan_config.settling_time_sec)
-
-            # c. Measure spectrum
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-            if scan_config.save_raw_data:
-                file_name = (
-                    f"v2pi_scan_mzi_{scan_config.mzi_id}_{voltage:.3f}v_{timestamp}"
+            # Initialise voltage controller, exit after measurement to ensure heaters are zeroed
+            with VoltageController(
+                com_port=exp_config.measurement.voltage_controller_port,
+                baud_rate=exp_config.measurement.voltage_controller_baudrate,
+                zero_on_exit=True,
+            ) as v_ctrl:
+                # a. Set voltage
+                init_mzi_channels = list(
+                    exp_config.calibration.initial_mzi_voltages.keys()
                 )
-                folder_dir = str(output_path)
-            else:
-                file_name = None
-                folder_dir = None
+                init_mzi_voltages = list(
+                    exp_config.calibration.initial_mzi_voltages.values()
+                )
+                v_ctrl.set_voltages(
+                    init_mzi_channels + [mzi_channel],
+                    init_mzi_voltages + [voltage],
+                    v_max=scan_config.v_max,
+                )
 
-            df = measure_spectrum(
-                center_wavelength_nm=exp_config.measurement.center_wavelength_nm,
-                wavelength_span_nm=exp_config.measurement.wavelength_span_nm,
-                num_averages=exp_config.measurement.num_averages,
-                edfa_port=exp_config.measurement.edfa_port,
-                edfa_baudrate=exp_config.measurement.edfa_baudrate,
-                edfa_output_power_dbm=exp_config.measurement.edfa_output_power_dbm,
-                ova_ip=exp_config.measurement.ova_address,
-                folder_dir=folder_dir,
-                file_name=file_name,
-            )
+                # b. Wait for thermal settling
+                time.sleep(scan_config.settling_time_sec)
+
+                # c. Measure spectrum
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+                if scan_config.save_raw_data:
+                    file_name = (
+                        f"v2pi_scan_mzi_{scan_config.mzi_id}_{voltage:.3f}v_{timestamp}"
+                    )
+                    folder_dir = str(output_path)
+                else:
+                    file_name = None
+                    folder_dir = None
+
+                df = measure_spectrum(
+                    center_wavelength_nm=exp_config.measurement.center_wavelength_nm,
+                    wavelength_span_nm=exp_config.measurement.wavelength_span_nm,
+                    num_averages=exp_config.measurement.num_averages,
+                    edfa_port=exp_config.measurement.edfa_port,
+                    edfa_baudrate=exp_config.measurement.edfa_baudrate,
+                    edfa_output_power_dbm=exp_config.measurement.edfa_output_power_dbm,
+                    ova_ip=exp_config.measurement.ova_address,
+                    folder_dir=folder_dir,
+                    file_name=file_name,
+                )
+
+                time.sleep(scan_config.settling_time_sec)
+                print("Exit voltage controller context - heaters should be zeroed")
 
             dataframes.append(df)
 
@@ -420,21 +430,7 @@ def characterise_mzi(
     print(f"Chip: {exp_config.chip.n_taps}-tap FIR")
     print(f"FSR: {exp_config.chip.fsr_hz/1e9:.1f} GHz")
 
-    # ============================================================
-    # INITIALISE REFERENCE MZIs (1-1, 2-1, 3-1, 4-1)
-    # ============================================================
-
     R = exp_config.chip.heater_resistance_ohm
-    P = exp_config.chip.p2pi_watts
-
-    init_mzi_voltage = {"1-1": 11.23, "2-1": 6.00, "3-1": 4.24, "4-1": 13.42}
-
-    for ref_mzi, voltage in init_mzi_voltage.items():
-        set_mzi_voltage(
-            mzi_id=ref_mzi,
-            voltage=voltage,
-            exp_config=exp_config,
-        )
 
     # ============================================================
     # PERFORM VOLTAGE SWEEP
