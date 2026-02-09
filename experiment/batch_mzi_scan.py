@@ -571,8 +571,8 @@ def main():
 
     # Exclude MZIs in the first position of each stage (plus reference MZI)
     excluded_mzis = {"1-1", "2-1", "3-1", "4-1", "4-5", "4-6", "4-7", "4-8"}
-    excluded_mzis = {}
     mzi_ids = [mzi_id for mzi_id in all_mzi_ids if mzi_id not in excluded_mzis]
+    mzi_ids = ["4-5"]
 
     print(f"\n{'='*70}")
     print(f"BATCH V_2π CHARACTERISATION")
