@@ -214,94 +214,97 @@ def perform_voltage_sweep(
     with LunaOVA(ip=exp_config.measurement.ova_address) as ova:
         ova.set_dut_length()
 
-        # Scan through voltages
-        for i, voltage in enumerate(voltage_range):
-            print(f"[{i+1}/{n_voltages}] Voltage: {voltage:.3f} V")
+    # Scan through voltages
+    for i, voltage in enumerate(voltage_range):
+        print(f"[{i+1}/{n_voltages}] Voltage: {voltage:.3f} V")
 
-            # Initialise voltage controller, exit after measurement to ensure heaters are zeroed
-            with VoltageController(
-                com_port=exp_config.measurement.voltage_controller_port,
-                baud_rate=exp_config.measurement.voltage_controller_baudrate,
-                zero_on_exit=True,
-            ) as v_ctrl:
-                # a. Set voltage
-                init_mzi_channels = list(
-                    exp_config.calibration.initial_mzi_voltages.keys()
-                )
-                init_mzi_voltages = list(
-                    exp_config.calibration.initial_mzi_voltages.values()
-                )
-                v_ctrl.set_voltages(
-                    init_mzi_channels + [mzi_channel],
-                    init_mzi_voltages + [voltage],
-                    v_max=scan_config.v_max,
-                )
+        # Initialise voltage controller, exit after measurement to ensure heaters are zeroed
+        with VoltageController(
+            com_port=exp_config.measurement.voltage_controller_port,
+            baud_rate=exp_config.measurement.voltage_controller_baudrate,
+            zero_on_exit=True,
+        ) as v_ctrl:
+            # a. Set voltage
+            init_mzi_channels = list(exp_config.calibration.initial_mzi_voltages.keys())
 
-                # b. Wait for thermal settling
-                time.sleep(scan_config.settling_time_sec)
-
-                # c. Measure spectrum
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-                if scan_config.save_raw_data:
-                    file_name = (
-                        f"v2pi_scan_mzi_{scan_config.mzi_id}_{voltage:.3f}v_{timestamp}"
-                    )
-                    folder_dir = str(output_path)
-                else:
-                    file_name = None
-                    folder_dir = None
-
-                df = measure_spectrum(
-                    center_wavelength_nm=exp_config.measurement.center_wavelength_nm,
-                    wavelength_span_nm=exp_config.measurement.wavelength_span_nm,
-                    num_averages=exp_config.measurement.num_averages,
-                    edfa_port=exp_config.measurement.edfa_port,
-                    edfa_baudrate=exp_config.measurement.edfa_baudrate,
-                    edfa_output_power_dbm=exp_config.measurement.edfa_output_power_dbm,
-                    ova_ip=exp_config.measurement.ova_address,
-                    folder_dir=folder_dir,
-                    file_name=file_name,
-                )
-
-                time.sleep(scan_config.settling_time_sec)
-                print("Exit voltage controller context - heaters should be zeroed")
-
-            dataframes.append(df)
-
-            # d. Recover tap coefficients via Kramers-Kronig
-            time_ps, h_time = recover_impulse_response_from_df(
-                df=df,
-                fsr_hz=exp_config.chip.fsr_hz,
-                wavelength_col=exp_config.measurement.wavelength_col,
-                freq_col=exp_config.measurement.frequency_col,
-                insertion_loss_col=exp_config.measurement.insertion_loss_col,
+            init_psu_channels = [
+                exp_config.channel_mapping.get_channel(f"MZI_{mzi_id}")
+                for mzi_id in init_mzi_channels
+            ]
+            init_mzi_voltages = list(
+                exp_config.calibration.initial_mzi_voltages.values()
+            )
+            v_ctrl.set_voltages(
+                init_psu_channels + [mzi_channel],
+                init_mzi_voltages + [voltage],
+                v_max=scan_config.v_max,
             )
 
-            # Detect taps
-            tap_times, tap_coeffs = detect_taps(
-                time_ps=time_ps,
-                h_time=h_time,
-                fsr_hz=exp_config.chip.fsr_hz,
-                delay_step_s=exp_config.chip.delay_step_s,
-                n_taps=exp_config.chip.n_taps,
-                prominence_factor_db=exp_config.measurement.prominence_factor_db,
-                height_threshold_db=exp_config.measurement.height_threshold_db,
+            # b. Wait for thermal settling
+            time.sleep(scan_config.settling_time_sec)
+
+            # c. Measure spectrum
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            if scan_config.save_raw_data:
+                file_name = (
+                    f"v2pi_scan_mzi_{scan_config.mzi_id}_{voltage:.3f}v_{timestamp}"
+                )
+                folder_dir = str(output_path)
+            else:
+                file_name = None
+                folder_dir = None
+
+            df = measure_spectrum(
+                center_wavelength_nm=exp_config.measurement.center_wavelength_nm,
+                wavelength_span_nm=exp_config.measurement.wavelength_span_nm,
+                num_averages=exp_config.measurement.num_averages,
+                edfa_port=exp_config.measurement.edfa_port,
+                edfa_baudrate=exp_config.measurement.edfa_baudrate,
+                edfa_output_power_dbm=exp_config.measurement.edfa_output_power_dbm,
+                ova_ip=exp_config.measurement.ova_address,
+                folder_dir=folder_dir,
+                file_name=file_name,
             )
 
-            # Get all power splitting ratios from tap coefficients
-            psr_dict = tap_coeffs_to_power_splitting_ratios(tap_coeffs, mzi_tree)
+            time.sleep(scan_config.settling_time_sec)
+            print("Exit voltage controller context - heaters should be zeroed")
 
-            # Extract the specific MZI's PSR
-            psr_db = psr_dict.get(scan_config.mzi_id, 0.0)
-            power_splitting_ratios[i] = psr_db
+        dataframes.append(df)
 
-            # Convert PSR to MZI phase
-            mzi_phase_rad = power_splitting_ratio_to_mzi_phase(psr_db)
-            mzi_phases[i] = mzi_phase_rad
+        # d. Recover tap coefficients via Kramers-Kronig
+        time_ps, h_time = recover_impulse_response_from_df(
+            df=df,
+            fsr_hz=exp_config.chip.fsr_hz,
+            wavelength_col=exp_config.measurement.wavelength_col,
+            freq_col=exp_config.measurement.frequency_col,
+            insertion_loss_col=exp_config.measurement.insertion_loss_col,
+        )
 
-            print(f"  PSR: {psr_db:+.3f} dB, MZI phase: {mzi_phase_rad:.4f} rad")
-            print()
+        # Detect taps
+        tap_times, tap_coeffs = detect_taps(
+            time_ps=time_ps,
+            h_time=h_time,
+            fsr_hz=exp_config.chip.fsr_hz,
+            delay_step_s=exp_config.chip.delay_step_s,
+            n_taps=exp_config.chip.n_taps,
+            prominence_factor_db=exp_config.measurement.prominence_factor_db,
+            height_threshold_db=exp_config.measurement.height_threshold_db,
+        )
+
+        # Get all power splitting ratios from tap coefficients
+        psr_dict = tap_coeffs_to_power_splitting_ratios(tap_coeffs, mzi_tree)
+
+        # Extract the specific MZI's PSR
+        psr_db = psr_dict.get(scan_config.mzi_id, 0.0)
+        power_splitting_ratios[i] = psr_db
+
+        # Convert PSR to MZI phase
+        mzi_phase_rad = power_splitting_ratio_to_mzi_phase(psr_db)
+        mzi_phases[i] = mzi_phase_rad
+
+        print(f"  PSR: {psr_db:+.3f} dB, MZI phase: {mzi_phase_rad:.4f} rad")
+        print()
 
     print(f"✓ Scan complete - voltage controller channels zeroed\n")
 
@@ -528,8 +531,8 @@ def main():
 
     # Voltage scan parameters
     V_MIN = 0.0  # Minimum voltage (V)
-    V_MAX = 30.0  # Maximum voltage (V)
-    N_POINTS = 51  # Number of voltage points (51 = ~0.6V steps for 0-30V)
+    V_MAX = 20.0  # Maximum voltage (V)
+    N_POINTS = 31  # Number of voltage points (31 = ~0.67V steps for 0-20V)
 
     # Timing
     SETTLING_TIME = 2.0  # Thermal settling time after voltage change (seconds)
@@ -551,6 +554,7 @@ def main():
     print(f"FSR: {exp_config.chip.fsr_hz/1e9:.3f} GHz")
     print(f"P_2π: {exp_config.chip.p2pi_watts*1000:.1f} mW")
     print(f"Heater resistance: {exp_config.chip.heater_resistance_ohm} Ω")
+    print(f"Initial MZI voltages: {exp_config.calibration.initial_mzi_voltages}")
     print(f"{'='*70}\n")
 
     # ============================================================
@@ -572,7 +576,7 @@ def main():
     # Exclude MZIs in the first position of each stage (plus reference MZI)
     excluded_mzis = {"1-1", "2-1", "3-1", "4-1", "4-5", "4-6", "4-7", "4-8"}
     mzi_ids = [mzi_id for mzi_id in all_mzi_ids if mzi_id not in excluded_mzis]
-    mzi_ids = ["4-5"]
+    mzi_ids = ["4-6"]
 
     print(f"\n{'='*70}")
     print(f"BATCH V_2π CHARACTERISATION")
@@ -603,9 +607,6 @@ def main():
                 n_points=N_POINTS,
                 settling_time=SETTLING_TIME,
                 save_raw_data=SAVE_RAW_DATA,
-            )
-            print(
-                f"⚠ Skipping MZI {mzi_id} (characterisation function commented out for testing)"
             )
         except Exception as e:
             print(f"⚠ FAILED to characterise MZI {mzi_id}: {e}")
