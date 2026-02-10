@@ -266,12 +266,11 @@ def detect_taps(
         n_taps = n_taps
 
     if len(peak_indices) > n_taps:
-        # logger.info(f"Filtering to keep only the {n_taps} largest peaks...")
-        # peak_magnitudes = h_magnitude[peak_indices]
-        # top_n_indices = np.argsort(peak_magnitudes)[::-1][0:n_taps]
-        # peak_indices = peak_indices[top_n_indices]
-        # peak_indices = np.sort(peak_indices)
-        peak_indices = peak_indices[:n_taps]
+        logger.info(f"Filtering to keep only the {n_taps} largest peaks...")
+        peak_magnitudes = h_magnitude[peak_indices]
+        top_n_indices = np.argsort(peak_magnitudes)[::-1][0:n_taps]
+        peak_indices = peak_indices[top_n_indices]
+        peak_indices = np.sort(peak_indices)
 
     # Extract tap coefficients
     tap_coefficients = h_time[peak_indices]
