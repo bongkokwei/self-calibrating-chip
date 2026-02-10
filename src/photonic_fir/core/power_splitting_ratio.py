@@ -49,7 +49,7 @@ def tap_coeffs_to_power_splitting_ratios(
         power_upper = np.sum(tap_powers[upper_range[0] : upper_range[1]])
 
         # Calculate power splitting ratio (bar/cross) in dB
-        psr_dict[mzi_id] = 10 * np.log10(power_lower / (power_upper + 1e-12))
+        psr_dict[mzi_id] = 10 * np.log10(power_upper / (power_lower + 1e-12))
 
     return psr_dict
 
@@ -102,7 +102,7 @@ def power_splitting_ratio_to_mzi_phase(psr_db: float) -> float:
         True
     """
     ratio_linear = 10 ** (psr_db / 10)
-    phase = 2 * np.arctan(1 / np.sqrt(ratio_linear + 1e-12))
+    phase = 2 * np.arctan(np.sqrt(ratio_linear + 1e-12))
     return phase
 
 
@@ -123,7 +123,7 @@ def mzi_phase_to_power_splitting_ratio(phase_rad: float) -> float:
     """
     bar_power = np.cos(phase_rad / 2) ** 2
     cross_power = np.sin(phase_rad / 2) ** 2
-    return 10 * np.log10(bar_power / (cross_power + 1e-12))
+    return 10 * np.log10(cross_power / (bar_power + 1e-12))
 
 
 def power_splitting_ratios_to_mzi_phases(

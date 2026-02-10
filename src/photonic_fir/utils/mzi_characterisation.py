@@ -46,7 +46,7 @@ def mzi_psr_model(
 
     The power splitting ratio (PSR) in an MZI follows:
 
-        PSR_dB = 10*log₁₀[cos²(φ/2) / sin²(φ/2)] = 20*log₁₀|cot(φ/2)|
+        PSR_dB = 10*log₁₀[sin²(φ/2) / cos²(φ/2)] = 20*log₁₀|tan(φ/2)|
 
     where the phase φ is related to voltage by:
 
@@ -54,7 +54,7 @@ def mzi_psr_model(
 
     Combining:
 
-        PSR_dB = 20*log₁₀|cot(π*V²/V_2π² + φ_init/2)|
+        PSR_dB = 20*log₁₀|tan(π*V²/V_2π² + φ_init/2)|
 
     Parameters
     ----------
@@ -89,7 +89,7 @@ def mzi_psr_model(
     # PSR = 20*log₁₀|cot(φ/2)|
     # To avoid singularities at φ = 0, π, 2π, add small epsilon
     epsilon = 1e-12
-    psr_db = 20 * np.log10(np.abs(1.0 / (np.tan(phase / 2) + epsilon)) + epsilon)
+    psr_db = 20 * np.log10(np.abs((np.tan(phase / 2) + epsilon)) + epsilon)
 
     return psr_db
 
@@ -103,8 +103,8 @@ def estimate_initial_parameters(
 
     Strategy:
     1. φ_init from PSR at V=0:
-       At V=0, φ = φ_init, so PSR(0) = 20·log₁₀|cot(φ_init/2)|
-       Inverting: φ_init = 2·arctan(10^(-PSR(0)/20))
+       At V=0, φ = φ_init, so PSR(0) = 20·log₁₀|tan(φ_init/2)|
+       Inverting: φ_init = 2·arctan(10^(PSR(0)/20))
 
     2. V_2π from PSR oscillation range:
        PSR oscillates from +∞ to -∞ as phase goes from 0 to π.
@@ -140,10 +140,10 @@ def estimate_initial_parameters(
     # 1. Estimate φ_init from PSR at V=0
     psr_at_zero = psr_db[0]  # First point should be at V=0
 
-    # PSR = 20·log₁₀|cot(φ/2)| → φ = 2·arctan(10^(-PSR/20))
+    # PSR = 20·log₁₀|tan(φ/2)| → φ = 2·arctan(10^(PSR/20))
     # Add bounds to handle extreme PSR values
     psr_at_zero_clipped = np.clip(psr_at_zero, -50, 50)  # Avoid numerical issues
-    phi_init_guess = 2 * np.arctan(10 ** (-psr_at_zero_clipped / 20))
+    phi_init_guess = 2 * np.arctan(10 ** (psr_at_zero_clipped / 20))
 
     # 2. Estimate V_2π from PSR oscillation range
     # Find voltages where PSR is maximum and minimum
@@ -186,7 +186,7 @@ def fit_mzi_v2pi_and_phi_init(
     Fit MZI V_2π and φ_init from PSR vs voltage data using nonlinear least squares.
 
     Fits the relationship:
-        PSR_dB = 20*log₁₀|cot(π*V²/V_2π² + φ_init/2)|
+        PSR_dB = 20*log₁₀|tan(π*V²/V_2π² + φ_init/2)|
 
     Parameters
     ----------
@@ -257,7 +257,12 @@ def fit_mzi_v2pi_and_phi_init(
         # Perform nonlinear least squares fit
         # Note: We pass resistance as a fixed parameter
         popt, pcov = curve_fit(
-            lambda v2, v2pi2, phi: mzi_psr_model(v2, v2pi2, phi, resistance_ohm),
+            lambda v2, v2pi2, phi: mzi_psr_model(
+                v2,
+                v2pi2,
+                phi,
+                resistance_ohm,
+            ),
             voltage_squared,
             psr_db,
             p0=p0,
@@ -273,7 +278,10 @@ def fit_mzi_v2pi_and_phi_init(
 
         # Calculate goodness of fit (R²)
         psr_fit = mzi_psr_model(
-            voltage_squared, v_2pi_squared_fit, phi_init_fit, resistance_ohm
+            voltage_squared,
+            v_2pi_squared_fit,
+            phi_init_fit,
+            resistance_ohm,
         )
         ss_res = np.sum((psr_db - psr_fit) ** 2)
         ss_tot = np.sum((psr_db - np.mean(psr_db)) ** 2)
