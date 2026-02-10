@@ -43,16 +43,20 @@ def kramers_kronig_phase_recovery(insertion_loss_db: np.ndarray) -> np.ndarray:
     ln|H(ω)| = IL(dB) * ln(10) / 20
     """
     # Convert IL (dB) to natural log of amplitude
-    ln_amplitude = insertion_loss_db * np.log(10) / 20
+    # IL = -20*log10|H| → ln|H| = -IL*ln(10)/20
+    ln_amplitude = -insertion_loss_db * np.log(10) / 20  # ← Added negative sign
+
+    # Remove DC component for better Hilbert transform
+    ln_amplitude_mean = np.mean(ln_amplitude)
+    ln_amplitude_centered = ln_amplitude - ln_amplitude_mean
 
     # Apply Hilbert transform to get phase
-    phase_recovered_rad = -np.imag(hilbert(ln_amplitude))
+    phase_recovered_rad = -np.imag(hilbert(ln_amplitude_centered))
 
     return phase_recovered_rad
 
 
 def recover_impulse_response(
-    wavelength_nm: np.ndarray,
     freq_hz: np.ndarray,
     insertion_loss_db: np.ndarray,
     fsr_hz: float,
@@ -62,67 +66,42 @@ def recover_impulse_response(
 
     Implements the Kramers-Kronig phase recovery and inverse Fourier
     transform approach from Xu et al. (2022).
-
-    Parameters
-    ----------
-    wavelength_nm : np.ndarray
-        Wavelength data in nm
-    freq_hz : np.ndarray
-        Frequency data in Hz
-    insertion_loss_db : np.ndarray
-        Insertion loss data in dB
-    fsr_hz : float
-        Free spectral range in Hz
-
-    Returns
-    -------
-    time_ps : np.ndarray
-        Time axis in picoseconds
-    h_time_shifted : np.ndarray
-        Complex impulse response
-
-    Notes
-    -----
-    The function performs:
-    1. Converts wavelength to frequency
-    2. Recovers phase using Kramers-Kronig (Hilbert transform)
-    3. Reconstructs complex transfer function H(f) = A(f) * exp(jφ(f))
-    4. Applies inverse FFT to get impulse response h(t)
     """
     # Sort by frequency
     sort_idx = np.argsort(freq_hz)
     freq_hz = freq_hz[sort_idx]
     insertion_loss_db = insertion_loss_db[sort_idx]
 
-    # Calculate frequency spacing
-    df_hz = np.mean(np.diff(freq_hz))
-
     logger.info(f"Frequency range: {freq_hz[0]/1e9:.2f} to {freq_hz[-1]/1e9:.2f} GHz")
     logger.info(f"Number of frequency points: {len(freq_hz)}")
-    logger.info(f"Expected FSR: {fsr_hz/1e9:.2f} GHz")
+
+    # === CRITICAL FIX: Interpolate to uniform frequency grid ===
+    # Luna OVA gives uniform wavelength → non-uniform frequency
+    n_points = len(freq_hz)
+    freq_uniform = np.linspace(freq_hz[0], freq_hz[-1], n_points)
+    insertion_loss_uniform = np.interp(freq_uniform, freq_hz, insertion_loss_db)
+    df_hz = freq_uniform[1] - freq_uniform[0]
+
+    logger.info(
+        f"Uniform df: {df_hz/1e6:.3f} MHz (was {np.mean(np.diff(freq_hz))/1e6:.3f} MHz avg)"
+    )
 
     # Recover phase using Kramers-Kronig
-    logger.info("\nRecovering phase using Kramers-Kronig relationship...")
-    phase_rad = kramers_kronig_phase_recovery(insertion_loss_db)
-    logger.info("Phase recovery complete!")
+    logger.info("Recovering phase using Kramers-Kronig...")
+    phase_rad = kramers_kronig_phase_recovery(insertion_loss_uniform)
 
-    # Convert insertion loss (dB) to amplitude (linear)
-    amplitude = 10 ** (insertion_loss_db / 20)
-
-    # Construct complex transfer function
+    # Convert to complex transfer function
+    amplitude = 10 ** (insertion_loss_uniform / 20)
     H_complex = amplitude * np.exp(1j * phase_rad)
 
-    # Perform inverse FFT to get impulse response
+    # IFFT to time domain
     h_time = ifft(H_complex)
     h_time_shifted = fftshift(h_time)
 
-    # Calculate time axis
-    n_points = len(h_time)
+    # Time axis
     time_s = np.fft.fftfreq(n_points, d=df_hz)
-    time_s_shifted = np.fft.fftshift(time_s)
-    time_ps = time_s_shifted * 1e12  # Convert to picoseconds
+    time_ps = fftshift(time_s) * 1e12
 
-    logger.info(f"\nTime domain:")
     logger.info(f"Time resolution: {np.mean(np.diff(time_ps)):.3f} ps")
     logger.info(f"Time span: {time_ps[0]:.1f} to {time_ps[-1]:.1f} ps")
 
