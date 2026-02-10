@@ -142,14 +142,12 @@ def recover_impulse_response_from_df(
         Complex impulse response
     """
     # Extract data from DataFrame
-    wavelength_nm = df[wavelength_col].values
     freq_thz = df[freq_col].values
     freq_hz = freq_thz * 1e12  # Convert THz to Hz
     insertion_loss_db = df[insertion_loss_col].values
 
     # Call core function
     return recover_impulse_response(
-        wavelength_nm=wavelength_nm,
         freq_hz=freq_hz,
         insertion_loss_db=insertion_loss_db,
         fsr_hz=fsr_hz,
