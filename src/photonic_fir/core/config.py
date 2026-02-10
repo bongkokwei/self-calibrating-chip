@@ -59,7 +59,11 @@ def convert_numpy_types(obj):
         return obj
 
 
-def save_config(config: ExperimentConfig, output_dir: str):
+def save_config(
+    config: ExperimentConfig,
+    output_dir: str,
+    config_filename: str = "experiment_config",
+) -> Path:
     """Save configuration to output directory.
 
     Parameters
@@ -88,7 +92,7 @@ def save_config(config: ExperimentConfig, output_dir: str):
     output_path_obj.mkdir(parents=True, exist_ok=True)
 
     config_dict = convert_numpy_types(config_to_dict(config))
-    output_path = output_path_obj / "experiment_config.yaml"
+    output_path = output_path_obj / f"{config_filename}.yaml"
 
     with open(output_path, "w") as f:
         yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
