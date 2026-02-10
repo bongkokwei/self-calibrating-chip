@@ -283,8 +283,8 @@ def perform_voltage_sweep(
 
         # Detect taps
         tap_times, tap_coeffs = detect_taps(
-            time_ps=time_ps,
-            h_time=h_time,
+            time_ps=df["t_axis"] * 1e3,
+            h_time=df["TD"],
             fsr_hz=exp_config.chip.fsr_hz,
             delay_step_s=exp_config.chip.delay_step_s,
             n_taps=exp_config.chip.n_taps,
@@ -574,9 +574,9 @@ def main():
     all_mzi_ids = exp_config.chip.get_all_mzi_ids()
 
     # Exclude MZIs in the first position of each stage (plus reference MZI)
-    excluded_mzis = {"1-1", "2-1", "3-1", "4-1", "4-5", "4-6", "4-7", "4-8"}
+    # excluded_mzis = {"1-1", "2-1", "3-1", "4-1", "4-5", "4-6", "4-7", "4-8"}
+    excluded_mzis = {}
     mzi_ids = [mzi_id for mzi_id in all_mzi_ids if mzi_id not in excluded_mzis]
-    mzi_ids = ["4-6"]
 
     print(f"\n{'='*70}")
     print(f"BATCH V_2π CHARACTERISATION")
