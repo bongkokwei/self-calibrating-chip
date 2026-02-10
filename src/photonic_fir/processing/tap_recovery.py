@@ -44,7 +44,7 @@ def kramers_kronig_phase_recovery(insertion_loss_db: np.ndarray) -> np.ndarray:
     """
     # Convert IL (dB) to natural log of amplitude
     # IL = -20*log10|H| → ln|H| = -IL*ln(10)/20
-    ln_amplitude = -insertion_loss_db * np.log(10) / 20  # ← Added negative sign
+    ln_amplitude = insertion_loss_db * np.log(10) / 20  # ← Added negative sign
 
     # Remove DC component for better Hilbert transform
     ln_amplitude_mean = np.mean(ln_amplitude)
@@ -60,12 +60,32 @@ def recover_impulse_response(
     freq_hz: np.ndarray,
     insertion_loss_db: np.ndarray,
     fsr_hz: float,
+    zero_pad_factor: int = 4,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Extract impulse response from measured insertion loss spectra.
 
     Implements the Kramers-Kronig phase recovery and inverse Fourier
     transform approach from Xu et al. (2022).
+
+    Parameters
+    ----------
+    freq_hz : np.ndarray
+        Frequency data in Hz
+    insertion_loss_db : np.ndarray
+        Insertion loss data in dB
+    fsr_hz : float
+        Free spectral range in Hz
+    zero_pad_factor : int, optional
+        Zero-padding factor for improved time resolution (default: 4)
+        Set to 1 for no padding. Higher values give smoother plots.
+
+    Returns
+    -------
+    time_ps : np.ndarray
+        Time axis in picoseconds
+    h_time_shifted : np.ndarray
+        Complex impulse response
     """
     # Sort by frequency
     sort_idx = np.argsort(freq_hz)
@@ -75,16 +95,13 @@ def recover_impulse_response(
     logger.info(f"Frequency range: {freq_hz[0]/1e9:.2f} to {freq_hz[-1]/1e9:.2f} GHz")
     logger.info(f"Number of frequency points: {len(freq_hz)}")
 
-    # === CRITICAL FIX: Interpolate to uniform frequency grid ===
-    # Luna OVA gives uniform wavelength → non-uniform frequency
+    # === Interpolate to uniform frequency grid ===
     n_points = len(freq_hz)
     freq_uniform = np.linspace(freq_hz[0], freq_hz[-1], n_points)
     insertion_loss_uniform = np.interp(freq_uniform, freq_hz, insertion_loss_db)
     df_hz = freq_uniform[1] - freq_uniform[0]
 
-    logger.info(
-        f"Uniform df: {df_hz/1e6:.3f} MHz (was {np.mean(np.diff(freq_hz))/1e6:.3f} MHz avg)"
-    )
+    logger.info(f"Uniform df: {df_hz/1e6:.3f} MHz")
 
     # Recover phase using Kramers-Kronig
     logger.info("Recovering phase using Kramers-Kronig...")
@@ -94,12 +111,24 @@ def recover_impulse_response(
     amplitude = 10 ** (insertion_loss_uniform / 20)
     H_complex = amplitude * np.exp(1j * phase_rad)
 
+    # === Zero-pad for improved time resolution ===
+    if zero_pad_factor > 1:
+        n_padded = n_points * zero_pad_factor
+        H_padded = np.zeros(n_padded, dtype=complex)
+        H_padded[:n_points] = H_complex
+        logger.info(
+            f"Zero-padding: {n_points} → {n_padded} points ({zero_pad_factor}x)"
+        )
+    else:
+        H_padded = H_complex
+        n_padded = n_points
+
     # IFFT to time domain
-    h_time = ifft(H_complex)
+    h_time = ifft(H_padded)
     h_time_shifted = fftshift(h_time)
 
     # Time axis
-    time_s = np.fft.fftfreq(n_points, d=df_hz)
+    time_s = np.fft.fftfreq(n_padded, d=df_hz)
     time_ps = fftshift(time_s) * 1e12
 
     logger.info(f"Time resolution: {np.mean(np.diff(time_ps)):.3f} ps")
@@ -114,6 +143,7 @@ def recover_impulse_response_from_df(
     wavelength_col: str = "wl_axis",
     freq_col: str = "f_axis",
     insertion_loss_col: str = "IL",
+    zero_pad_factor: int = 4,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Extract impulse response from measured insertion loss spectra (DataFrame interface).
@@ -151,6 +181,7 @@ def recover_impulse_response_from_df(
         freq_hz=freq_hz,
         insertion_loss_db=insertion_loss_db,
         fsr_hz=fsr_hz,
+        zero_pad_factor=zero_pad_factor,
     )
 
 
