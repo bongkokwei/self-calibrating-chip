@@ -283,8 +283,8 @@ def perform_voltage_sweep(
 
         # Detect taps
         tap_times, tap_coeffs = detect_taps(
-            time_ps=df["t_axis"] * 1e3,
-            h_time=df["TD"],
+            time_ps=time_ps,
+            h_time=h_time,
             fsr_hz=exp_config.chip.fsr_hz,
             delay_step_s=exp_config.chip.delay_step_s,
             n_taps=exp_config.chip.n_taps,
