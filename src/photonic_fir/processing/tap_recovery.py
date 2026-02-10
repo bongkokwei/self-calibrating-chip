@@ -194,9 +194,13 @@ def detect_taps(
     prominence_factor_db: float = 3.0,
     min_distance_ps: Optional[float] = None,
     height_threshold_db: float = -40.0,
+    search_start_time_ps: float = -10.0,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Detect tap positions and coefficients from impulse response.
+
+    Only searches in the causal region (t >= search_start_time_ps) to avoid
+    detecting spurious peaks from FFT artefacts in the acausal region.
 
     Parameters
     ----------
@@ -204,8 +208,10 @@ def detect_taps(
         Time axis in picoseconds
     h_time : np.ndarray
         Complex impulse response
-    chip_params : ChipParameters
-        Chip parameters (contains FSR)
+    fsr_hz : float
+        Free spectral range in Hz
+    delay_step_s : float
+        Delay between taps in seconds
     n_taps : int, optional
         Expected number of taps
     prominence_factor_db : float
@@ -214,21 +220,37 @@ def detect_taps(
         Minimum distance between peaks in picoseconds
     height_threshold_db : float
         Minimum height in dB relative to maximum
-    use_db_scale : bool
-        Use dB scale for peak detection
+    search_start_time_ps : float
+        Start time for peak search (default: -10 ps).
+        Only peaks at t >= this value will be detected.
 
     Returns
     -------
     tap_times_ps : np.ndarray
-        Time positions of detected taps
+        Time positions of detected taps (all >= search_start_time_ps)
     tap_coefficients : np.ndarray
         Complex tap coefficients
     """
+    # ===================================================================
+    # STEP 1: Restrict search to causal region
+    # ===================================================================
+    causal_mask = time_ps >= search_start_time_ps
+    time_ps_causal = time_ps[causal_mask]
+    h_time_causal = h_time[causal_mask]
+
+    logger.info(
+        f"\n=== Restricting peak search to t >= {search_start_time_ps:.1f} ps ==="
+    )
+    logger.info(
+        f"Causal region: {time_ps_causal[0]:.3f} to {time_ps_causal[-1]:.3f} ps"
+    )
+    logger.info(f"Points in causal region: {len(time_ps_causal)}/{len(time_ps)}")
+
     # Calculate magnitude
-    h_magnitude = np.abs(h_time)
+    h_magnitude = np.abs(h_time_causal)
     max_magnitude = np.max(h_magnitude)
 
-    # Convert to dB scale if requested
+    # Convert to dB scale
     logger.info("\n=== Using dB scale for peak detection ===")
     h_magnitude_normalised = h_magnitude / max_magnitude
     h_magnitude_db = 20 * np.log10(h_magnitude_normalised + 1e-12)
@@ -241,7 +263,7 @@ def detect_taps(
     logger.info(f"Prominence threshold: {prominence_factor_db:.1f} dB")
 
     # Calculate time resolution
-    dt_ps = np.mean(np.diff(time_ps))
+    dt_ps = np.mean(np.diff(time_ps_causal))
 
     # Determine minimum distance between peaks
     if min_distance_ps is None:
@@ -270,10 +292,7 @@ def detect_taps(
     logger.info(f"\nInitial peaks found: {len(peak_indices)}")
 
     # Filter to N largest if specified
-    if n_taps is None:
-        n_taps = n_taps
-
-    if len(peak_indices) > n_taps:
+    if n_taps is not None and len(peak_indices) > n_taps:
         logger.info(f"Filtering to keep only the {n_taps} largest peaks...")
         peak_magnitudes = h_magnitude[peak_indices]
         top_n_indices = np.argsort(peak_magnitudes)[::-1][0:n_taps]
@@ -281,10 +300,17 @@ def detect_taps(
         peak_indices = np.sort(peak_indices)
 
     # Extract tap coefficients
-    tap_coefficients = h_time[peak_indices]
-    tap_times_ps = time_ps[peak_indices]
+    tap_coefficients = h_time_causal[peak_indices]
+    tap_times_ps = time_ps_causal[peak_indices]
 
     logger.info(f"\nFinal detected taps: {len(tap_coefficients)}")
+
+    # Warn if any taps at negative times
+    if np.any(tap_times_ps < 0):
+        n_negative = np.sum(tap_times_ps < 0)
+        logger.warning(
+            f"{n_negative} tap(s) detected at t < 0 ps: {tap_times_ps[tap_times_ps < 0]}"
+        )
 
     # Display tap information
     logger.info("\nTap Coefficients:")
