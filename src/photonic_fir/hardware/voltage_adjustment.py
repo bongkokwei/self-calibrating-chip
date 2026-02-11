@@ -160,6 +160,7 @@ def calculate_power_adjustments(
 def apply_voltages_to_hardware(
     chip_state: ChipState,
     config: ExperimentConfig,
+    voltage_ctrl: VoltageController,
 ):
     """
     Apply voltages to hardware based on current chip state.
@@ -200,18 +201,13 @@ def apply_voltages_to_hardware(
             f"    PS {tap_num} (ch {channel}): {voltage:.4f} V ({ps.applied_power_watts:.4f} W)"
         )
 
-    with VoltageController(
-        com_port=config.measurement.voltage_controller_port,
-        baud_rate=config.measurement.voltage_controller_baudrate,
-        zero_on_exit=False,
-    ) as voltage_ctrl:
-        # Apply all voltages in a single batch call
-        logger.info("\n  Applying voltages to hardware:")
-        voltage_ctrl.set_voltages(
-            channels=channels,
-            voltages=voltages,
-            v_max=config.measurement.voltage_controller_v_max,
-        )
+    # Apply all voltages in a single batch call
+    logger.info("\n  Applying voltages to hardware:")
+    voltage_ctrl.set_voltages(
+        channels=channels,
+        voltages=voltages,
+        v_max=config.measurement.voltage_controller_v_max,
+    )
 
 
 def set_mzi_voltage(

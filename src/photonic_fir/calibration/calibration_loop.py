@@ -90,6 +90,15 @@ def run_calibration_iteration(
     # TODO: apply_voltage here so we can use context manager
     # to turn off PSU after LUNA OVA is done measuring
 
+    with VoltageController(
+        com_port=config.measurement.voltage_controller_port,
+        baud_rate=config.measurement.voltage_controller_baudrate,
+        zero_on_exit=True,
+    ) as voltage_ctrl:
+
+        logger.info("\nApplying initial voltages to hardware...")
+        apply_voltages_to_hardware(chip_state, config, voltage_ctrl)
+
     # 1. Measure spectrum
     df = measure_spectrum(
         center_wavelength_nm=config.measurement.center_wavelength_nm,
@@ -160,9 +169,6 @@ def run_calibration_iteration(
         new_ps_powers=new_ps_powers,
         phi_init_adjustments=phi_init_adjustments,
     )
-
-    # 7. Apply voltages to hardware
-    apply_voltages_to_hardware(chip_state, config)
 
     # Create iteration data
     iter_data = IterationData(
@@ -299,10 +305,6 @@ def run_experiment(config_path: str):
     prev_iter_data = None
 
     try:
-        # Use voltage in chip state to set initial voltages on hardware,
-        # to maximise ref tap power and improve initial measurements
-        logger.info("\nApplying initial voltages to hardware...")
-        apply_voltages_to_hardware(chip_state, config)
 
         for i in range(config.calibration.max_iterations):
             # Run iteration
