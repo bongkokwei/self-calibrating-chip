@@ -56,6 +56,62 @@ def kramers_kronig_phase_recovery(insertion_loss_db: np.ndarray) -> np.ndarray:
     return phase_recovered_rad
 
 
+def kramers_kronig_with_hanning(
+    wavelength_nm, insertion_loss_db, fsr_hz=160e9, bw_multi=3
+):
+    """
+    KK recovery with Hanning window as per Xu lab note
+
+    Parameters
+    ----------
+    wavelength_nm : array
+        Wavelength axis
+    insertion_loss_db : array
+        Insertion loss in dB
+    fsr_hz : float
+        Free spectral range in Hz (160 GHz for 16-tap)
+    bw_multi : int
+        Window width multiplier (odd integer ≥ 1, recommend 3-5)
+    """
+    # Convert wavelength to frequency
+    c = 3e8  # m/s
+    freq_hz = c / (wavelength_nm * 1e-9)
+
+    # Compute effective window width in samples
+    freq_span = np.max(freq_hz) - np.min(freq_hz)
+    samples_per_fsr = len(freq_hz) * (fsr_hz / freq_span)
+    window_width = int(samples_per_fsr * bw_multi)
+
+    # Ensure window doesn't exceed data length
+    window_width = min(window_width, len(insertion_loss_db))
+
+    # Convert to LINEAR insertion loss
+    il_linear = 10 ** (-insertion_loss_db / 10)
+
+    # Create Hanning window centred on data
+    hanning_window = np.hanning(window_width)
+
+    # Pad to match data length
+    pad_left = (len(il_linear) - window_width) // 2
+    pad_right = len(il_linear) - window_width - pad_left
+    hanning_full = np.pad(
+        hanning_window, (pad_left, pad_right), mode="constant", constant_values=0
+    )
+
+    # Apply window to linear IL
+    il_linear_windowed = il_linear * hanning_full
+
+    # Convert back to dB for KK (but keep windowed)
+    il_db_windowed = -10 * np.log10(il_linear_windowed + 1e-12)
+
+    # Standard KK recovery
+    ln_amplitude = il_db_windowed * np.log(10) / 20
+    ln_amplitude_centered = ln_amplitude - np.mean(ln_amplitude)
+    phase_recovered_rad = -np.imag(hilbert(ln_amplitude_centered))
+
+    return phase_recovered_rad
+
+
 def recover_impulse_response(
     freq_hz: np.ndarray,
     insertion_loss_db: np.ndarray,
@@ -105,7 +161,7 @@ def recover_impulse_response(
 
     # Recover phase using Kramers-Kronig
     logger.info("Recovering phase using Kramers-Kronig...")
-    phase_rad = kramers_kronig_phase_recovery(insertion_loss_uniform)
+    phase_rad = kramers_kronig_with_hanning(insertion_loss_uniform, fsr_hz=fsr_hz)
 
     # Convert to complex transfer function
     amplitude = 10 ** (insertion_loss_uniform / 20)
