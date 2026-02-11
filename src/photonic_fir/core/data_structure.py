@@ -482,6 +482,7 @@ class MeasurementConfig:
     # Measurement settings
     integration_time_s: float = 0.1
     num_averages: int = 1
+    settling_time_sec: float = 2.0
 
     # Column names in measurement CSV
     wavelength_col: str = "wl_axis"
