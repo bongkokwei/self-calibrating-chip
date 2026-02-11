@@ -57,11 +57,11 @@ def kramers_kronig_phase_recovery(insertion_loss_db: np.ndarray) -> np.ndarray:
 
 
 def kramers_kronig_with_hanning(
-    insertion_loss_db,
-    wavelength_nm=1550,
-    fsr_hz=160e9,
-    bw_multi=3,
-):
+    insertion_loss_db: np.ndarray,
+    freq_hz: np.ndarray,
+    fsr_hz: float = 160e9,
+    bw_multi: int = 3,
+) -> np.ndarray:
     """
     KK recovery with Hanning window as per Xu lab note
 
@@ -76,9 +76,6 @@ def kramers_kronig_with_hanning(
     bw_multi : int
         Window width multiplier (odd integer ≥ 1, recommend 3-5)
     """
-    # Convert wavelength to frequency
-    c = 3e8  # m/s
-    freq_hz = c / (wavelength_nm * 1e-9)
 
     # Compute effective window width in samples
     freq_span = np.max(freq_hz) - np.min(freq_hz)
@@ -164,7 +161,11 @@ def recover_impulse_response(
 
     # Recover phase using Kramers-Kronig
     logger.info("Recovering phase using Kramers-Kronig...")
-    phase_rad = kramers_kronig_with_hanning(insertion_loss_uniform, fsr_hz=fsr_hz)
+    phase_rad = kramers_kronig_with_hanning(
+        insertion_loss_uniform,
+        freq_hz=freq_hz,
+        fsr_hz=fsr_hz,
+    )
 
     # Convert to complex transfer function
     amplitude = 10 ** (insertion_loss_uniform / 20)
