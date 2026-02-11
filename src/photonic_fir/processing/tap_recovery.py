@@ -161,11 +161,7 @@ def recover_impulse_response(
 
     # Recover phase using Kramers-Kronig
     logger.info("Recovering phase using Kramers-Kronig...")
-    phase_rad = kramers_kronig_with_hanning(
-        insertion_loss_uniform,
-        freq_hz=freq_hz,
-        fsr_hz=fsr_hz,
-    )
+    phase_rad = kramers_kronig_phase_recovery(insertion_loss_uniform)
 
     # Convert to complex transfer function
     amplitude = 10 ** (insertion_loss_uniform / 20)
