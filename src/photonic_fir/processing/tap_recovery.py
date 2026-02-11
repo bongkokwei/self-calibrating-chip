@@ -195,12 +195,14 @@ def detect_taps(
     min_distance_ps: Optional[float] = None,
     height_threshold_db: float = -40.0,
     search_start_time_ps: float = -10.0,
+    max_search_time_ps: Optional[float] = None,
+    max_time_margin: float = 1.3,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Detect tap positions and coefficients from impulse response.
 
-    Only searches in the causal region (t >= search_start_time_ps) to avoid
-    detecting spurious peaks from FFT artefacts in the acausal region.
+    Restricts search to physically plausible region to exclude acausal
+    artefacts (t < 0) and late-time artefacts (t >> expected last tap).
 
     Parameters
     ----------
@@ -215,67 +217,71 @@ def detect_taps(
     n_taps : int, optional
         Expected number of taps
     prominence_factor_db : float
-        Prominence threshold in dB
+        Prominence threshold in dB above local baseline
     min_distance_ps : float, optional
-        Minimum distance between peaks in picoseconds
+        Minimum distance between peaks in picoseconds.
+        If None, calculated as 0.8 × delay_step_s
     height_threshold_db : float
-        Minimum height in dB relative to maximum
+        Minimum height in dB relative to maximum peak
     search_start_time_ps : float
-        Start time for peak search (default: -10 ps).
-        Only peaks at t >= this value will be detected.
+        Start time for peak search (default: -10 ps)
+    max_search_time_ps : float, optional
+        Maximum time for peak search in picoseconds.
+        If None, auto-calculated as (n_taps - 1) × delay_step_s × max_time_margin
+    max_time_margin : float
+        Safety margin for auto-calculated max_search_time_ps (default: 1.3)
 
     Returns
     -------
     tap_times_ps : np.ndarray
-        Time positions of detected taps (all >= search_start_time_ps)
+        Time positions of detected taps
     tap_coefficients : np.ndarray
         Complex tap coefficients
     """
-    # ===================================================================
-    # STEP 1: Restrict search to causal region
-    # ===================================================================
-    causal_mask = time_ps >= search_start_time_ps
-    time_ps_causal = time_ps[causal_mask]
-    h_time_causal = h_time[causal_mask]
+    # Auto-calculate maximum search time if not provided
+    if max_search_time_ps is None and n_taps is not None:
+        expected_last_tap_ps = (n_taps - 1) * delay_step_s * 1e12
+        max_search_time_ps = expected_last_tap_ps * max_time_margin
+        logger.info(
+            f"Expected last tap: {expected_last_tap_ps:.1f} ps, "
+            f"max search: {max_search_time_ps:.1f} ps"
+        )
+
+    # Create search window mask
+    search_mask = time_ps >= search_start_time_ps
+    if max_search_time_ps is not None:
+        search_mask &= time_ps <= max_search_time_ps
+
+    time_ps_search = time_ps[search_mask]
+    h_time_search = h_time[search_mask]
 
     logger.info(
-        f"\n=== Restricting peak search to t >= {search_start_time_ps:.1f} ps ==="
+        f"\n=== Search window: {time_ps_search[0]:.1f} to {time_ps_search[-1]:.1f} ps ==="
     )
-    logger.info(
-        f"Causal region: {time_ps_causal[0]:.3f} to {time_ps_causal[-1]:.3f} ps"
-    )
-    logger.info(f"Points in causal region: {len(time_ps_causal)}/{len(time_ps)}")
+    logger.info(f"Points in search region: {len(time_ps_search)}/{len(time_ps)}")
 
-    # Calculate magnitude
-    h_magnitude = np.abs(h_time_causal)
+    # Calculate magnitude and convert to dB
+    h_magnitude = np.abs(h_time_search)
     max_magnitude = np.max(h_magnitude)
-
-    # Convert to dB scale
-    logger.info("\n=== Using dB scale for peak detection ===")
     h_magnitude_normalised = h_magnitude / max_magnitude
     h_magnitude_db = 20 * np.log10(h_magnitude_normalised + 1e-12)
-    detection_signal = h_magnitude_db
-    height_min = height_threshold_db
-    prominence_min = prominence_factor_db
 
+    logger.info(f"\n=== Using dB scale for peak detection ===")
     logger.info(f"Maximum magnitude (linear): {max_magnitude:.6f}")
     logger.info(f"Height threshold: {height_threshold_db:.1f} dB")
     logger.info(f"Prominence threshold: {prominence_factor_db:.1f} dB")
 
     # Calculate time resolution
-    dt_ps = np.mean(np.diff(time_ps_causal))
+    dt_ps = np.mean(np.diff(time_ps_search))
 
     # Determine minimum distance between peaks
     if min_distance_ps is None:
-        tap_spacing_s = delay_step_s
-        tap_spacing_ps = tap_spacing_s * 1e12
+        tap_spacing_ps = delay_step_s * 1e12
         min_distance_ps = tap_spacing_ps * 0.8
-
         logger.info(f"\nFSR: {fsr_hz/1e9:.2f} GHz")
         logger.info(f"Expected tap spacing: {tap_spacing_ps:.3f} ps")
         logger.info(f"Using min_distance: {min_distance_ps:.3f} ps")
 
-    # Convert to samples
     min_distance = max(int(min_distance_ps / dt_ps), 1)
     logger.info(
         f"Minimum distance: {min_distance} samples ({min_distance * dt_ps:.3f} ps)"
@@ -283,34 +289,54 @@ def detect_taps(
 
     # Find peaks
     peak_indices, peak_properties = find_peaks(
-        detection_signal,
-        height=height_min,
-        prominence=prominence_min,
+        h_magnitude_db,
+        height=height_threshold_db,
+        prominence=prominence_factor_db,
         distance=min_distance,
     )
 
     logger.info(f"\nInitial peaks found: {len(peak_indices)}")
 
-    # Filter to N largest if specified
+    if len(peak_indices) == 0:
+        logger.warning("No peaks detected! Try adjusting detection parameters.")
+        raise ValueError("No taps detected in search window")
+
+    # Filter to N largest if requested
     if n_taps is not None and len(peak_indices) > n_taps:
         logger.info(f"Filtering to keep only the {n_taps} largest peaks...")
         peak_magnitudes = h_magnitude[peak_indices]
-        top_n_indices = np.argsort(peak_magnitudes)[::-1][0:n_taps]
+        top_n_indices = np.argsort(peak_magnitudes)[::-1][:n_taps]
         peak_indices = peak_indices[top_n_indices]
         peak_indices = np.sort(peak_indices)
 
     # Extract tap coefficients
-    tap_coefficients = h_time_causal[peak_indices]
-    tap_times_ps = time_ps_causal[peak_indices]
+    tap_coefficients = h_time_search[peak_indices]
+    tap_times_ps = time_ps_search[peak_indices]
 
-    logger.info(f"\nFinal detected taps: {len(tap_coefficients)}")
-
-    # Warn if any taps at negative times
+    # Warn about negative times
     if np.any(tap_times_ps < 0):
         n_negative = np.sum(tap_times_ps < 0)
         logger.warning(
             f"{n_negative} tap(s) detected at t < 0 ps: {tap_times_ps[tap_times_ps < 0]}"
         )
+
+    # Warn about large time gaps
+    if len(tap_times_ps) > 1:
+        tap_spacings = np.diff(tap_times_ps)
+        expected_spacing = delay_step_s * 1e12
+        large_gaps = tap_spacings > 2.0 * expected_spacing
+
+        if np.any(large_gaps):
+            gap_indices = np.where(large_gaps)[0]
+            logger.warning(f"\nSuspicious large time gaps detected:")
+            for idx in gap_indices:
+                logger.warning(
+                    f"  Between tap {idx+1} ({tap_times_ps[idx]:.1f} ps) "
+                    f"and tap {idx+2} ({tap_times_ps[idx+1]:.1f} ps): "
+                    f"{tap_spacings[idx]:.1f} ps gap (expected ~{expected_spacing:.1f} ps)"
+                )
+
+    logger.info(f"\nFinal detected taps: {len(tap_coefficients)}")
 
     # Display tap information
     logger.info("\nTap Coefficients:")
