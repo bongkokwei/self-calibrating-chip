@@ -87,6 +87,9 @@ def run_calibration_iteration(
     """
     logger.info(f"\nIteration {iteration}:")
 
+    # TODO: apply_voltage here so we can use context manager
+    # to turn off PSU after LUNA OVA is done measuring
+
     # 1. Measure spectrum
     df = measure_spectrum(
         center_wavelength_nm=config.measurement.center_wavelength_nm,
