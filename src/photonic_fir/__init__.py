@@ -60,6 +60,8 @@ from .processing.tap_recovery import (
     kramers_kronig_phase_recovery,
 )
 
+from .processing.tap_recovery_robust import detect_taps_noise_tolerant
+
 from .utils.file_utils import get_next_run_dir, ensure_dir
 from .utils.plotting_utils import plot_insertion_loss, plot_impulse_response
 from .utils.calibration_plotting import (
@@ -121,6 +123,7 @@ __all__ = [
     "recover_impulse_response_from_df",
     "detect_taps",
     "kramers_kronig_phase_recovery",
+    "detect_taps_noise_tolerant",
     # Plotting utilities
     "plot_insertion_loss",
     "plot_impulse_response",
