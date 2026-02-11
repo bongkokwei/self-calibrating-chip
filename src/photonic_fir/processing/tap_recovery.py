@@ -57,7 +57,10 @@ def kramers_kronig_phase_recovery(insertion_loss_db: np.ndarray) -> np.ndarray:
 
 
 def kramers_kronig_with_hanning(
-    wavelength_nm, insertion_loss_db, fsr_hz=160e9, bw_multi=3
+    insertion_loss_db,
+    wavelength_nm=1550,
+    fsr_hz=160e9,
+    bw_multi=3,
 ):
     """
     KK recovery with Hanning window as per Xu lab note
