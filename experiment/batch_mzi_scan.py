@@ -41,6 +41,7 @@ from photonic_fir import (
     load_config,
     get_next_run_dir,
     setup_logging,
+    detect_taps_noise_tolerant,
 )
 
 # Import new utilities
@@ -236,14 +237,13 @@ def perform_voltage_sweep(
         )
 
         # Detect taps
-        tap_times, tap_coeffs = detect_taps(
+        tap_times, tap_coeffs = detect_taps_noise_tolerant(
             time_ps=time_ps,
             h_time=h_time,
             fsr_hz=exp_config.chip.fsr_hz,
             delay_step_s=exp_config.chip.delay_step_s,
             n_taps=exp_config.chip.n_taps,
-            prominence_factor_db=exp_config.measurement.prominence_factor_db,
-            height_threshold_db=exp_config.measurement.height_threshold_db,
+            window_width_ps=exp_config.chip.delay_step_s / 2 * 1e12,
         )
 
         # Get all power splitting ratios from tap coefficients
@@ -481,7 +481,7 @@ def main():
     # ============================================================
 
     # Experiment configuration file
-    CONFIG_PATH = "measurements/experiment_config_shorter_range_reduce_num_avg.yaml"
+    CONFIG_PATH = "measurements/batch_mzi_scan_config.yaml"
 
     # Voltage scan parameters
     V_MIN = 0.0  # Minimum voltage (V)
@@ -528,9 +528,9 @@ def main():
     all_mzi_ids = exp_config.chip.get_all_mzi_ids()
 
     # Exclude MZIs in the first position of each stage (plus reference MZI)
-    excluded_mzis = {"1-1", "2-1", "3-1", "4-1"}
+    excluded_mzis = {"1-1", "2-1", "3-1", "4-1", "4-8"}
     mzi_ids = [mzi_id for mzi_id in all_mzi_ids if mzi_id not in excluded_mzis]
-    mzi_ids = ["4-8"]  # TEMP - test with single MZI first
+    # mzi_ids = ["4-8"]  # TEMP - test with single MZI first
 
     print(f"\n{'='*70}")
     print(f"BATCH V_2π CHARACTERISATION")
