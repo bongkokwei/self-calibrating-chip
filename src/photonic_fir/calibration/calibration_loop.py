@@ -35,26 +35,13 @@ from ..hardware import (
 from ..processing import (
     recover_impulse_response_from_df,
     detect_taps,
+    detect_taps_noise_tolerant,
 )
 
 from ..utils.calibration_plotting import CalibrationPlotter
 
 
 from voltage_ctrl import VoltageController
-
-
-def maximise_ref_tap(config: ExperimentConfig):
-    """Set voltages to maximise the reference tap power."""
-    logger.info("\nMaximising reference tap power...")
-    # Assuming ref tap corresponds to MZI IDs in config
-    for mzi_id, power in config.calibration.initial_mzi_powers.items():
-        logger.info(f"  Maximising MZI {mzi_id}...")
-        set_mzi_voltage(
-            mzi_id=mzi_id,
-            voltage=np.sqrt(power * config.chip.heater_resistance_ohm),
-            v_max=config.measurement.voltage_controller_v_max,
-            exp_config=config,
-        )
 
 
 def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
@@ -78,6 +65,9 @@ def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
         logger.info("\nVerifying φ_init values in chip_state:")
         for mzi_id, mzi in chip_state.mzis.items():
             logger.info(f"  MZI {mzi_id}: φ_init = {mzi.phi_init_rad:+7.3f} rad")
+
+        for ps_id, ps in chip_state.phase_shifters.items():
+            logger.info(f"  PS {ps_id}: φ_init = {ps.phi_init_rad:+7.3f} rad")
 
 
 def run_calibration_iteration(
@@ -120,14 +110,12 @@ def run_calibration_iteration(
     )
 
     # 3. Detect taps
-    tap_times, tap_coeffs = detect_taps(
+    tap_times, tap_coeffs = detect_taps_noise_tolerant(
         time_ps=time_ps,
         h_time=h_time,
         fsr_hz=config.chip.fsr_hz,
         delay_step_s=config.chip.delay_step_s,
         n_taps=config.chip.n_taps,
-        prominence_factor_db=config.measurement.prominence_factor_db,
-        height_threshold_db=config.measurement.height_threshold_db,
     )
 
     # 4. Calculate errors (only for signal processing taps)
@@ -266,6 +254,13 @@ def run_experiment(config_path: str):
         chip_params=config.chip,
     )
 
+    # Copy initial voltage settings from calibration to chip state (CHECKED)
+    for mzi_id, mzi in chip_state.mzis.items():
+        if mzi_id in config.calibration.initial_mzi_voltages:
+            voltage = config.calibration.initial_mzi_voltages[mzi_id]
+            resistance_ohms = config.chip.heater_resistance_ohm
+            mzi.applied_power_watts = voltage**2 / resistance_ohms
+
     # Save configuration
     save_config(config, str(output_dir))
 
@@ -301,8 +296,10 @@ def run_experiment(config_path: str):
     prev_iter_data = None
 
     try:
-        # Initial maximise reference tap
-        maximise_ref_tap(config)
+        # Use voltage in chip state to set initial voltages on hardware,
+        # to maximise ref tap power and improve initial measurements
+        logger.info("\nApplying initial voltages to hardware...")
+        apply_voltages_to_hardware(chip_state, config)
 
         for i in range(config.calibration.max_iterations):
             # Run iteration
