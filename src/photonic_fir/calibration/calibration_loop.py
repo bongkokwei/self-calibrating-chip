@@ -99,18 +99,18 @@ def run_calibration_iteration(
         logger.info("\nApplying initial voltages to hardware...")
         apply_voltages_to_hardware(chip_state, config, voltage_ctrl)
 
-    # 1. Measure spectrum
-    df = measure_spectrum(
-        center_wavelength_nm=config.measurement.center_wavelength_nm,
-        wavelength_span_nm=config.measurement.wavelength_span_nm,
-        num_averages=config.measurement.num_averages,
-        edfa_port=config.measurement.edfa_port,
-        edfa_baudrate=config.measurement.edfa_baudrate,
-        edfa_output_power_dbm=config.measurement.edfa_output_power_dbm,
-        ova_ip=config.measurement.ova_address,
-        folder_dir=output_dir,
-        file_name=f"iteration_{iteration}_spectrum",
-    )
+        # 1. Measure spectrum
+        df = measure_spectrum(
+            center_wavelength_nm=config.measurement.center_wavelength_nm,
+            wavelength_span_nm=config.measurement.wavelength_span_nm,
+            num_averages=config.measurement.num_averages,
+            edfa_port=config.measurement.edfa_port,
+            edfa_baudrate=config.measurement.edfa_baudrate,
+            edfa_output_power_dbm=config.measurement.edfa_output_power_dbm,
+            ova_ip=config.measurement.ova_address,
+            folder_dir=output_dir,
+            file_name=f"iteration_{iteration}_spectrum",
+        )
 
     # 2. Recover impulse response (using DataFrame wrapper)
     time_ps, h_time = recover_impulse_response_from_df(
