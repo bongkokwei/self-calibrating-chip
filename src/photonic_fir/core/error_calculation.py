@@ -134,70 +134,65 @@ def calculate_all_errors(
     Calculate all errors (MZI and phase shifter) for calibration iteration.
 
     Args:
-        measured_taps: Measured complex tap coefficients from KK recovery (length n_taps)
-        target_taps: Target complex tap coefficients for signal processing (length n_signal_taps)
-        signal_tap_indices: Indices of signal processing taps in measured_taps
-        signal_tap_numbers: Tap numbers corresponding to signal processing taps
+        measured_taps: Measured complex tap coefficients from KK recovery (length n_taps=16)
+        target_taps: Target complex tap coefficients, zero-padded to n_taps=16
+                     (signal taps at indices signal_tap_indices, zeros elsewhere)
+        signal_tap_indices: Indices of signal processing taps, e.g. (8, 9, ..., 15)
+        signal_tap_numbers: Tap numbers for signal processing, e.g. (9, 10, ..., 16)
         mzi_tree: MZI tree structure from build_mzi_tree_structure()
         mzi_phi_init: Initial phase offsets for MZIs in radians (dict keyed by MZI ID)
         ps_phi_init: Initial phase offsets for phase shifters in radians (dict keyed by tap number)
 
     Returns:
-        Dictionary containing all error metrics:
-        - 'mzi_psr_errors': Power splitting ratio errors (dB)
-        - 'mzi_phase_errors': MZI phase errors (rad)
-        - 'ps_phase_errors': Phase shifter errors (rad)
-        - 'tap_amplitude_errors': Tap amplitude errors (dB)
-        - 'tap_phase_errors': Tap phase errors (rad)
-        - 'rms_amplitude_error': RMS amplitude error (dB)
-        - 'rms_phase_error': RMS phase error (rad)
+        Dictionary containing all error metrics.
     """
-    # Extract signal processing taps
-    measured_signal_taps = measured_taps[list(signal_tap_indices)]
-
-    # ============================================================================
+    # =========================================================================
     # NORMALISE TO UNIT SIGNAL TAP POWER
-    # This makes all comparisons relative, independent of insertion loss,
-    # reference tap power, and absolute input power. We care only about the
-    # shape of the filter's power distribution.
-    # ============================================================================
-    measured_power = np.sum(np.abs(measured_signal_taps) ** 2)
-    target_power = np.sum(np.abs(target_taps) ** 2)
+    # Power sum is over signal taps only — excludes reference and unused taps.
+    # Normalisation is applied to the full 16-element arrays so that
+    # tap_coeffs_to_power_splitting_ratios receives correctly-aligned indices.
+    # =========================================================================
+    measured_power = np.sum(np.abs(measured_taps[signal_tap_indices]) ** 2)
+    target_power = np.sum(np.abs(target_taps[signal_tap_indices]) ** 2)
 
-    measured_norm = measured_signal_taps / np.sqrt(measured_power)
-    target_norm = target_taps / np.sqrt(target_power)
+    measured_norm = measured_taps / np.sqrt(measured_power)  # shape (16,)
+    target_norm = target_taps / np.sqrt(target_power)  # shape (16,)
 
-    # Calculate PSRs using normalised taps
-    # PSRs describe relative power distribution, which is what we're calibrating
+    # PSR: full 16-element arrays — tree indices 8-15 are now valid
     measured_psr = tap_coeffs_to_power_splitting_ratios(measured_norm, mzi_tree)
     target_psr = tap_coeffs_to_power_splitting_ratios(target_norm, mzi_tree)
 
-    # Calculate MZI errors
+    # MZI errors
     mzi_psr_errors, mzi_phase_errors = calculate_mzi_errors(
         measured_psr=measured_psr,
         target_psr=target_psr,
         mzi_phi_init=mzi_phi_init,
     )
 
-    # Extract phases - use original (unnormalised) taps since phase is unaffected
-    # by amplitude scaling
-    measured_phases = extract_tap_phases(measured_signal_taps, signal_tap_numbers)
-    target_phases = extract_tap_phases(target_taps, signal_tap_numbers)
+    # =========================================================================
+    # PHASE AND AMPLITUDE ERRORS
+    # Slice to signal taps only for the remaining calculations.
+    # Phase uses unnormalised taps — scaling doesn't affect angle.
+    # Amplitude uses normalised taps — relative power distribution.
+    # =========================================================================
+    measured_signal = measured_taps[signal_tap_indices]  # (8,) unnormalised
+    target_signal = target_taps[signal_tap_indices]  # (8,) unnormalised
+    measured_signal_norm = measured_norm[signal_tap_indices]  # (8,) normalised
+    target_signal_norm = target_norm[signal_tap_indices]  # (8,) normalised
 
-    # Calculate phase shifter errors
+    measured_phases = extract_tap_phases(measured_signal, signal_tap_numbers)
+    target_phases = extract_tap_phases(target_signal, signal_tap_numbers)
+
     ps_phase_errors = calculate_phase_shifter_errors(
         measured_phases=measured_phases,
         target_phases=target_phases,
         ps_phi_init=ps_phi_init,
     )
 
-    # Calculate tap amplitude errors using normalised taps
-    # Errors now represent deviations in relative power distribution
-    measured_amps = 20 * np.log10(np.abs(measured_norm) + 1e-12)
-    target_amps = 20 * np.log10(np.abs(target_norm) + 1e-12)
-    tap_amp_errors = target_amps - measured_amps
+    tap_amp_errors = 20 * np.log10(np.abs(target_signal_norm) + 1e-12) - 20 * np.log10(
+        np.abs(measured_signal_norm) + 1e-12
+    )
 
-    # Calculate tap phase errors (wrapped)
     tap_phase_errors = np.array(
         [
             wrap_phase_error(ps_phase_errors[tap_num])
@@ -205,7 +200,6 @@ def calculate_all_errors(
         ]
     )
 
-    # Calculate RMS errors
     rms_amp, rms_phase = calculate_rms_errors(
         amplitude_errors=tap_amp_errors,
         phase_errors=tap_phase_errors,

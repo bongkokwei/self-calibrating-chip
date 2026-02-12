@@ -16,7 +16,7 @@ from photonic_fir import setup_logging
 
 logger = logging.getLogger(__name__)
 
-from ..core import (
+from photonic_fir.core import (
     ExperimentConfig,
     ChipState,
     IterationData,
@@ -26,23 +26,50 @@ from ..core import (
     save_config,
 )
 
-from ..hardware import (
+from photonic_fir.hardware import (
     measure_spectrum,
     calculate_power_adjustments,
     apply_voltages_to_hardware,
     set_mzi_voltage,
 )
 
-from ..processing import (
+from photonic_fir.processing import (
     recover_impulse_response_from_df,
     detect_taps,
     detect_taps_noise_tolerant,
 )
 
-from ..utils.calibration_plotting import CalibrationPlotter
+from photonic_fir.utils.calibration_plotting import CalibrationPlotter
 
 
 from voltage_ctrl import VoltageController
+
+
+def compute_target_taps(config: ExperimentConfig) -> np.ndarray:
+    """
+    Compute and pad target tap coefficients for use with the full MZI tree.
+
+    Generates n_signal_taps coefficients then prepends zeros to align signal
+    taps to their physical positions in the 16-tap tree (indices 8-15).
+
+    Args:
+        config: Experiment configuration
+
+    Returns:
+        Complex tap array of length n_taps (e.g. 16), zero-padded at the front.
+    """
+    signal_taps = config.target.get_target_taps(n_taps=config.chip.n_signal_taps)
+
+    n_pad = config.chip.n_taps - len(signal_taps)  # 16 - 8 = 8
+    target_taps = np.concatenate([np.zeros(n_pad, dtype=complex), signal_taps])
+
+    logger.info("\nComputing target filter response...")
+    logger.info(f"Target filter: {config.target.filter_type}")
+    logger.info(f"  Signal taps: {len(signal_taps)}")
+    logger.info(f"  Padded to:   {len(target_taps)} (prepended {n_pad} zeros)")
+    logger.info(f"  Phase step:  {config.target.phase_step_rad:.4f} rad")
+
+    return target_taps
 
 
 def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
@@ -274,13 +301,7 @@ def run_experiment(config_path: str):
     save_config(config, str(output_dir))
 
     # Compute target tap coefficients
-    logger.info("\nComputing target filter response...")
-    target_taps = config.target.get_target_taps(n_taps=config.chip.n_signal_taps)
-    target_amps = np.abs(target_taps)
-    target_phases = np.angle(target_taps)
-    logger.info(f"Target filter: {config.target.filter_type}")
-    logger.info(f"  Number of taps: {len(target_amps)}")
-    logger.info(f"  Phase step: {config.target.phase_step_rad:.4f} rad")
+    target_taps = compute_target_taps(config)
 
     # Measure phi_init, and populate chip_state
     logger.info("\nMeasuring initial MZI phases (φ_init)...")
