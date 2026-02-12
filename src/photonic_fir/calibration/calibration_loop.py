@@ -145,7 +145,7 @@ def run_calibration_iteration(
         new_mzi_powers,
         new_ps_powers,
         phi_init_adjustments,
-    ) = calculate_power_adjustments(  # TODO: verify correctness
+    ) = calculate_power_adjustments(
         mzi_phase_errors=all_errors["mzi_phase_errors"],
         ps_phase_errors=all_errors["ps_phase_errors"],
         mzi_psr_errors=all_errors["mzi_psr_errors"],
@@ -163,7 +163,7 @@ def run_calibration_iteration(
     )
 
     # 6. Update chip state (in-place)
-    chip_state.update_powers(  # TODO: verify correctness
+    chip_state.update_powers(
         new_mzi_powers=new_mzi_powers,
         new_ps_powers=new_ps_powers,
         phi_init_adjustments=phi_init_adjustments,
