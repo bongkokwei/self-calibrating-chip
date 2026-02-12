@@ -3,9 +3,10 @@ import numpy as np
 import voltage_ctrl
 import yaml
 from pathlib import Path
-from datetime import datetime, time
+from datetime import datetime
 from typing import Dict, Optional
 import sys
+import time
 
 
 from .phi_init_characterisation import characterise_mzi_phi_init
