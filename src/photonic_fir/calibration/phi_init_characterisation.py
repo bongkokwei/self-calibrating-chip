@@ -221,12 +221,15 @@ def characterise_mzi_phi_init(
         config=config,
         voltage_ctrl=voltage_ctrl,
     )
-    baseline_tap_coeffs = measure_and_extract_tap_coeff(config, mzi_tree)
-    psr_baseline = tap_coeffs_to_power_splitting_ratios(baseline_tap_coeffs)
+    baseline_tap_coeffs = measure_and_extract_tap_coeff(config)
+    psr_baseline = tap_coeffs_to_power_splitting_ratios(
+        baseline_tap_coeffs,
+        mzi_tree=mzi_tree,
+    )
 
     logger.info("\n=== Extracting Phase Shifter φ_init ===")
     for tap_num in config.chip.signal_tap_numbers:
-        phase_init = np.angle(baseline_tap_coeffs[tap_num])
+        phase_init = np.angle(baseline_tap_coeffs[tap_num - 1])  # tap_num is 1-indexed
         chip_state.phase_shifters[tap_num].phi_init_rad = phase_init
         logger.info(f"  Tap {tap_num}: φ_init = {phase_init:+7.3f} rad")
 
@@ -253,7 +256,10 @@ def characterise_mzi_phi_init(
 
         # Measure PSRs
         tap_coeff_perturbed = measure_and_extract_tap_coeff(config)
-        psr_perturbed = tap_coeffs_to_power_splitting_ratios(tap_coeff_perturbed)
+        psr_perturbed = tap_coeffs_to_power_splitting_ratios(
+            tap_coeff_perturbed,
+            mzi_tree=mzi_tree,
+        )
 
         # Extract this MZI's PSR values
         psr_0 = psr_baseline[mzi_id]
