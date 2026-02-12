@@ -152,8 +152,10 @@ def calculate_all_errors(
     # Normalisation is applied to the full 16-element arrays so that
     # tap_coeffs_to_power_splitting_ratios receives correctly-aligned indices.
     # =========================================================================
-    measured_power = np.sum(np.abs(measured_taps[signal_tap_indices]) ** 2)
-    target_power = np.sum(np.abs(target_taps[signal_tap_indices]) ** 2)
+    idx = list(signal_tap_indices)
+
+    measured_power = np.sum(np.abs(measured_taps[idx]) ** 2)
+    target_power = np.sum(np.abs(target_taps[idx]) ** 2)
 
     measured_norm = measured_taps / np.sqrt(measured_power)  # shape (16,)
     target_norm = target_taps / np.sqrt(target_power)  # shape (16,)
@@ -175,10 +177,10 @@ def calculate_all_errors(
     # Phase uses unnormalised taps — scaling doesn't affect angle.
     # Amplitude uses normalised taps — relative power distribution.
     # =========================================================================
-    measured_signal = measured_taps[signal_tap_indices]  # (8,) unnormalised
-    target_signal = target_taps[signal_tap_indices]  # (8,) unnormalised
-    measured_signal_norm = measured_norm[signal_tap_indices]  # (8,) normalised
-    target_signal_norm = target_norm[signal_tap_indices]  # (8,) normalised
+    measured_signal = measured_taps[idx]  # (8,) unnormalised
+    target_signal = target_taps[idx]  # (8,) unnormalised
+    measured_signal_norm = measured_norm[idx]  # (8,) normalised
+    target_signal_norm = target_norm[idx]  # (8,) normalised
 
     measured_phases = extract_tap_phases(measured_signal, signal_tap_numbers)
     target_phases = extract_tap_phases(target_signal, signal_tap_numbers)
