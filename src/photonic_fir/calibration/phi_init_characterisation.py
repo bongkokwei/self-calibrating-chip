@@ -27,9 +27,10 @@ from voltage_ctrl import VoltageController
 
 # Import from your existing package
 from photonic_fir.hardware.measurement import measure_spectrum
-from photonic_fir.processing.tap_recovery import (
+from photonic_fir.processing import (
     recover_impulse_response_from_df,
     detect_taps,
+    detect_taps_noise_tolerant,
 )
 from photonic_fir.core.power_splitting_ratio import (
     tap_coeffs_to_power_splitting_ratios,
@@ -132,15 +133,12 @@ def measure_and_extract_tap_coeff(
     )
 
     # 3. Detect taps
-    tap_times, tap_coeffs = detect_taps(
+    tap_times, tap_coeffs = detect_taps_noise_tolerant(
         time_ps=time_ps,
         h_time=h_time,
         fsr_hz=config.chip.fsr_hz,
         delay_step_s=config.chip.delay_step_s,
         n_taps=config.chip.n_taps,
-        prominence_factor_db=config.measurement.prominence_factor_db,
-        min_distance_ps=config.measurement.min_distance_ps,
-        height_threshold_db=config.measurement.height_threshold_db,
     )
 
     return tap_coeffs
