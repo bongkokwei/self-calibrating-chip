@@ -54,7 +54,8 @@ def calculate_mzi_errors(
         psr_errors[mzi_id] = target_ratio - measured_ratio
 
         # Phase error accounting for initial phase offset
-        phase_errors[mzi_id] = target_phase - (measured_phase - phi_init)
+        # phase_errors[mzi_id] = target_phase - (measured_phase - phi_init)
+        phase_errors[mzi_id] = target_phase - measured_phase
 
     return psr_errors, phase_errors
 
@@ -83,7 +84,8 @@ def calculate_phase_shifter_errors(
         phi_init = ps_phi_init.get(tap_num, 0.0)
 
         # Error = target - (measured - initial_offset)
-        phase_errors[tap_num] = target_phase - (measured_phase - phi_init)
+        # phase_errors[tap_num] = target_phase - (measured_phase - phi_init)
+        phase_errors[tap_num] = target_phase - measured_phase
 
     return phase_errors
 
