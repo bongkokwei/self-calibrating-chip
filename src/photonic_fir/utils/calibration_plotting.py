@@ -1,5 +1,9 @@
 """
 Live plotting utilities for calibration loop.
+
+Uses in-place line updates (set_data) instead of clearing and redrawing axes
+each iteration. This keeps the GUI event loop responsive so the plot window
+can be moved and resized in real time.
 """
 
 import logging
@@ -14,7 +18,24 @@ from ..core import IterationData
 
 
 class CalibrationPlotter:
-    """Live plotting for calibration convergence."""
+    """Live plotting for calibration convergence.
+
+    Performance notes
+    -----------------
+    All static axis furniture (labels, titles, grids, legends) is created once
+    in ``__init__`` / ``add_mzi_plot``.  The ``update`` and ``update_mzi_plot``
+    methods only call ``Line2D.set_data`` followed by ``relim`` /
+    ``autoscale_view`` / ``draw_idle`` / ``flush_events``, avoiding the
+    expensive full-canvas redraw that ``ax.clear()`` + ``fig.canvas.draw()``
+    would cause.
+    """
+
+    # ------------------------------------------------------------------ #
+    #  Colour palette                                                      #
+    # ------------------------------------------------------------------ #
+    _RMS_AMP_COLOUR = "#2E86AB"
+    _RMS_PHASE_COLOUR = "#A23B72"
+    _TAP_COLOURS = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
     def __init__(self, num_taps: int, num_mzis: int):
         """
@@ -23,196 +44,243 @@ class CalibrationPlotter:
         Parameters
         ----------
         num_taps : int
-            Number of signal processing taps
+            Number of signal processing taps.
         num_mzis : int
-            Number of MZIs in the routing tree
+            Number of MZIs in the routing tree.
         """
         self.num_taps = num_taps
         self.num_mzis = num_mzis
 
-        # Storage for history
-        self.iterations = []
-        self.rms_amp_history = []
-        self.rms_phase_history = []
-        self.tap_amp_errors_history = []
-        self.tap_phase_errors_history = []
-        self.mzi_psr_errors_history = []
+        # ----- History storage -----
+        self.iterations: List[int] = []
+        self.rms_amp_history: List[float] = []
+        self.rms_phase_history: List[float] = []
+        self.tap_amp_errors_history: List[np.ndarray] = []
+        self.tap_phase_errors_history: List[np.ndarray] = []
+        self.mzi_psr_errors_history: List[np.ndarray] = []
 
-        # Create figure with subplots
+        # ----- Create figure and static axis furniture -----
         self.fig, self.axes = plt.subplots(2, 2, figsize=(12, 10))
         self.fig.suptitle("Calibration Convergence", fontsize=14, fontweight="bold")
 
-        # Turn on interactive mode
-        plt.ion()
-        plt.show()
+        # -- Axes [0, 0]: RMS amplitude error --
+        ax1 = self.axes[0, 0]
+        (self._line_rms_amp,) = ax1.plot(
+            [], [], "o-", color=self._RMS_AMP_COLOUR, linewidth=2, markersize=6
+        )
+        ax1.set_xlabel("Iteration", fontsize=11)
+        ax1.set_ylabel("RMS Amplitude Error (dB)", fontsize=11)
+        ax1.set_title("RMS Amplitude Error Convergence", fontsize=12, fontweight="bold")
+        ax1.grid(True, alpha=0.3)
 
+        # -- Axes [0, 1]: RMS phase error --
+        ax2 = self.axes[0, 1]
+        (self._line_rms_phase,) = ax2.plot(
+            [], [], "o-", color=self._RMS_PHASE_COLOUR, linewidth=2, markersize=6
+        )
+        ax2.set_xlabel("Iteration", fontsize=11)
+        ax2.set_ylabel("RMS Phase Error (rad)", fontsize=11)
+        ax2.set_title("RMS Phase Error Convergence", fontsize=12, fontweight="bold")
+        ax2.grid(True, alpha=0.3)
+
+        # -- Axes [1, 0]: Individual tap amplitude errors --
+        ax3 = self.axes[1, 0]
+        self._lines_tap_amp: List[plt.Line2D] = []
+        for i in range(num_taps):
+            colour = self._TAP_COLOURS[i % len(self._TAP_COLOURS)]
+            (line,) = ax3.plot(
+                [],
+                [],
+                "o-",
+                label=f"Tap {i + 1}",
+                alpha=0.7,
+                markersize=4,
+                color=colour,
+            )
+            self._lines_tap_amp.append(line)
+        ax3.set_xlabel("Iteration", fontsize=11)
+        ax3.set_ylabel("Amplitude Error (dB)", fontsize=11)
+        ax3.set_title("Individual Tap Amplitude Errors", fontsize=12, fontweight="bold")
+        ax3.grid(True, alpha=0.3)
+        ax3.legend(loc="best", fontsize=8, ncol=2)
+
+        # -- Axes [1, 1]: Individual tap phase errors --
+        ax4 = self.axes[1, 1]
+        self._lines_tap_phase: List[plt.Line2D] = []
+        for i in range(num_taps):
+            colour = self._TAP_COLOURS[i % len(self._TAP_COLOURS)]
+            (line,) = ax4.plot(
+                [],
+                [],
+                "o-",
+                label=f"Tap {i + 1}",
+                alpha=0.7,
+                markersize=4,
+                color=colour,
+            )
+            self._lines_tap_phase.append(line)
+        ax4.set_xlabel("Iteration", fontsize=11)
+        ax4.set_ylabel("Phase Error (rad)", fontsize=11)
+        ax4.set_title("Individual Tap Phase Errors", fontsize=12, fontweight="bold")
+        ax4.grid(True, alpha=0.3)
+        ax4.legend(loc="best", fontsize=8, ncol=2)
+
+        # Initial layout pass
+        self.fig.tight_layout()
+
+        # Turn on interactive mode and show
+        plt.ion()
+        self.fig.show()
+
+    # ------------------------------------------------------------------ #
+    #  Main convergence update                                             #
+    # ------------------------------------------------------------------ #
     def update(self, iter_data: IterationData):
         """
         Update plots with new iteration data.
 
+        Only the line data is changed; static axis furniture (labels, titles,
+        grids, legends) is left untouched for performance.
+
         Parameters
         ----------
         iter_data : IterationData
-            Data from current calibration iteration
+            Data from current calibration iteration.
         """
-        # Store data
+        # ----- Store data -----
         self.iterations.append(iter_data.iteration)
         self.rms_amp_history.append(iter_data.rms_amplitude_error_db)
         self.rms_phase_history.append(iter_data.rms_phase_error_rad)
         self.tap_amp_errors_history.append(iter_data.amplitude_errors_db.copy())
         self.tap_phase_errors_history.append(iter_data.phase_errors_rad.copy())
 
-        # Convert MZI errors dict to array for plotting
+        # Convert MZI errors dict → array
         if isinstance(iter_data.mzi_psr_errors_db, dict):
-            # Sort by MZI ID to maintain consistent ordering
             sorted_mzis = sorted(iter_data.mzi_psr_errors_db.keys())
             mzi_errors_array = np.array(
                 [iter_data.mzi_psr_errors_db[mzi_id] for mzi_id in sorted_mzis]
             )
             self.mzi_psr_errors_history.append(mzi_errors_array)
-            # Store MZI IDs on first iteration
             if not hasattr(self, "mzi_ids"):
                 self.mzi_ids = sorted_mzis
         else:
-            # Fallback for array input
             self.mzi_psr_errors_history.append(iter_data.mzi_psr_errors_db.copy())
 
-        # Clear all axes
-        for ax in self.axes.flat:
-            ax.clear()
+        iters = self.iterations  # shorthand
 
-        # Plot 1: RMS amplitude error convergence
+        # ----- Update RMS amplitude line -----
+        self._line_rms_amp.set_data(iters, self.rms_amp_history)
         ax1 = self.axes[0, 0]
-        ax1.plot(
-            self.iterations,
-            self.rms_amp_history,
-            "o-",
-            color="#2E86AB",
-            linewidth=2,
-            markersize=6,
-        )
-        ax1.set_xlabel("Iteration", fontsize=11)
-        ax1.set_ylabel("RMS Amplitude Error (dB)", fontsize=11)
-        ax1.set_title("RMS Amplitude Error Convergence", fontsize=12, fontweight="bold")
-        ax1.grid(True, alpha=0.3)
-        ax1.set_xlim(left=-0.5)
+        ax1.relim()
+        ax1.autoscale_view()
 
-        # Plot 2: RMS phase error convergence
+        # ----- Update RMS phase line -----
+        self._line_rms_phase.set_data(iters, self.rms_phase_history)
         ax2 = self.axes[0, 1]
-        ax2.plot(
-            self.iterations,
-            self.rms_phase_history,
-            "o-",
-            color="#A23B72",
-            linewidth=2,
-            markersize=6,
-        )
-        ax2.set_xlabel("Iteration", fontsize=11)
-        ax2.set_ylabel("RMS Phase Error (rad)", fontsize=11)
-        ax2.set_title("RMS Phase Error Convergence", fontsize=12, fontweight="bold")
-        ax2.grid(True, alpha=0.3)
-        ax2.set_xlim(left=-0.5)
+        ax2.relim()
+        ax2.autoscale_view()
 
-        # Plot 3: Individual tap amplitude errors
+        # ----- Update per-tap amplitude error lines -----
+        tap_amp_arr = np.array(self.tap_amp_errors_history)  # (n_iter, n_taps)
         ax3 = self.axes[1, 0]
-        tap_amp_errors = np.array(self.tap_amp_errors_history)
+        for i, line in enumerate(self._lines_tap_amp):
+            line.set_data(iters, tap_amp_arr[:, i])
+        ax3.relim()
+        ax3.autoscale_view()
 
-        # Plot each tap's error over iterations
-        tap_numbers = np.arange(1, self.num_taps + 1)
-        for i in range(self.num_taps):
-            ax3.plot(
-                self.iterations,
-                tap_amp_errors[:, i],
-                "o-",
-                label=f"Tap {tap_numbers[i]}",
-                alpha=0.7,
-                markersize=4,
-            )
-
-        ax3.set_xlabel("Iteration", fontsize=11)
-        ax3.set_ylabel("Amplitude Error (dB)", fontsize=11)
-        ax3.set_title("Individual Tap Amplitude Errors", fontsize=12, fontweight="bold")
-        ax3.grid(True, alpha=0.3)
-        ax3.legend(loc="best", fontsize=8, ncol=2)
-        ax3.set_xlim(left=-0.5)
-
-        # Plot 4: Individual tap phase errors
+        # ----- Update per-tap phase error lines -----
+        tap_phase_arr = np.array(self.tap_phase_errors_history)
         ax4 = self.axes[1, 1]
-        tap_phase_errors = np.array(self.tap_phase_errors_history)
+        for i, line in enumerate(self._lines_tap_phase):
+            line.set_data(iters, tap_phase_arr[:, i])
+        ax4.relim()
+        ax4.autoscale_view()
 
-        # Plot each tap's error over iterations
-        for i in range(self.num_taps):
-            ax4.plot(
-                self.iterations,
-                tap_phase_errors[:, i],
-                "o-",
-                label=f"Tap {tap_numbers[i]}",
-                alpha=0.7,
-                markersize=4,
-            )
-
-        ax4.set_xlabel("Iteration", fontsize=11)
-        ax4.set_ylabel("Phase Error (rad)", fontsize=11)
-        ax4.set_title("Individual Tap Phase Errors", fontsize=12, fontweight="bold")
-        ax4.grid(True, alpha=0.3)
-        ax4.legend(loc="best", fontsize=8, ncol=2)
-        ax4.set_xlim(left=-0.5)
-
-        # Adjust layout and refresh
-        self.fig.tight_layout()
-        self.fig.canvas.draw()
+        # ----- Non-blocking redraw -----
+        self.fig.canvas.draw_idle()
         self.fig.canvas.flush_events()
-        plt.pause(0.01)  # Brief pause to allow display update
 
+    # ------------------------------------------------------------------ #
+    #  MZI PSR error figure                                                #
+    # ------------------------------------------------------------------ #
     def add_mzi_plot(self):
         """
-        Add a fifth subplot for MZI PSR errors if needed.
-        This creates a new figure specifically for MZI errors.
+        Add a separate figure for MZI PSR errors.
+
+        Call this *before* the first ``update_mzi_plot()``.  MZI line objects
+        are created lazily on the first call to ``update_mzi_plot`` because the
+        number of MZIs (and their IDs) may not be known until the first
+        ``IterationData`` arrives.
         """
         self.fig_mzi, self.ax_mzi = plt.subplots(figsize=(10, 4))
         self.fig_mzi.suptitle(
             "MZI Power Splitting Ratio Errors", fontsize=14, fontweight="bold"
         )
-        plt.ion()
-        plt.show()
 
-    def update_mzi_plot(self):
-        """Update MZI error plot if it exists."""
-        if not hasattr(self, "ax_mzi"):
-            return
-
-        self.ax_mzi.clear()
-
-        mzi_psr_errors = np.array(self.mzi_psr_errors_history)
-
-        # Use actual MZI IDs if available, otherwise use indices
-        if hasattr(self, "mzi_ids"):
-            labels = self.mzi_ids
-        else:
-            labels = [f"MZI {i+1}" for i in range(mzi_psr_errors.shape[1])]
-
-        # Plot each MZI's error over iterations
-        for i, label in enumerate(labels):
-            self.ax_mzi.plot(
-                self.iterations,
-                mzi_psr_errors[:, i],
-                "o-",
-                label=label,
-                alpha=0.7,
-                markersize=4,
-            )
-
+        # Static axis furniture
         self.ax_mzi.set_xlabel("Iteration", fontsize=11)
         self.ax_mzi.set_ylabel("PSR Error (dB)", fontsize=11)
         self.ax_mzi.grid(True, alpha=0.3)
-        self.ax_mzi.legend(loc="best", fontsize=8, ncol=3)
-        self.ax_mzi.set_xlim(left=-0.5)
+
+        # Line objects created lazily in update_mzi_plot
+        self._lines_mzi: Optional[List[plt.Line2D]] = None
 
         self.fig_mzi.tight_layout()
-        self.fig_mzi.canvas.draw()
-        self.fig_mzi.canvas.flush_events()
-        plt.pause(0.01)
+        plt.ion()
+        self.fig_mzi.show()
 
+    def update_mzi_plot(self):
+        """Update MZI error plot if it exists.
+
+        On the first call the line objects and legend are created (since the
+        MZI IDs are not known until data arrives).  Subsequent calls only
+        update the line data.
+        """
+        if not hasattr(self, "ax_mzi"):
+            return
+
+        if not self.mzi_psr_errors_history:
+            return
+
+        mzi_psr_errors = np.array(self.mzi_psr_errors_history)
+        n_mzis = mzi_psr_errors.shape[1]
+
+        # Lazy initialisation of line objects on first data arrival
+        if self._lines_mzi is None:
+            labels = (
+                self.mzi_ids
+                if hasattr(self, "mzi_ids")
+                else [f"MZI {i + 1}" for i in range(n_mzis)]
+            )
+            self._lines_mzi = []
+            for i, label in enumerate(labels):
+                colour = self._TAP_COLOURS[i % len(self._TAP_COLOURS)]
+                (line,) = self.ax_mzi.plot(
+                    [],
+                    [],
+                    "o-",
+                    label=label,
+                    alpha=0.7,
+                    markersize=4,
+                    color=colour,
+                )
+                self._lines_mzi.append(line)
+            self.ax_mzi.legend(loc="best", fontsize=8, ncol=3)
+
+        # Update line data
+        for i, line in enumerate(self._lines_mzi):
+            line.set_data(self.iterations, mzi_psr_errors[:, i])
+
+        self.ax_mzi.relim()
+        self.ax_mzi.autoscale_view()
+
+        # Non-blocking redraw
+        self.fig_mzi.canvas.draw_idle()
+        self.fig_mzi.canvas.flush_events()
+
+    # ------------------------------------------------------------------ #
+    #  Save / close                                                        #
+    # ------------------------------------------------------------------ #
     def save_plots(self, output_dir: str):
         """
         Save final plots to output directory.
@@ -220,20 +288,21 @@ class CalibrationPlotter:
         Parameters
         ----------
         output_dir : str
-            Directory to save plots
+            Directory to save plots.
         """
         from pathlib import Path
 
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
 
-        # Save main convergence plot
+        # Force a full render before saving so the file is up to date
+        self.fig.canvas.draw()
         self.fig.savefig(
             output_path / "calibration_convergence.png", dpi=300, bbox_inches="tight"
         )
 
-        # Save MZI plot if it exists
         if hasattr(self, "fig_mzi"):
+            self.fig_mzi.canvas.draw()
             self.fig_mzi.savefig(
                 output_path / "mzi_psr_errors.png", dpi=300, bbox_inches="tight"
             )
@@ -246,6 +315,9 @@ class CalibrationPlotter:
         plt.close("all")
 
 
+# ====================================================================== #
+#  Post-processing (unchanged)                                             #
+# ====================================================================== #
 def plot_calibration_errors(
     iterations: List[IterationData], output_dir: Optional[str] = None
 ):
@@ -255,9 +327,9 @@ def plot_calibration_errors(
     Parameters
     ----------
     iterations : List[IterationData]
-        List of all iteration data
+        List of all iteration data.
     output_dir : Optional[str]
-        If provided, save plots to this directory
+        If provided, save plots to this directory.
     """
     if not iterations:
         logger.info("No iteration data to plot")
@@ -325,64 +397,3 @@ def plot_calibration_errors(
         logger.info(f"Plot saved to {output_dir}")
 
     plt.show()
-
-
-if __name__ == "__main__":
-    # Example usage
-    logger.info("Example: Live plotting during calibration")
-
-    # Initialise plotter (8 taps, 15 MZIs)
-    plotter = CalibrationPlotter(num_taps=8, num_mzis=15)
-
-    # Optionally add MZI plot
-    plotter.add_mzi_plot()
-
-    # Simulate calibration iterations
-    mzi_ids = [
-        "2-1",
-        "3-1",
-        "3-2",
-        "3-3",
-        "4-1",
-        "4-2",
-        "4-3",
-        "4-4",
-        "4-5",
-        "4-6",
-        "4-7",
-        "4-8",
-        "5-1",
-        "5-2",
-        "5-3",
-    ]
-
-    for i in range(10):
-        # Create dummy data with dict for MZI errors
-        mzi_errors_dict = {
-            mzi_id: np.random.randn() * np.exp(-i / 4) for mzi_id in mzi_ids
-        }
-
-        iter_data = IterationData(
-            iteration=i,
-            amplitude_errors_db=np.random.randn(8) * np.exp(-i / 3),
-            phase_errors_rad=np.random.randn(8) * np.exp(-i / 3),
-            rms_amplitude_error_db=np.exp(-i / 3),
-            rms_phase_error_rad=np.exp(-i / 3),
-            mzi_psr_errors_db=mzi_errors_dict,
-        )
-
-        # Update plots
-        plotter.update(iter_data)
-        plotter.update_mzi_plot()
-
-        # Simulate processing time
-        import time
-
-        time.sleep(0.5)
-
-    # Save final plots
-    plotter.save_plots("/mnt/user-data/outputs")
-
-    logger.info("\nPress Enter to close plots...")
-    input()
-    plotter.close()
