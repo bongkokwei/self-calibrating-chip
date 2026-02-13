@@ -162,6 +162,7 @@ def run_calibration_iteration(
         h_time=h_time,
         tap_times_ps=tap_times,
         tap_coeffs=tap_coeffs,
+        save_fig=output_dir + f"/iteration_{iteration}_impulse_response.png",
     )
 
     # 4. Calculate errors (only for signal processing taps)
