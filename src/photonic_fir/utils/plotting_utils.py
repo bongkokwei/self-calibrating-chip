@@ -124,6 +124,7 @@ def plot_impulse_response(
     tap_times_ps: Optional[np.ndarray] = None,
     tap_coeffs: Optional[np.ndarray] = None,
     save_fig: Optional[str] = None,
+    show_plot: bool = False,
 ):
     """
     Plot impulse response magnitude with detected taps.
@@ -139,14 +140,15 @@ def plot_impulse_response(
     tap_coeffs : np.ndarray, optional
         Detected tap coefficients
     save_fig : str, optional
-        File path to save the figure (e.g. 'output/impulse_response.png').
-        If None, the figure is not saved.
+        File path to save the figure. If None, the figure is not saved.
+    show_plot : bool
+        Whether to display the plot interactively. Set to False when called
+        during calibration to avoid disrupting CalibrationPlotter's interactive mode.
     """
     h_magnitude = np.abs(h_time)
 
     fig, ax = plt.subplots(1, 1, figsize=(12, 6))
 
-    # Plot impulse response
     ax.plot(
         time_ps,
         10 * np.log10(h_magnitude) + 1e-12,
@@ -155,7 +157,6 @@ def plot_impulse_response(
         label="Impulse Response",
     )
 
-    # Mark detected taps if provided
     if tap_times_ps is not None and tap_coeffs is not None:
         tap_magnitudes = np.abs(tap_coeffs)
         ax.plot(
@@ -172,14 +173,14 @@ def plot_impulse_response(
     ax.legend(fontsize=11)
     ax.grid(True, alpha=0.3)
     ax.set_ylim(bottom=-40)
-    ax.set_xlim(
-        left=-(1 / 160e9) * 1e12, right=16 * (1 / 160e9) * 1e12
-    )  # Example: 16 taps at 160 GHz FSR
+    ax.set_xlim(left=-(1 / 160e9) * 1e12, right=16 * (1 / 160e9) * 1e12)
 
     plt.tight_layout()
 
     if save_fig is not None:
         fig.savefig(save_fig, dpi=300, bbox_inches="tight")
 
-    plt.show()
-    plt.close()
+    if show_plot:
+        plt.show()
+    else:
+        plt.close(fig)
