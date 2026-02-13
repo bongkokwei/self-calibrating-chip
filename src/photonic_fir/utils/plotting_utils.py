@@ -182,3 +182,4 @@ def plot_impulse_response(
         fig.savefig(save_fig, dpi=300, bbox_inches="tight")
 
     plt.show()
+    plt.close()
