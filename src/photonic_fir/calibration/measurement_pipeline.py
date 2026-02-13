@@ -7,7 +7,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from photonic_fir.hardware import VoltageController
 from photonic_fir.core import ExperimentConfig, ChipState
 
 try:

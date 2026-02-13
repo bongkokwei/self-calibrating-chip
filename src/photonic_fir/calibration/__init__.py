@@ -17,27 +17,21 @@ Submodules:
 
 # Note: calibration_loop.py would contain refactored code from main_expt.py
 # For now, this is a placeholder until you create that module
+from .measurement_pipeline import measure_and_detect_taps
 
-try:
-    from .calibration_loop import (
-        run_calibration_iteration,
-        check_convergence,
-        run_experiment,
-        save_results,
-        load_config,
-    )
+from .calibration_loop import (
+    run_calibration_iteration,
+    check_convergence,
+    run_experiment,
+    save_results,
+    load_config,
+)
 
-    from .measurement_pipeline import measure_and_detect_taps
-
-    __all__ = [
-        "run_calibration_iteration",
-        "check_convergence",
-        "run_experiment",
-        "save_results",
-        "load_config",
-        "measure_and_detect_taps",
-    ]
-
-except ImportError:
-    # Module not yet created
-    __all__ = []
+__all__ = [
+    "run_calibration_iteration",
+    "check_convergence",
+    "run_experiment",
+    "save_results",
+    "load_config",
+    "measure_and_detect_taps",
+]
