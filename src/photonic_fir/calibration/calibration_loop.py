@@ -39,7 +39,7 @@ from photonic_fir.processing import (
     detect_taps_noise_tolerant,
 )
 
-from photonic_fir.utils.calibration_plotting import CalibrationPlotter
+from photonic_fir.utils import CalibrationPlotter, plot_impulse_response
 
 
 from voltage_ctrl import VoltageController
@@ -155,6 +155,13 @@ def run_calibration_iteration(
         fsr_hz=config.chip.fsr_hz,
         delay_step_s=config.chip.delay_step_s,
         n_taps=config.chip.n_taps,
+    )
+
+    plot_impulse_response(
+        time_ps=time_ps,
+        h_time=h_time,
+        tap_times_ps=tap_times,
+        tap_coeffs=tap_coeffs,
     )
 
     # 4. Calculate errors (only for signal processing taps)
@@ -342,7 +349,7 @@ def run_experiment(config_path: str):
             iterations.append(iter_data)
             prev_iter_data = iter_data
 
-            plotter.update(iter_data)
+            # plotter.update(iter_data)
 
             # Check convergence
             if check_convergence(iter_data, config):
