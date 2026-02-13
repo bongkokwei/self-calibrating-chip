@@ -123,6 +123,7 @@ def plot_impulse_response(
     h_time: np.ndarray,
     tap_times_ps: Optional[np.ndarray] = None,
     tap_coeffs: Optional[np.ndarray] = None,
+    save_fig: Optional[str] = None,
 ):
     """
     Plot impulse response magnitude with detected taps.
@@ -137,6 +138,9 @@ def plot_impulse_response(
         Detected tap positions
     tap_coeffs : np.ndarray, optional
         Detected tap coefficients
+    save_fig : str, optional
+        File path to save the figure (e.g. 'output/impulse_response.png').
+        If None, the figure is not saved.
     """
     h_magnitude = np.abs(h_time)
 
@@ -173,4 +177,8 @@ def plot_impulse_response(
     )  # Example: 16 taps at 160 GHz FSR
 
     plt.tight_layout()
+
+    if save_fig is not None:
+        fig.savefig(save_fig, dpi=300, bbox_inches="tight")
+
     plt.show()
