@@ -27,12 +27,15 @@ try:
         load_config,
     )
 
+    from .measurement_pipeline import measure_and_detect_taps
+
     __all__ = [
         "run_calibration_iteration",
         "check_convergence",
         "run_experiment",
         "save_results",
         "load_config",
+        "measure_and_detect_taps",
     ]
 
 except ImportError:

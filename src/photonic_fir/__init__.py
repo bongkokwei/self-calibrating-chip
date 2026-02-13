@@ -81,6 +81,8 @@ try:
         set_mzi_voltage,
     )
 
+    from .calibration.measurement_pipeline import measure_and_detect_taps
+
     _HARDWARE_AVAILABLE = True
 except ImportError:
     _HARDWARE_AVAILABLE = False
@@ -107,6 +109,8 @@ __all__ = [
     "VoltageChannelMapping",
     "config_from_dict",
     "config_to_dict",
+    # Calibration tools
+    "measure_and_detect_taps",
     # Power splitting ratio calculations
     "tap_coeffs_to_power_splitting_ratios",
     "extract_tap_phases",

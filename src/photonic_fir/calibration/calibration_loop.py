@@ -12,7 +12,7 @@ import time
 from .phi_init_characterisation import characterise_mzi_phi_init
 
 import logging
-from photonic_fir import setup_logging
+from photonic_fir import setup_logging, measure_and_detect_taps
 
 logger = logging.getLogger(__name__)
 
@@ -126,38 +126,11 @@ def run_calibration_iteration(
 
         time.sleep(config.measurement.settling_time_sec)
 
-        # 1. Measure spectrum
-        df = measure_spectrum(
-            center_wavelength_nm=config.measurement.center_wavelength_nm,
-            wavelength_span_nm=config.measurement.wavelength_span_nm,
-            num_averages=config.measurement.num_averages,
-            edfa_port=config.measurement.edfa_port,
-            edfa_baudrate=config.measurement.edfa_baudrate,
-            edfa_output_power_dbm=config.measurement.edfa_output_power_dbm,
-            ova_ip=config.measurement.ova_address,
-            # folder_dir=output_dir,
-            # file_name=f"iteration_{iteration}_spectrum",
+        df, tap_times, tap_coeffs, time_ps, h_time = measure_and_detect_taps(
+            config=config,
             folder_dir=None,
             file_name=None,
         )
-
-    # 2. Recover impulse response (using DataFrame wrapper)
-    time_ps, h_time = recover_impulse_response_from_df(
-        df=df,
-        fsr_hz=config.chip.fsr_hz,
-        wavelength_col=config.measurement.wavelength_col,
-        freq_col=config.measurement.frequency_col,
-        insertion_loss_col=config.measurement.insertion_loss_col,
-    )
-
-    # 3. Detect taps
-    tap_times, tap_coeffs = detect_taps_noise_tolerant(
-        time_ps=time_ps,
-        h_time=h_time,
-        fsr_hz=config.chip.fsr_hz,
-        delay_step_s=config.chip.delay_step_s,
-        n_taps=config.chip.n_taps,
-    )
 
     plot_impulse_response(
         time_ps=time_ps,

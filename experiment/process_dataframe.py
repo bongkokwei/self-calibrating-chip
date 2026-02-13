@@ -21,6 +21,7 @@ from photonic_fir import (
     load_config,
     recover_impulse_response_from_df,
     tap_coeffs_to_power_splitting_ratios,
+    measure_and_detect_taps,
 )
 
 
@@ -141,26 +142,7 @@ def extract_psr_from_file(
     except Exception:
         return None
 
-    # Recover impulse response
-    time_ps, h_time = recover_impulse_response_from_df(
-        df=df,
-        fsr_hz=config.chip.fsr_hz,
-        wavelength_col=config.measurement.wavelength_col,
-        freq_col=config.measurement.frequency_col,
-        insertion_loss_col=config.measurement.insertion_loss_col,
-    )
-
-    # Detect taps and normalise coefficients
-    tap_times, tap_coeffs = detect_taps(
-        time_ps=time_ps,
-        h_time=h_time,
-        fsr_hz=config.chip.fsr_hz,
-        delay_step_s=config.chip.delay_step_s,
-        n_taps=config.chip.n_taps,
-        prominence_factor_db=config.measurement.prominence_factor_db,
-        min_distance_ps=config.measurement.min_distance_ps,
-        height_threshold_db=config.measurement.height_threshold_db,
-    )
+    df, tap_times, tap_coeffs, _, _ = measure_and_detect_taps(config, df=df)
 
     tap_coeffs_normalised = np.abs(tap_coeffs) / np.max(np.abs(tap_coeffs))
 

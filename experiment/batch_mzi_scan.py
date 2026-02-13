@@ -42,6 +42,7 @@ from photonic_fir import (
     get_next_run_dir,
     setup_logging,
     detect_taps_noise_tolerant,
+    measure_and_detect_taps,
 )
 
 # Import new utilities
@@ -210,41 +211,16 @@ def perform_voltage_sweep(
                 file_name = None
                 folder_dir = None
 
-            df = measure_spectrum(
-                center_wavelength_nm=exp_config.measurement.center_wavelength_nm,
-                wavelength_span_nm=exp_config.measurement.wavelength_span_nm,
-                num_averages=exp_config.measurement.num_averages,
-                edfa_port=exp_config.measurement.edfa_port,
-                edfa_baudrate=exp_config.measurement.edfa_baudrate,
-                edfa_output_power_dbm=exp_config.measurement.edfa_output_power_dbm,
-                ova_ip=exp_config.measurement.ova_address,
-                folder_dir=folder_dir,
+            df, tap_times, tap_coeffs, _, _ = measure_and_detect_taps(
+                config=exp_config,
                 file_name=file_name,
+                folder_dir=folder_dir,
             )
 
             time.sleep(scan_config.settling_time_sec)
             print("Exit voltage controller context - heaters should be zeroed")
 
         dataframes.append(df)
-
-        # d. Recover tap coefficients via Kramers-Kronig
-        time_ps, h_time = recover_impulse_response_from_df(
-            df=df,
-            fsr_hz=exp_config.chip.fsr_hz,
-            wavelength_col=exp_config.measurement.wavelength_col,
-            freq_col=exp_config.measurement.frequency_col,
-            insertion_loss_col=exp_config.measurement.insertion_loss_col,
-        )
-
-        # Detect taps
-        tap_times, tap_coeffs = detect_taps_noise_tolerant(
-            time_ps=time_ps,
-            h_time=h_time,
-            fsr_hz=exp_config.chip.fsr_hz,
-            delay_step_s=exp_config.chip.delay_step_s,
-            n_taps=exp_config.chip.n_taps,
-            window_width_ps=exp_config.chip.delay_step_s / 2 * 1e12,
-        )
 
         # Get all power splitting ratios from tap coefficients
         psr_dict = tap_coeffs_to_power_splitting_ratios(tap_coeffs, mzi_tree)
