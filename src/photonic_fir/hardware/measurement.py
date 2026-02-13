@@ -76,7 +76,7 @@ def measure_spectrum(
         logger.info(f"EDFA connected: {device_info}")
 
         # Configure EDFA
-        edfa.set_driving_mode(1, DrivingMode.ALC)
+        edfa.set_driving_mode(2, DrivingMode.ALC)
         edfa.set_alc_output_level(2, edfa_output_power_dbm)
         edfa.set_driving_mode(1, DrivingMode.ALC)
         edfa.set_alc_output_level(1, -3)
