@@ -23,12 +23,18 @@ from photonic_fir.core import (
     load_config,
     save_config,
 )
-from photonic_fir.hardware import (
-    measure_spectrum,
-    calculate_power_adjustments,
-    apply_voltages_to_hardware,
-    set_mzi_voltage,
-)
+
+try:
+    from photonic_fir.hardware import (
+        calculate_power_adjustments,
+        apply_voltages_to_hardware,
+    )
+
+    _HARDWARE_AVAILABLE = True
+except ImportError:
+    _HARDWARE_AVAILABLE = False
+
+
 from photonic_fir.processing import (
     recover_impulse_response_from_df,
     detect_taps,

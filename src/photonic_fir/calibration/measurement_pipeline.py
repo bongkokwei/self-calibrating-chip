@@ -9,10 +9,15 @@ logger = logging.getLogger(__name__)
 
 from photonic_fir.hardware import VoltageController
 from photonic_fir.core import ExperimentConfig, ChipState
-from photonic_fir.hardware import (
-    measure_spectrum,
-    apply_voltages_to_hardware,
-)
+
+try:
+    from photonic_fir.hardware import measure_spectrum
+
+    _HARDWARE_AVAILABLE = True
+except ImportError:
+    _HARDWARE_AVAILABLE = False
+
+
 from photonic_fir.processing import (
     recover_impulse_response_from_df,
     detect_taps_noise_tolerant,
@@ -48,6 +53,12 @@ def measure_and_detect_taps(
     tap_coeffs : np.ndarray
         Complex tap coefficients.
     """
+
+    if not _HARDWARE_AVAILABLE:
+        raise RuntimeError(
+            "Hardware libraries not available. Cannot call measure_and_detect_taps."
+        )
+
     if df is None:
         # 1. Measure spectrum
         df = measure_spectrum(
