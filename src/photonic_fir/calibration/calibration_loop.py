@@ -9,10 +9,8 @@ import sys
 import time
 
 
-from .phi_init_characterisation import characterise_mzi_phi_init
-
 import logging
-from photonic_fir import setup_logging, measure_and_detect_taps
+from photonic_fir import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -25,21 +23,19 @@ from photonic_fir.core import (
     load_config,
     save_config,
 )
-
 from photonic_fir.hardware import (
     measure_spectrum,
     calculate_power_adjustments,
     apply_voltages_to_hardware,
     set_mzi_voltage,
 )
-
 from photonic_fir.processing import (
     recover_impulse_response_from_df,
     detect_taps,
     detect_taps_noise_tolerant,
 )
-
 from photonic_fir.utils import CalibrationPlotter, plot_impulse_response
+from photonic_fir.calibration import characterise_mzi_phi_init, measure_and_detect_taps
 
 
 from voltage_ctrl import VoltageController
