@@ -14,6 +14,8 @@ from .calibration_plotting import (
     plot_calibration_errors,
 )
 
+from .chip_state_info import print_chip_state
+
 __all__ = [
     # File utilities
     "get_next_run_dir",
@@ -24,4 +26,6 @@ __all__ = [
     # Calibration plotting
     "CalibrationPlotter",
     "plot_calibration_errors",
+    # Chip state info
+    "print_chip_state",
 ]
