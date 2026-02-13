@@ -34,12 +34,6 @@ try:
 except ImportError:
     _HARDWARE_AVAILABLE = False
 
-
-from photonic_fir.processing import (
-    recover_impulse_response_from_df,
-    detect_taps,
-    detect_taps_noise_tolerant,
-)
 from photonic_fir.utils import CalibrationPlotter, plot_impulse_response
 from .phi_init_characterisation import characterise_mzi_phi_init
 from .measurement_pipeline import measure_and_detect_taps
