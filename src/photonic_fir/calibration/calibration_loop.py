@@ -137,6 +137,8 @@ def run_calibration_iteration(
             ova_ip=config.measurement.ova_address,
             # folder_dir=output_dir,
             # file_name=f"iteration_{iteration}_spectrum",
+            folder_dir=None,
+            file_name=None,
         )
 
     # 2. Recover impulse response (using DataFrame wrapper)
