@@ -135,8 +135,8 @@ def run_calibration_iteration(
             edfa_baudrate=config.measurement.edfa_baudrate,
             edfa_output_power_dbm=config.measurement.edfa_output_power_dbm,
             ova_ip=config.measurement.ova_address,
-            folder_dir=output_dir,
-            file_name=f"iteration_{iteration}_spectrum",
+            # folder_dir=output_dir,
+            # file_name=f"iteration_{iteration}_spectrum",
         )
 
     # 2. Recover impulse response (using DataFrame wrapper)
@@ -350,7 +350,7 @@ def run_experiment(config_path: str):
             iterations.append(iter_data)
             prev_iter_data = iter_data
 
-            # plotter.update(iter_data)
+            plotter.update(iter_data)
 
             # Check convergence
             if check_convergence(iter_data, config):
