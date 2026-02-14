@@ -284,8 +284,10 @@ def run_experiment(config_path: str):
     target_taps = compute_target_taps(config)
 
     # Measure phi_init, and populate chip_state
-    logger.info("\nMeasuring initial MZI phases (φ_init)...")
-    phi_init_measurement(config, chip_state)
+
+    if config.calibration.use_two_step_init:
+        logger.info("\nMeasuring initial MZI phases (φ_init)...")
+        phi_init_measurement(config, chip_state)
 
     # Build MZI tree structure
     mzi_tree = config.signal_mzi_tree.tree
