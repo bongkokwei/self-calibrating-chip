@@ -170,6 +170,20 @@ def run_calibration_iteration(
         max_power=config.calibration.max_power_watts,
     )
 
+    # --- DEBUG: INSERT HERE ---
+    ps_phase_errors = all_errors["ps_phase_errors"]
+    current_ps_powers = chip_state.get_ps_applied_powers()
+    for tap_num in ps_phase_errors:
+        print(
+            f"Tap {tap_num}: "
+            f"target={all_errors['target_phases'][tap_num]:.3f}, "
+            f"measured={all_errors['measured_phases'][tap_num]:.3f}, "
+            f"error={ps_phase_errors[tap_num]:.3f}, "
+            f"current_P={current_ps_powers[tap_num]:.4f} W, "
+            f"new_P={new_ps_powers[tap_num]:.4f} W"
+        )
+    # --- END DEBUG ---
+
     # 6. Update chip state (in-place)
     chip_state.update_powers(
         new_mzi_powers=new_mzi_powers,
