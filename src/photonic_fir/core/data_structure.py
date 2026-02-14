@@ -599,7 +599,7 @@ class TargetFilter:
             # Hilbert transformer
             # Antisymmetric impulse response: h[n] = 2/(π*n) for odd n, 0 for even n
             amplitudes = np.where(
-                n % 2 == 0, 0.0, 2.0 / (np.pi * (n - (n_taps - 1) / 2))
+                n % 2 == 0, 1e-2, 2.0 / (np.pi * (n - (n_taps - 1) / 2))
             )
             phases = np.zeros(n_taps)
 
@@ -623,7 +623,9 @@ class TargetFilter:
             # Differentiator
             # h[n] = (-1)^n / n for n ≠ 0, h[0] = 0
             centre = (n_taps - 1) / 2
-            amplitudes = np.where(n == centre, 0.0, (-1) ** (n - centre) / (n - centre))
+            amplitudes = np.where(
+                n == centre, 1e-2, (-1) ** (n - centre) / (n - centre)
+            )
             phases = np.zeros(n_taps)
 
         else:
