@@ -69,6 +69,7 @@ from .utils.calibration_plotting import (
     plot_calibration_errors,
 )
 
+
 # Hardware imports are kept separate to avoid import errors
 # if hardware libraries aren't installed
 try:
@@ -81,11 +82,10 @@ try:
         set_mzi_voltage,
     )
 
-    from .calibration.measurement_pipeline import measure_and_detect_taps
-
     _HARDWARE_AVAILABLE = True
 except ImportError:
     _HARDWARE_AVAILABLE = False
+
 
 __all__ = [
     # Version info

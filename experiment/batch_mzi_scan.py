@@ -33,16 +33,11 @@ from luna_ova import LunaOVA
 
 from photonic_fir import (
     ExperimentConfig,
-    measure_spectrum,
-    recover_impulse_response_from_df,
-    detect_taps,
     tap_coeffs_to_power_splitting_ratios,
     power_splitting_ratio_to_mzi_phase,
     load_config,
     get_next_run_dir,
     setup_logging,
-    detect_taps_noise_tolerant,
-    measure_and_detect_taps,
 )
 
 # Import new utilities
@@ -54,6 +49,8 @@ from photonic_fir.utils.mzi_characterisation import (
 from photonic_fir.utils.mzi_plotting import (
     plot_mzi_characterisation,
 )
+
+from photonic_fir.calibration import measure_and_detect_taps
 
 
 @dataclass
