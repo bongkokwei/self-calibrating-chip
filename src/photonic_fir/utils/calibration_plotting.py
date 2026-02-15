@@ -15,12 +15,9 @@ import matplotlib.pyplot as plt
 from typing import List, Optional, Dict, Union
 
 from ..core import IterationData
+from .style_utils import apply_calibration_style
 
-# Light + transparent saves
-plt.style.use("calibration")
-
-# Dark mode
-plt.style.use(["calibration", "calibration_dark"])
+apply_calibration_style(dark=True)
 
 
 class CalibrationPlotter:

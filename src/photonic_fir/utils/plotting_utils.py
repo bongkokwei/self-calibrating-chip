@@ -10,6 +10,10 @@ import matplotlib.pyplot as plt
 from typing import Optional, Tuple
 from pathlib import Path
 
+from .style_utils import apply_calibration_style
+
+apply_calibration_style(dark=True)
+
 
 def plot_insertion_loss(
     df: pd.DataFrame,
