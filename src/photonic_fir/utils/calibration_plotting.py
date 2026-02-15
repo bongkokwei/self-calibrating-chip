@@ -74,7 +74,6 @@ class CalibrationPlotter:
         ax1.set_xlabel("Iteration", fontsize=11)
         ax1.set_ylabel("RMS Amplitude Error (dB)", fontsize=11)
         ax1.set_title("RMS Amplitude Error Convergence", fontsize=12, fontweight="bold")
-        ax1.grid(True, alpha=0.3)
 
         # -- Axes [0, 1]: RMS phase error --
         ax2 = self.axes[0, 1]
@@ -84,7 +83,6 @@ class CalibrationPlotter:
         ax2.set_xlabel("Iteration", fontsize=11)
         ax2.set_ylabel("RMS Phase Error (rad)", fontsize=11)
         ax2.set_title("RMS Phase Error Convergence", fontsize=12, fontweight="bold")
-        ax2.grid(True, alpha=0.3)
 
         # -- Axes [1, 0]: Individual tap amplitude errors --
         ax3 = self.axes[1, 0]
@@ -104,7 +102,6 @@ class CalibrationPlotter:
         ax3.set_xlabel("Iteration", fontsize=11)
         ax3.set_ylabel("Amplitude Error (dB)", fontsize=11)
         ax3.set_title("Individual Tap Amplitude Errors", fontsize=12, fontweight="bold")
-        ax3.grid(True, alpha=0.3)
         ax3.legend(loc="best", fontsize=8, ncol=2)
 
         # -- Axes [1, 1]: Individual tap phase errors --
@@ -125,7 +122,6 @@ class CalibrationPlotter:
         ax4.set_xlabel("Iteration", fontsize=11)
         ax4.set_ylabel("Phase Error (rad)", fontsize=11)
         ax4.set_title("Individual Tap Phase Errors", fontsize=12, fontweight="bold")
-        ax4.grid(True, alpha=0.3)
         ax4.legend(loc="best", fontsize=8, ncol=2)
 
         # Initial layout pass
@@ -223,7 +219,6 @@ class CalibrationPlotter:
         # Static axis furniture
         self.ax_mzi.set_xlabel("Iteration", fontsize=11)
         self.ax_mzi.set_ylabel("PSR Error (dB)", fontsize=11)
-        self.ax_mzi.grid(True, alpha=0.3)
 
         # Line objects created lazily in update_mzi_plot
         self._lines_mzi: Optional[List[plt.Line2D]] = None
@@ -356,14 +351,12 @@ def plot_calibration_errors(
     axes[0, 0].set_xlabel("Iteration")
     axes[0, 0].set_ylabel("RMS Amplitude Error (dB)")
     axes[0, 0].set_title("RMS Amplitude Error Convergence")
-    axes[0, 0].grid(True, alpha=0.3)
 
     # Plot 2: RMS phase error
     axes[0, 1].plot(iter_nums, rms_phase, "o-", color="#A23B72", linewidth=2)
     axes[0, 1].set_xlabel("Iteration")
     axes[0, 1].set_ylabel("RMS Phase Error (rad)")
     axes[0, 1].set_title("RMS Phase Error Convergence")
-    axes[0, 1].grid(True, alpha=0.3)
 
     # Plot 3: Individual tap amplitude errors
     for i in range(num_taps):
@@ -373,7 +366,6 @@ def plot_calibration_errors(
     axes[1, 0].set_xlabel("Iteration")
     axes[1, 0].set_ylabel("Amplitude Error (dB)")
     axes[1, 0].set_title("Individual Tap Amplitude Errors")
-    axes[1, 0].grid(True, alpha=0.3)
     axes[1, 0].legend(loc="best", fontsize=8)
 
     # Plot 4: Individual tap phase errors
@@ -384,7 +376,6 @@ def plot_calibration_errors(
     axes[1, 1].set_xlabel("Iteration")
     axes[1, 1].set_ylabel("Phase Error (rad)")
     axes[1, 1].set_title("Individual Tap Phase Errors")
-    axes[1, 1].grid(True, alpha=0.3)
     axes[1, 1].legend(loc="best", fontsize=8)
 
     plt.tight_layout()

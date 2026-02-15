@@ -15,6 +15,10 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict
 
+from .style_utils import apply_calibration_style
+
+apply_calibration_style(dark=True)
+
 
 def plot_mzi_characterisation(
     voltages: np.ndarray,
@@ -122,7 +126,6 @@ def plot_mzi_characterisation(
         fontsize=14,
         fontweight="bold",
     )
-    ax.grid(True, alpha=0.3, linestyle="--")
     ax.legend(fontsize=11, loc="best")
 
     plt.tight_layout()

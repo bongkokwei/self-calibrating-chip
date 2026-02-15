@@ -78,7 +78,6 @@ def plot_insertion_loss(
     # Plot insertion loss
     ax1.plot(df["wl_axis"], df["IL"])
     ax1.set_ylabel("Insertion Loss (dB)", fontsize=12)
-    ax1.grid(True, alpha=0.3)
 
     # Set title with optional timestamp
     plot_title = title
@@ -95,7 +94,6 @@ def plot_insertion_loss(
         ax2.plot(df["wl_axis"], df["LPD"])
         ax2.set_xlabel("Wavelength (nm)", fontsize=12)
         ax2.set_ylabel("Phase (rad)", fontsize=12)
-        ax2.grid(True, alpha=0.3)
 
         if wl_range is not None:
             ax2.set_xlim(wl_range)
@@ -175,7 +173,6 @@ def plot_impulse_response(
     ax.set_ylabel("Magnitude", fontsize=12)
     ax.set_title("Impulse Response (Kramers-Kronig Phase Recovery)", fontsize=14)
     ax.legend(fontsize=11)
-    ax.grid(True, alpha=0.3)
     ax.set_ylim(bottom=-40)
     ax.set_xlim(left=-(1 / 160e9) * 1e12, right=16 * (1 / 160e9) * 1e12)
 
