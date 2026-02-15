@@ -31,16 +31,7 @@ figure.titleweight  : normal
 # ---------------------------------------------------------------------------
 #  Dark colour palette  (brighter/lighter than base to pop on dark bg)
 # ---------------------------------------------------------------------------
-axes.prop_cycle : cycler('color', [
-    '4FC3F7',
-    'F48FB1',
-    'FFD54F',
-    'A5D6A7',
-    'CE93D8',
-    'FF8A65',
-    '80CBC4',
-    'EF9A9A'
-    ])
+axes.prop_cycle : cycler('color', ['4FC3F7', 'F48FB1', 'FFD54F', 'A5D6A7', 'CE93D8', 'FF8A65', '80CBC4', 'EF9A9A'])
 
 # ---------------------------------------------------------------------------
 #  Background & surface colours
