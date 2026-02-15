@@ -63,10 +63,10 @@ ytick.labelsize     : 10
 #  Grid
 # ---------------------------------------------------------------------------
 axes.grid           : True
-grid.color          : 21262D
-grid.linestyle      : --
-grid.linewidth      : 0.8
-grid.alpha          : 0.8
+grid.color          : 30363D      # noticeably lighter than the background
+grid.linestyle      : -
+grid.linewidth      : 0.5
+grid.alpha          : 0.4
 
 # ---------------------------------------------------------------------------
 #  Spines

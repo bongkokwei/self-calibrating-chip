@@ -43,10 +43,10 @@ ytick.major.width   : 0.8
 # ---------------------------------------------------------------------------
 #  Grid
 # ---------------------------------------------------------------------------
-axes.grid           : True
-grid.linestyle      : --
-grid.linewidth      : 0.6
-grid.alpha          : 0.35
+grid.color          : 0.85        # light grey
+grid.linestyle      : -           # solid, not dashed
+grid.linewidth      : 0.5
+grid.alpha          : 0.5
 
 # ---------------------------------------------------------------------------
 #  Lines & markers
