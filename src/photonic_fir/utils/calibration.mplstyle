@@ -1,0 +1,121 @@
+## =============================================================================
+##  calibration.mplstyle  –  base theme (light)
+##  Chain with calibration_dark.mplstyle for dark mode:
+##      plt.style.use(["calibration", "calibration_dark"])
+## =============================================================================
+
+# ---------------------------------------------------------------------------
+#  Font — Helvetica stack (falls back gracefully on Linux/Windows)
+# ---------------------------------------------------------------------------
+font.family         : sans-serif
+font.sans-serif     : Helvetica Neue, Helvetica, Arial, Liberation Sans, DejaVu Sans
+font.size           : 10
+
+text.usetex         : False    # set True only if LaTeX + Helvetica pkg installed
+
+# ---------------------------------------------------------------------------
+#  Axes labels & titles  (no bold)
+# ---------------------------------------------------------------------------
+axes.labelsize      : 11
+axes.labelweight    : normal
+axes.titlesize      : 12
+axes.titleweight    : normal
+axes.titlelocation  : left       # left-aligned titles feel more editorial
+axes.titlepad       : 8
+
+figure.titlesize    : 13
+figure.titleweight  : normal
+
+# ---------------------------------------------------------------------------
+#  Tick labels
+# ---------------------------------------------------------------------------
+xtick.labelsize     : 10
+ytick.labelsize     : 10
+xtick.direction     : out
+ytick.direction     : out
+xtick.major.size    : 4
+ytick.major.size    : 4
+xtick.minor.size    : 2
+ytick.minor.size    : 2
+xtick.major.width   : 0.8
+ytick.major.width   : 0.8
+
+# ---------------------------------------------------------------------------
+#  Grid
+# ---------------------------------------------------------------------------
+axes.grid           : True
+grid.linestyle      : --
+grid.linewidth      : 0.6
+grid.alpha          : 0.35
+
+# ---------------------------------------------------------------------------
+#  Lines & markers
+# ---------------------------------------------------------------------------
+lines.linewidth     : 1.8
+lines.markersize    : 5
+lines.markeredgewidth : 0.8
+
+# ---------------------------------------------------------------------------
+#  Legend
+# ---------------------------------------------------------------------------
+legend.fontsize     : 8
+legend.framealpha   : 0.85
+legend.edgecolor    : 0.8
+legend.borderpad    : 0.5
+legend.labelspacing : 0.4
+legend.handlelength : 1.5
+
+# ---------------------------------------------------------------------------
+#  Colour cycle  (8 distinct, colourblind-aware, works on light & dark bg)
+# ---------------------------------------------------------------------------
+axes.prop_cycle : cycler('color', [
+    '2E86AB',
+    'A23B72',
+    'F18F01',
+    'C73E1D',
+    '3B1F2B',
+    '44BBA4',
+    'E94F37',
+    '393E41'
+    ])
+
+# ---------------------------------------------------------------------------
+#  Figure & axes colours  (light mode)
+# ---------------------------------------------------------------------------
+figure.facecolor    : white
+axes.facecolor      : white
+axes.edgecolor      : 0.15
+axes.linewidth      : 0.8
+
+text.color          : 0.1
+axes.labelcolor     : 0.1
+xtick.color         : 0.2
+ytick.color         : 0.2
+
+# ---------------------------------------------------------------------------
+#  Spines — remove top & right for a cleaner look
+# ---------------------------------------------------------------------------
+axes.spines.top     : False
+axes.spines.right   : False
+
+# ---------------------------------------------------------------------------
+#  Figure layout
+# ---------------------------------------------------------------------------
+figure.figsize      : 12, 10
+figure.dpi          : 100
+figure.autolayout   : False
+figure.constrained_layout.use : True
+
+# ---------------------------------------------------------------------------
+#  Saving  — transparent by default so figures embed cleanly in reports
+# ---------------------------------------------------------------------------
+savefig.dpi         : 300
+savefig.transparent : True
+savefig.bbox        : tight
+savefig.pad_inches  : 0.05
+
+# ---------------------------------------------------------------------------
+#  Image
+# ---------------------------------------------------------------------------
+image.interpolation : antialiased
+image.cmap          : viridis

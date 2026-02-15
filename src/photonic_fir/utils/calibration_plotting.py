@@ -16,6 +16,12 @@ from typing import List, Optional, Dict, Union
 
 from ..core import IterationData
 
+# Light + transparent saves
+plt.style.use("calibration")
+
+# Dark mode
+plt.style.use(["calibration", "calibration_dark"])
+
 
 class CalibrationPlotter:
     """Live plotting for calibration convergence.

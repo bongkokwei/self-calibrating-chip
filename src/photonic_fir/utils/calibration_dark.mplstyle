@@ -1,0 +1,117 @@
+## =============================================================================
+##  calibration_dark.mplstyle  –  dark mode overlay
+##
+##  Usage (chain over base):
+##      plt.style.use(["calibration", "calibration_dark"])
+##
+##  Or standalone (includes all base overrides needed):
+##      plt.style.use("calibration_dark")
+## =============================================================================
+
+# ---------------------------------------------------------------------------
+#  Font — same Helvetica stack
+# ---------------------------------------------------------------------------
+font.family         : sans-serif
+font.sans-serif     : Helvetica Neue, Helvetica, Arial, Liberation Sans, DejaVu Sans
+font.size           : 10
+
+# ---------------------------------------------------------------------------
+#  Axes labels & titles  (no bold)
+# ---------------------------------------------------------------------------
+axes.labelsize      : 11
+axes.labelweight    : normal
+axes.titlesize      : 12
+axes.titleweight    : normal
+axes.titlelocation  : left
+axes.titlepad       : 8
+
+figure.titlesize    : 13
+figure.titleweight  : normal
+
+# ---------------------------------------------------------------------------
+#  Dark colour palette  (brighter/lighter than base to pop on dark bg)
+# ---------------------------------------------------------------------------
+axes.prop_cycle : cycler('color', [
+    '4FC3F7',
+    'F48FB1',
+    'FFD54F',
+    'A5D6A7',
+    'CE93D8',
+    'FF8A65',
+    '80CBC4',
+    'EF9A9A'
+    ])
+
+# ---------------------------------------------------------------------------
+#  Background & surface colours
+# ---------------------------------------------------------------------------
+figure.facecolor    : 0D1117       # deep charcoal — GitHub dark palette
+axes.facecolor      : 161B22       # slightly lighter surface
+axes.edgecolor      : 30363D
+
+# ---------------------------------------------------------------------------
+#  Text & tick colours
+# ---------------------------------------------------------------------------
+text.color          : E6EDF3
+axes.labelcolor     : E6EDF3
+xtick.color         : 8B949E
+ytick.color         : 8B949E
+xtick.labelsize     : 10
+ytick.labelsize     : 10
+
+# ---------------------------------------------------------------------------
+#  Grid
+# ---------------------------------------------------------------------------
+axes.grid           : True
+grid.color          : 21262D
+grid.linestyle      : --
+grid.linewidth      : 0.8
+grid.alpha          : 0.8
+
+# ---------------------------------------------------------------------------
+#  Spines
+# ---------------------------------------------------------------------------
+axes.spines.top     : False
+axes.spines.right   : False
+axes.linewidth      : 0.8
+
+# ---------------------------------------------------------------------------
+#  Lines & markers
+# ---------------------------------------------------------------------------
+lines.linewidth     : 1.8
+lines.markersize    : 5
+lines.markeredgewidth : 0.8
+
+# ---------------------------------------------------------------------------
+#  Legend
+# ---------------------------------------------------------------------------
+legend.fontsize     : 8
+legend.facecolor    : 161B22
+legend.edgecolor    : 30363D
+legend.framealpha   : 0.9
+legend.labelcolor   : E6EDF3
+legend.borderpad    : 0.5
+legend.labelspacing : 0.4
+legend.handlelength : 1.5
+
+# ---------------------------------------------------------------------------
+#  Figure layout
+# ---------------------------------------------------------------------------
+figure.figsize      : 12, 10
+figure.dpi          : 100
+figure.constrained_layout.use : True
+
+# ---------------------------------------------------------------------------
+#  Saving  — opaque by default in dark mode (transparent looks odd on white)
+# ---------------------------------------------------------------------------
+savefig.dpi         : 300
+savefig.transparent : False
+savefig.facecolor   : 0D1117
+savefig.bbox        : tight
+savefig.pad_inches  : 0.05
+
+# ---------------------------------------------------------------------------
+#  Image
+# ---------------------------------------------------------------------------
+image.interpolation : antialiased
+image.cmap          : plasma
