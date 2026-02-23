@@ -199,12 +199,6 @@ def run_calibration_iteration(
         max_power=config.calibration.max_power_watts,
     )
 
-    # # --- DEBUG: INSERT HERE ---
-    # current_ps_powers = chip_state.get_ps_applied_powers()
-    # pprint(all_errors, compact=False)
-    # pprint(current_ps_powers)
-    # # --- END DEBUG ---
-
     # 6. Update chip state (in-place)
     chip_state.update_powers(
         new_mzi_powers=new_mzi_powers,
@@ -334,10 +328,11 @@ def run_experiment(config_path: str):
 
     # Log calibration mode
     if config.calibration.sequential_mode:
+        _stability_window = getattr(config.calibration, "amplitude_stability_window", 3)
         logger.info(
             "\nCalibration mode: SEQUENTIAL "
-            f"(amplitude first, switch to phase when amp RMS < "
-            f"{config.calibration.amplitude_tolerance_db:.2f} dB)"
+            f"(amplitude first, switch to phase after {_stability_window} consecutive "
+            f"iterations with amp RMS < {config.calibration.amplitude_tolerance_db:.2f} dB)"
         )
     else:
         logger.info("\nCalibration mode: SIMULTANEOUS")
@@ -351,26 +346,55 @@ def run_experiment(config_path: str):
     converged = False
     prev_iter_data = None
 
+    _amp_stable_count = 0  # consecutive iters below amp threshold
+    _stability_window = getattr(config.calibration, "amplitude_stability_window", 3)
+    _FALLBACK_MULTIPLIER = 2.0  # re-engage amp_only if amp exceeds tol * this
+    _phase_mode_active = False  # latched True once stability window satisfied
+
     try:
 
         for i in range(config.calibration.max_iterations):
 
             # Determine calibration mode for this iteration
             if config.calibration.sequential_mode:
-                amp_converged = (
-                    prev_iter_data.rms_amplitude_error_db
-                    < config.calibration.amplitude_tolerance_db
-                    if prev_iter_data is not None
-                    else False
-                )
-                calibration_mode = "phase_only" if amp_converged else "amplitude_only"
                 if prev_iter_data is not None:
+                    amp_rms = prev_iter_data.rms_amplitude_error_db
+                    amp_tol = config.calibration.amplitude_tolerance_db
+
+                    # Track consecutive iterations below threshold
+                    if amp_rms < amp_tol:
+                        _amp_stable_count += 1
+                    else:
+                        _amp_stable_count = 0
+
+                    # Latch into phase_only once stability window is satisfied
+                    if _amp_stable_count >= _stability_window:
+                        _phase_mode_active = True
+
+                    # Fallback: if amplitude degrades significantly during phase_only,
+                    # return to amplitude_only to re-stabilise before continuing.
+                    # This handles PS→MZI cross-coupling that can disturb amplitude
+                    # after the loop switches to phase corrections.
+                    if _phase_mode_active and amp_rms > _FALLBACK_MULTIPLIER * amp_tol:
+                        logger.warning(
+                            f"  Sequential mode: amplitude degraded "
+                            f"({amp_rms:.2f} dB > {_FALLBACK_MULTIPLIER * amp_tol:.2f} dB), "
+                            f"falling back to amplitude_only"
+                        )
+                        _phase_mode_active = False
+                        _amp_stable_count = 0
+
+                    calibration_mode = (
+                        "phase_only" if _phase_mode_active else "amplitude_only"
+                    )
                     logger.info(
                         f"  Sequential mode: {calibration_mode} "
-                        f"(amp RMS = {prev_iter_data.rms_amplitude_error_db:.2f} dB "
-                        f"vs tol = {config.calibration.amplitude_tolerance_db:.2f} dB)"
+                        f"(amp RMS = {amp_rms:.2f} dB, "
+                        f"stable count = {_amp_stable_count}/{_stability_window}, "
+                        f"tol = {amp_tol:.2f} dB)"
                     )
                 else:
+                    calibration_mode = "amplitude_only"
                     logger.info("  Sequential mode: amplitude_only (first iteration)")
             else:
                 calibration_mode = "simultaneous"
