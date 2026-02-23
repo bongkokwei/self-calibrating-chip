@@ -148,7 +148,7 @@ def analyse_ps_crosstalk(
         Phases are in radians, wrapped to [−π, π].
     """
     tap_cols = _signal_tap_cols(n_signal_taps, first_tap)
-    ps_subdir = data_dir / f"ps_{swept_ps_tap}"
+    ps_subdir = data_dir / f"ps_tap{swept_ps_tap}"
 
     if not ps_subdir.exists():
         # Fall back to flat data_dir if the sub-directory doesn't exist
