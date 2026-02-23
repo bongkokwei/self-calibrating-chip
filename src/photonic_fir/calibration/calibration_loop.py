@@ -104,12 +104,26 @@ def run_calibration_iteration(
     config: ExperimentConfig,
     prev_iter_data: Optional[IterationData] = None,
     output_dir: str = "",
+    calibration_mode: str = "simultaneous",
 ) -> IterationData:
     """
     Run a single calibration iteration.
 
+    Args:
+        iteration: Current iteration number (1-indexed).
+        target_taps: Target complex tap coefficients, zero-padded to n_taps.
+        mzi_tree: MZI tree structure from build_mzi_tree_structure().
+        chip_state: Current chip state (modified in-place).
+        config: Experiment configuration.
+        prev_iter_data: Data from previous iteration (None for first iteration).
+        output_dir: Directory to save per-iteration plots.
+        calibration_mode: One of:
+            "simultaneous"   – update MZIs and phase shifters every iteration (default).
+            "amplitude_only" – MZI PSR corrections only; PS phase corrections zeroed.
+            "phase_only"     – PS phase corrections only; MZI PSR corrections zeroed.
+
     Returns:
-        IterationData containing measurements and errors for this iteration
+        IterationData containing measurements and errors for this iteration.
     """
     logger.info(f"\nIteration {iteration}:")
 
@@ -148,6 +162,20 @@ def run_calibration_iteration(
         mzi_phi_init=chip_state.get_mzi_init_phase(),
         ps_phi_init=chip_state.get_ps_init_phase(),
     )
+
+    # --- Sequential mode: suppress the inactive correction loop ---
+    if calibration_mode == "amplitude_only":
+        # Suppress PS phase corrections; MZI PSR + φ_init flip logic remain active
+        logger.info("  [amplitude_only] Suppressing PS phase corrections")
+        all_errors["ps_phase_errors"] = {k: 0.0 for k in all_errors["ps_phase_errors"]}
+    elif calibration_mode == "phase_only":
+        # Suppress MZI PSR corrections; PS phase corrections remain active
+        logger.info("  [phase_only] Suppressing MZI PSR and phase corrections")
+        all_errors["mzi_psr_errors"] = {k: 0.0 for k in all_errors["mzi_psr_errors"]}
+        all_errors["mzi_phase_errors"] = {
+            k: 0.0 for k in all_errors["mzi_phase_errors"]
+        }
+    # "simultaneous" → no changes to all_errors
 
     # 5. Calculate power adjustments
     (
@@ -291,7 +319,6 @@ def run_experiment(config_path: str):
     target_taps = compute_target_taps(config)
 
     # Measure phi_init, and populate chip_state
-
     if config.calibration.use_two_step_init:
         logger.info("\nMeasuring initial MZI phases (φ_init)...")
         phi_init_measurement(config, chip_state)
@@ -305,6 +332,16 @@ def run_experiment(config_path: str):
         num_mzis=len(config.signal_mzi_tree.mzi_ids),  # Number of MZIs
     )
 
+    # Log calibration mode
+    if config.calibration.sequential_mode:
+        logger.info(
+            "\nCalibration mode: SEQUENTIAL "
+            f"(amplitude first, switch to phase when amp RMS < "
+            f"{config.calibration.amplitude_tolerance_db:.2f} dB)"
+        )
+    else:
+        logger.info("\nCalibration mode: SIMULTANEOUS")
+
     # Run calibration iterations
     logger.info("\n" + "=" * 60)
     logger.info("Starting calibration...")
@@ -317,6 +354,27 @@ def run_experiment(config_path: str):
     try:
 
         for i in range(config.calibration.max_iterations):
+
+            # Determine calibration mode for this iteration
+            if config.calibration.sequential_mode:
+                amp_converged = (
+                    prev_iter_data.rms_amplitude_error_db
+                    < config.calibration.amplitude_tolerance_db
+                    if prev_iter_data is not None
+                    else False
+                )
+                calibration_mode = "phase_only" if amp_converged else "amplitude_only"
+                if prev_iter_data is not None:
+                    logger.info(
+                        f"  Sequential mode: {calibration_mode} "
+                        f"(amp RMS = {prev_iter_data.rms_amplitude_error_db:.2f} dB "
+                        f"vs tol = {config.calibration.amplitude_tolerance_db:.2f} dB)"
+                    )
+                else:
+                    logger.info("  Sequential mode: amplitude_only (first iteration)")
+            else:
+                calibration_mode = "simultaneous"
+
             # Run iteration
             iter_data = run_calibration_iteration(
                 iteration=i + 1,
@@ -326,6 +384,7 @@ def run_experiment(config_path: str):
                 config=config,
                 prev_iter_data=prev_iter_data,
                 output_dir=str(output_dir),
+                calibration_mode=calibration_mode,
             )
 
             iterations.append(iter_data)
@@ -389,5 +448,3 @@ if __name__ == "__main__":
     results = run_experiment(config_path)
 
     logger.info(f"\nExperiment complete!")
-    logger.info(f"Converged: {results.converged}")
-    logger.info(f"Final iteration: {results.final_iteration}")

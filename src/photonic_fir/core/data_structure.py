@@ -537,6 +537,11 @@ class CalibrationConfig:
     # Phase wrap handling
     phase_wrap_threshold_rad: float = np.pi / 2
 
+    # Sequential calibration mode
+    # If True: run amplitude-only loop until amp RMS < amplitude_tolerance_db,
+    # then switch to phase-only. If False (default): update both simultaneously.
+    sequential_mode: bool = False
+
     # Optional initial power settings
     initial_mzi_voltages: Optional[Dict[str, float]] = field(
         default_factory=lambda: {
