@@ -299,7 +299,7 @@ class PhaseShifterState:
 
     # Characterisation (measured or estimated)
     phi_init_rad: float = 0.0
-    p2pi_watts: float = 0.75
+    p2pi_watts: float = 0.56
 
     # Target value (for calibration)
     target_phase_rad: Optional[float] = None
@@ -334,7 +334,10 @@ class ChipState:
         if not self.mzis:
             mzi_ids = self.chip_params.get_all_mzi_ids()
             self.mzis = {
-                mzi_id: MZIState(mzi_id=mzi_id, p2pi_watts=self.chip_params.p2pi_watts)
+                mzi_id: MZIState(
+                    mzi_id=mzi_id,
+                    p2pi_watts=self.chip_params.p2pi_watts_mzi,
+                )
                 for mzi_id in mzi_ids
             }
 
@@ -342,7 +345,8 @@ class ChipState:
         if not self.phase_shifters:
             self.phase_shifters = {
                 tap_num: PhaseShifterState(
-                    tap_number=tap_num, p2pi_watts=self.chip_params.p2pi_watts
+                    tap_number=tap_num,
+                    p2pi_watts=self.chip_params.p2pi_watts_ps,
                 )
                 for tap_num in self.chip_params.signal_tap_numbers
             }
