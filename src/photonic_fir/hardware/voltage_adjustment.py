@@ -24,9 +24,8 @@ def calculate_power_adjustments(
     prev_mzi_psr_errors: Optional[Dict[str, float]],
     current_mzi_powers: Dict[str, float],
     current_ps_powers: Dict[int, float],
-    mzi_phi_init: Dict[str, float],
-    ps_phi_init: Dict[int, float],
-    power_for_2pi: float,
+    power_for_mzi_2pi: float,
+    power_for_ps_2pi: float,
     learning_rate: float,
     min_power: float,
     max_power: float,
@@ -100,7 +99,7 @@ def calculate_power_adjustments(
                 )
 
         # Calculate power adjustment: ΔP = (φ_err / 2π) × P_2π × LR
-        delta_P = ((phi_err) / (2 * np.pi)) * power_for_2pi * learning_rate
+        delta_P = ((phi_err) / (2 * np.pi)) * power_for_mzi_2pi * learning_rate
 
         # Get current power
         current_P = current_mzi_powers.get(mzi_id, 0.0)
@@ -108,7 +107,7 @@ def calculate_power_adjustments(
 
         # Rule (b): Handle negative power (2π phase wrapping)
         if new_P < 0:
-            new_P = new_P + power_for_2pi
+            new_P = new_P + power_for_mzi_2pi
             logger.info(
                 f"  MZI {mzi_id}: Wrapped negative power "
                 f"({current_P + delta_P:.4f} → {new_P:.4f} W)"
@@ -123,7 +122,7 @@ def calculate_power_adjustments(
     new_ps_powers = {}
     for tap_num, phi_err in ps_phase_errors.items():
         # Calculate power adjustment
-        delta_P = ((phi_err) / (2 * np.pi)) * power_for_2pi * learning_rate
+        delta_P = ((phi_err) / (2 * np.pi)) * power_for_ps_2pi * learning_rate
 
         # Get current power
         current_P = current_ps_powers.get(tap_num, 0.0)
@@ -131,14 +130,11 @@ def calculate_power_adjustments(
 
         # Handle negative power
         if new_P < 0:
-            new_P = new_P + power_for_2pi
-            logger.info(
-                f"  PS {tap_num}: Wrapped negative power "
-                f"({current_P + delta_P:.4f} → {new_P:.4f} W)"
-            )
-
-        # Clamp to power limits
-        new_P = np.clip(new_P, min_power, max_power)
+            new_P = new_P + power_for_ps_2pi
+            logger.info(f"  PS {tap_num}: lower phase-wrap → {new_P:.4f} W")
+        elif new_P > 1.25 * power_for_ps_2pi:
+            new_P = new_P - power_for_ps_2pi
+            logger.info(f"  PS {tap_num}: upper phase-wrap → {new_P:.4f} W")
 
         new_ps_powers[tap_num] = new_P
 
