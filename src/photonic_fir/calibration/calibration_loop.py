@@ -191,8 +191,6 @@ def run_calibration_iteration(
         ),
         current_mzi_powers=chip_state.get_mzi_applied_powers(),
         current_ps_powers=chip_state.get_ps_applied_powers(),
-        mzi_phi_init=chip_state.get_mzi_init_phase(),
-        ps_phi_init=chip_state.get_ps_init_phase(),
         power_for_mzi_2pi=config.chip.p2pi_watts_mzi,
         power_for_ps_2pi=config.chip.p2pi_watts_ps,
         learning_rate=config.calibration.learning_rate,
