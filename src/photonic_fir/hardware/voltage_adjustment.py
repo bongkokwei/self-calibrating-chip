@@ -19,18 +19,35 @@ from voltage_ctrl import VoltageController
 
 def adaptive_learning_rate(
     phi_err_rms: float,
-    prev_phi_err_rms: Optional[float],  # None on first iteration
+    prev_phi_err_rms: Optional[float],
     prev_lr: float,
-    lr_min: float = 0.2,
+    lr_min: float = 0.1,
     lr_max: float = 0.8,
     decay: float = 0.7,
     grow: float = 1.05,
+    phi_scale: float = np.pi,  # error at which LR reaches lr_max
 ) -> float:
-    """Rprop-style adaptive LR based on error trend."""
+    """Rprop-style adaptive LR with magnitude-based ceiling.
+
+    - Trend logic: decay if error worsened, grow if improving.
+    - Magnitude ceiling: cap LR proportional to |φ_err| / phi_scale,
+      so small residual errors automatically take smaller steps.
+    """
+    # --- Trend component (Rprop) ---
     if prev_phi_err_rms is None:
-        # No trend info yet — return unchanged
-        return float(np.clip(prev_lr, lr_min, lr_max))
-    lr = prev_lr * (decay if phi_err_rms > prev_phi_err_rms else grow)
+        lr_trend = prev_lr
+    elif phi_err_rms > prev_phi_err_rms:
+        lr_trend = prev_lr * decay
+    else:
+        lr_trend = prev_lr * grow
+
+    # --- Magnitude ceiling ---
+    # Scales 0 → 0 at zero error, lr_max at phi_scale (π rad)
+    lr_magnitude = lr_max * min(phi_err_rms / phi_scale, 1.0)
+
+    # Take the more conservative of the two
+    lr = min(lr_trend, lr_magnitude)
+
     return float(np.clip(lr, lr_min, lr_max))
 
 
