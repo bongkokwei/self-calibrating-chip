@@ -17,11 +17,29 @@ from ..core.data_structure import (
 from voltage_ctrl import VoltageController
 
 
+def adaptive_learning_rate(
+    phi_err_rms: float,
+    prev_phi_err_rms: Optional[float],  # None on first iteration
+    prev_lr: float,
+    lr_min: float = 0.2,
+    lr_max: float = 0.8,
+    decay: float = 0.7,
+    grow: float = 1.05,
+) -> float:
+    """Rprop-style adaptive LR based on error trend."""
+    if prev_phi_err_rms is None:
+        # No trend info yet — return unchanged
+        return float(np.clip(prev_lr, lr_min, lr_max))
+    lr = prev_lr * (decay if phi_err_rms > prev_phi_err_rms else grow)
+    return float(np.clip(lr, lr_min, lr_max))
+
+
 def calculate_power_adjustments(
     mzi_phase_errors: Dict[str, float],
     ps_phase_errors: Dict[int, float],
     mzi_psr_errors: Dict[str, float],
     prev_mzi_psr_errors: Optional[Dict[str, float]],
+    prev_ps_phase_errors: Optional[Dict[int, float]],
     current_mzi_powers: Dict[str, float],
     current_ps_powers: Dict[int, float],
     power_for_mzi_2pi: float,
@@ -121,8 +139,24 @@ def calculate_power_adjustments(
     # Process each phase shifter
     new_ps_powers = {}
     for tap_num, phi_err in ps_phase_errors.items():
+        # For PS, we can also apply adaptive learning rate based on error trend
+        prev_err = (
+            np.abs(prev_ps_phase_errors[tap_num])
+            if (prev_ps_phase_errors is not None and tap_num in prev_ps_phase_errors)
+            else None
+        )
+        adaptive_lr = adaptive_learning_rate(
+            phi_err_rms=np.abs(phi_err),
+            prev_phi_err_rms=prev_err,
+            prev_lr=learning_rate,
+        )
+        logger.info(
+            f"  PS {tap_num}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
+        )
         # Calculate power adjustment
-        delta_P = ((phi_err) / (2 * np.pi)) * power_for_ps_2pi * learning_rate
+        delta_P = (
+            ((phi_err) / (2 * np.pi)) * power_for_ps_2pi * adaptive_lr
+        )  # Use smaller LR for PS to prevent overshooting
 
         # Get current power
         current_P = current_ps_powers.get(tap_num, 0.0)

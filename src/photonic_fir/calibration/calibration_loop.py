@@ -189,6 +189,9 @@ def run_calibration_iteration(
         prev_mzi_psr_errors=(
             prev_iter_data.mzi_psr_errors_db if prev_iter_data else None
         ),
+        prev_ps_phase_errors=(
+            prev_iter_data.ps_phase_errors if prev_iter_data else None
+        ),
         current_mzi_powers=chip_state.get_mzi_applied_powers(),
         current_ps_powers=chip_state.get_ps_applied_powers(),
         power_for_mzi_2pi=config.chip.p2pi_watts_mzi,
@@ -214,6 +217,7 @@ def run_calibration_iteration(
         tap_phases_rad=np.angle(tap_coeffs),
         amplitude_errors_db=all_errors["tap_amplitude_errors"],
         phase_errors_rad=all_errors["tap_phase_errors"],
+        ps_phase_errors=all_errors["ps_phase_errors"],
         rms_amplitude_error_db=all_errors["rms_amplitude_error"],
         rms_phase_error_rad=all_errors["rms_phase_error"],
         mzi_psr_errors_db=all_errors["mzi_psr_errors"],
