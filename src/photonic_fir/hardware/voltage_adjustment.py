@@ -21,7 +21,7 @@ def adaptive_learning_rate(
     phi_err_rms: float,
     prev_phi_err_rms: Optional[float],
     prev_lr: float,
-    lr_min: float = 0.1,
+    lr_min: float = 1e-4,
     lr_max: float = 0.8,
     decay: float = 0.7,
     grow: float = 1.05,
