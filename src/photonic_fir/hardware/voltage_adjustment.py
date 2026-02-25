@@ -65,6 +65,7 @@ def calculate_power_adjustments(
     min_power: float,
     max_power: float,
     psr_increase_threshold_db: float = 0.2,
+    wrap_phase: bool = False,
 ) -> Tuple[Dict[str, float], Dict[str, float], Dict[str, float]]:
     """
     Calculate power adjustments for MZIs and phase shifters based on calibration errors.
@@ -134,6 +135,8 @@ def calculate_power_adjustments(
                 )
 
         # Calculate power adjustment: ΔP = (φ_err / 2π) × P_2π × LR
+        if wrap_phase:
+            phi_err = np.angle(np.exp(1j * phi_err))  # Wrap to [-π, π]
         delta_P = ((phi_err) / (2 * np.pi)) * power_for_mzi_2pi * learning_rate
 
         # Get current power
