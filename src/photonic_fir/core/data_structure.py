@@ -550,10 +550,21 @@ class CalibrationConfig:
     # Optional initial power settings
     initial_mzi_voltages: Optional[Dict[str, float]] = field(
         default_factory=lambda: {
-            "1-1": 8.0,
-            "2-1": 7.1,
-            "3-1": 7.1,
-            "4-1": 0.0,
+            "1-1": 11.0,
+            "2-1": 7.0,
+            "2-2": 0.0,
+            "3-1": 6.0,
+            "3-2": 13.0,
+            "3-3": 0.0,
+            "3-4": 0.0,
+            "4-1": 20.0,
+            "4-2": 9.0,
+            "4-3": 10.0,
+            "4-4": 11.0,
+            "4-5": 0.0,
+            "4-6": 0.0,
+            "4-7": 0.0,
+            "4-8": 0.0,
         }
     )
     initial_mzi_powers: Optional[Dict[str, float]] = None  # e.g. {"2-1": 0.3}
