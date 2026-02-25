@@ -827,6 +827,7 @@ class IterationData:
     max_phase_error_rad: float = field(init=False)
 
     mzi_psr_errors_db: Dict[str, float] = field(default_factory=dict)
+    ps_phase_errors: Dict[int, float] = field(default_factory=dict)
 
     def __post_init__(self):
         """Calculate derived metrics."""

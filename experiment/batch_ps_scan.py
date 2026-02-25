@@ -717,7 +717,7 @@ def main():
     print(f"Config file:       {CONFIG_PATH}")
     print(f"Chip:              {exp_config.chip.n_taps}-tap FIR filter")
     print(f"FSR:               {exp_config.chip.fsr_hz/1e9:.3f} GHz")
-    print(f"P_2π (chip):       {exp_config.chip.p2pi_watts*1000:.1f} mW")
+    print(f"P_2π (chip):       {exp_config.chip.p2pi_watts_ps*1000:.1f} mW")
     print(f"Heater resistance: {exp_config.chip.heater_resistance_ohm} Ω")
     print(f"{'='*70}\n")
 
