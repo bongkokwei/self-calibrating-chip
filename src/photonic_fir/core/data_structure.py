@@ -547,6 +547,27 @@ class CalibrationConfig:
     # then switch to phase-only. If False (default): update both simultaneously.
     sequential_mode: bool = False
 
+    # --- calculate_power_adjustments hyperparameters ---
+    # Minimum PSR improvement required to accept an MZI update (dB).
+    # Prevents noisy small steps from being applied.
+    psr_increase_threshold_db: float = 0.2
+    # Whether to apply modulo-2π wrapping when computing power corrections.
+    # Set True when crosstalk causes multi-cycle phase accumulation.
+    wrap_phase: bool = False
+
+    # --- adaptive_learning_rate hyperparameters ---
+    # Hard floor/ceiling on the adaptive learning rate
+    lr_min: float = 1e-4
+    lr_max: float = 0.8
+    # Rprop-style trend factors: multiply LR by decay when error worsens,
+    # by grow when error improves
+    lr_decay: float = 0.7
+    lr_grow: float = 1.05
+    # Error magnitude at which the LR ceiling reaches lr_max (rad).
+    # Errors below this scale the ceiling proportionally, so residual
+    # small errors automatically take smaller steps.
+    lr_phi_scale: float = float(np.pi)
+
     # Optional initial power settings
     initial_mzi_voltages: Optional[Dict[str, float]] = field(
         default_factory=lambda: {
@@ -569,6 +590,15 @@ class CalibrationConfig:
     )
     initial_mzi_powers: Optional[Dict[str, float]] = None  # e.g. {"2-1": 0.3}
     initial_ps_powers: Optional[Dict[int, float]] = None  # e.g. {9: 0.4}
+
+    def adaptive_lr_kwargs(self) -> dict:
+        return {
+            "lr_min": self.lr_min,
+            "lr_max": self.lr_max,
+            "decay": self.lr_decay,
+            "grow": self.lr_grow,
+            "phi_scale": self.lr_phi_scale,
+        }
 
 
 @dataclass
@@ -788,7 +818,7 @@ class ExperimentConfig:
     full_mzi_tree: MZITreeStructure = field(init=False)
 
     # Output paths
-    output_dir: str = "./measurements/calibration_results/"
+    output_dir: str = "./measurements/"
     save_iterations: bool = True
 
     def __post_init__(self):

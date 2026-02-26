@@ -66,6 +66,7 @@ def calculate_power_adjustments(
     max_power: float,
     psr_increase_threshold_db: float = 0.2,
     wrap_phase: bool = False,
+    **kwargs,
 ) -> Tuple[Dict[str, float], Dict[str, float], Dict[str, float]]:
     """
     Calculate power adjustments for MZIs and phase shifters based on calibration errors.
@@ -165,10 +166,21 @@ def calculate_power_adjustments(
             if (prev_ps_phase_errors is not None and tap_num in prev_ps_phase_errors)
             else None
         )
+
+        lr_min = kwargs.get("lr_min", 1e-4)
+        lr_max = kwargs.get("lr_max", 0.8)
+        decay = kwargs.get("decay", 0.7)
+        grow = kwargs.get("grow", 1.05)
+        phi_scale = kwargs.get("phi_scale", np.pi)
         adaptive_lr = adaptive_learning_rate(
             phi_err_rms=np.abs(phi_err),
             prev_phi_err_rms=prev_err,
             prev_lr=learning_rate,
+            lr_min=lr_min,
+            lr_max=lr_max,
+            decay=decay,
+            grow=grow,
+            phi_scale=phi_scale,
         )
         logger.info(
             f"  PS {tap_num}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"

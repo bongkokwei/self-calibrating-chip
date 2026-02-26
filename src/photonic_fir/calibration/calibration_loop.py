@@ -199,6 +199,9 @@ def run_calibration_iteration(
         learning_rate=config.calibration.learning_rate,
         min_power=config.calibration.min_power_watts,
         max_power=config.calibration.max_power_watts,
+        psr_increase_threshold_db=config.calibration.psr_increase_threshold_db,
+        wrap_phase=config.calibration.wrap_phase,
+        **config.calibration.adaptive_lr_kwargs(),
     )
 
     # 6. Update chip state (in-place)
