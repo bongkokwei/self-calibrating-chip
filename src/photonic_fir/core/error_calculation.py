@@ -88,7 +88,10 @@ def calculate_phase_shifter_errors(
         # phase_errors[tap_num] = np.angle(np.exp(1j * (target_phase - measured_phase)))
         # phase_errors[tap_num] = target_phase - measured_phase
 
-    return phase_errors
+    return {
+        tap_num: np.angle(np.exp(1j * phase_errors[tap_num]))
+        for tap_num in phase_errors.keys()
+    }
 
 
 def calculate_rms_errors(

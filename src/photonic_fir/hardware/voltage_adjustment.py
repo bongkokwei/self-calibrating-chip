@@ -136,8 +136,6 @@ def calculate_power_adjustments(
                 )
 
         # Calculate power adjustment: ΔP = (φ_err / 2π) × P_2π × LR
-        if wrap_phase:
-            phi_err = np.angle(np.exp(1j * phi_err))  # Wrap to [-π, π]
         delta_P = ((phi_err) / (2 * np.pi)) * power_for_mzi_2pi * learning_rate
 
         # Get current power
@@ -186,6 +184,9 @@ def calculate_power_adjustments(
             f"  PS {tap_num}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
         )
         # Calculate power adjustment
+        if wrap_phase:
+            phi_err = np.angle(np.exp(1j * phi_err))  # Wrap to [-π, π]
+
         delta_P = (
             ((phi_err) / (2 * np.pi)) * power_for_ps_2pi * adaptive_lr
         )  # Use smaller LR for PS to prevent overshooting
