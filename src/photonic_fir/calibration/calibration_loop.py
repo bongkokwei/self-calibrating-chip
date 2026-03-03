@@ -177,6 +177,23 @@ def run_calibration_iteration(
         }
     # "simultaneous" → no changes to all_errors
 
+    # Mask disabled PS taps (for crosstalk isolation experiments)
+    disabled_ps_taps = [
+        9,
+        10,
+        11,
+        # 12,
+        13,
+        14,
+        15,
+        16,
+    ]  # example: disable PS taps for signal taps 1-4
+    if disabled_ps_taps and False:
+        for tap in disabled_ps_taps:
+            if tap in all_errors["ps_phase_errors"]:
+                all_errors["ps_phase_errors"][tap] = 0.0
+        logger.info(f"  [crosstalk test] Disabled PS taps: {disabled_ps_taps}")
+
     # 5. Calculate power adjustments
     (
         new_mzi_powers,
