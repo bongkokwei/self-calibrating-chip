@@ -186,10 +186,16 @@ def calculate_power_adjustments(
         # Calculate power adjustment
         if wrap_phase:
             phi_err = np.angle(np.exp(1j * phi_err))  # Wrap to [-π, π]
+            logger.info(f"  PS {tap_num}: Wrapped φ_err to {phi_err:.4f} rad")
 
-        delta_P = (
-            ((phi_err) / (2 * np.pi)) * power_for_ps_2pi * adaptive_lr
-        )  # Use smaller LR for PS to prevent overshooting
+        # Debug: Show how adaptive LR differs from fixed LR
+        adaptive_learning = False
+        if adaptive_learning:
+            delta_P = (
+                ((phi_err) / (2 * np.pi)) * power_for_ps_2pi * adaptive_lr
+            )  # Use smaller LR for PS to prevent overshooting
+        else:
+            delta_P = ((phi_err) / (2 * np.pi)) * power_for_ps_2pi * learning_rate
 
         # Get current power
         current_P = current_ps_powers.get(tap_num, 0.0)
@@ -199,11 +205,10 @@ def calculate_power_adjustments(
         if new_P < 0:
             new_P = new_P + power_for_ps_2pi
             logger.info(f"  PS {tap_num}: lower phase-wrap → {new_P:.4f} W")
-        elif new_P > power_for_ps_2pi and False:
+        elif new_P > power_for_ps_2pi:
             new_P = new_P - power_for_ps_2pi
             logger.info(f"  PS {tap_num}: upper phase-wrap → {new_P:.4f} W")
 
-        new_P %= power_for_ps_2pi  # Ensure within 0 to P_2π range
         new_P = np.clip(new_P, min_power, max_power)
         new_ps_powers[tap_num] = new_P
 
