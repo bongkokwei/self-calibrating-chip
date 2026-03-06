@@ -136,8 +136,12 @@ def run_calibration_iteration(
         logger.info("\nApplying initial voltages to hardware...")
         apply_voltages_to_hardware(chip_state, config, voltage_ctrl)
 
+        logger.info(
+            f"\nWaiting for system to settle for {config.measurement.settling_time_sec} seconds..."
+        )
         time.sleep(config.measurement.settling_time_sec)
 
+        logger.info("\nMeasuring impulse response and detecting taps...")
         df, tap_times, tap_coeffs, time_ps, h_time = measure_and_detect_taps(
             config=config,
             folder_dir=None,
@@ -149,7 +153,7 @@ def run_calibration_iteration(
         h_time=h_time,
         tap_times_ps=tap_times,
         tap_coeffs=tap_coeffs,
-        save_fig=output_dir + f"/iteration_{iteration}_impulse_response.png",
+        # save_fig=output_dir + f"/iteration_{iteration}_impulse_response.png",
     )
 
     # 4. Calculate errors (only for signal processing taps)
@@ -178,16 +182,7 @@ def run_calibration_iteration(
     # "simultaneous" → no changes to all_errors
 
     # Mask disabled PS taps (for crosstalk isolation experiments)
-    disabled_ps_taps = [
-        9,
-        10,
-        11,
-        # 12,
-        13,
-        14,
-        15,
-        16,
-    ]  # example: disable PS taps for signal taps 1-4
+    disabled_ps_taps = None
     if disabled_ps_taps and False:
         for tap in disabled_ps_taps:
             if tap in all_errors["ps_phase_errors"]:
