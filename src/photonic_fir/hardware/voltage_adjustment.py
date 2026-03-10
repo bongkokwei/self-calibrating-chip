@@ -165,32 +165,33 @@ def calculate_power_adjustments(
             else None
         )
 
-        lr_min = kwargs.get("lr_min", 1e-4)
-        lr_max = kwargs.get("lr_max", 0.8)
-        decay = kwargs.get("decay", 0.7)
-        grow = kwargs.get("grow", 1.05)
-        phi_scale = kwargs.get("phi_scale", np.pi)
-        adaptive_lr = adaptive_learning_rate(
-            phi_err_rms=np.abs(phi_err),
-            prev_phi_err_rms=prev_err,
-            prev_lr=learning_rate,
-            lr_min=lr_min,
-            lr_max=lr_max,
-            decay=decay,
-            grow=grow,
-            phi_scale=phi_scale,
-        )
-        logger.info(
-            f"  PS {tap_num}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
-        )
         # Calculate power adjustment
         if wrap_phase:
             phi_err = np.angle(np.exp(1j * phi_err))  # Wrap to [-π, π]
             logger.info(f"  PS {tap_num}: Wrapped φ_err to {phi_err:.4f} rad")
 
-        # Debug: Show how adaptive LR differs from fixed LR
-        adaptive_learning = False
-        if adaptive_learning:
+        # Optionally apply adaptive learning rate based on error trend
+        if kwargs.get("adaptive_learning", False):
+            logger.info(
+                f"  PS {tap_num}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
+            )
+
+            lr_min = kwargs.get("lr_min", 1e-4)
+            lr_max = kwargs.get("lr_max", 0.8)
+            decay = kwargs.get("decay", 0.7)
+            grow = kwargs.get("grow", 1.05)
+            phi_scale = kwargs.get("phi_scale", np.pi)
+            adaptive_lr = adaptive_learning_rate(
+                phi_err_rms=np.abs(phi_err),
+                prev_phi_err_rms=prev_err,
+                prev_lr=learning_rate,
+                lr_min=lr_min,
+                lr_max=lr_max,
+                decay=decay,
+                grow=grow,
+                phi_scale=phi_scale,
+            )
+
             delta_P = (
                 ((phi_err) / (2 * np.pi)) * power_for_ps_2pi * adaptive_lr
             )  # Use smaller LR for PS to prevent overshooting

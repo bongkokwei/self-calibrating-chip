@@ -556,23 +556,22 @@ class CalibrationConfig:
     wrap_phase: bool = False
 
     # --- adaptive_learning_rate hyperparameters ---
-    # Hard floor/ceiling on the adaptive learning rate
     lr_min: float = 1e-4
     lr_max: float = 0.8
-    # Rprop-style trend factors: multiply LR by decay when error worsens,
-    # by grow when error improves
     lr_decay: float = 0.7
     lr_grow: float = 1.05
-    # Error magnitude at which the LR ceiling reaches lr_max (rad).
-    # Errors below this scale the ceiling proportionally, so residual
-    # small errors automatically take smaller steps.
     lr_phi_scale: float = float(np.pi)
+    adaptive_learning = bool = False
+
+    # ---Diaagnostic settings---
+    disable_taps_ps_taps = [10, 11, 12, 13, 14, 15, 16]
+    disable_taps = False
 
     # Optional initial power settings
     initial_mzi_voltages: Optional[Dict[str, float]] = field(
         default_factory=lambda: {
-            "1-1": 11.0,
-            "2-1": 7.0,
+            "1-1": 13.0,
+            "2-1": 6.0,
             "2-2": 0.0,
             "3-1": 6.0,
             "3-2": 13.0,
@@ -598,6 +597,7 @@ class CalibrationConfig:
             "decay": self.lr_decay,
             "grow": self.lr_grow,
             "phi_scale": self.lr_phi_scale,
+            "adaptive_learning": self.adaptive_learning,
         }
 
 
