@@ -182,7 +182,7 @@ def run_calibration_iteration(
     # "simultaneous" → no changes to all_errors
 
     # Mask disabled PS taps (for crosstalk isolation experiments)
-    disabled_ps_taps = None
+    disabled_ps_taps = [10, 11, 12, 13, 14, 15, 16]
     if disabled_ps_taps and False:
         for tap in disabled_ps_taps:
             if tap in all_errors["ps_phase_errors"]:
