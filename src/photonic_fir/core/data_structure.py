@@ -561,7 +561,7 @@ class CalibrationConfig:
     lr_decay: float = 0.7
     lr_grow: float = 1.05
     lr_phi_scale: float = float(np.pi)
-    adaptive_learning = bool = False
+    adaptive_learning: bool = False
 
     # ---Diaagnostic settings---
     disable_taps_ps_taps = [10, 11, 12, 13, 14, 15, 16]
