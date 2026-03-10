@@ -564,8 +564,10 @@ class CalibrationConfig:
     adaptive_learning: bool = False
 
     # ---Diaagnostic settings---
-    disable_taps_ps_taps = [10, 11, 12, 13, 14, 15, 16]
-    disable_taps = False
+    disable_taps_ps_taps: list[int] = field(
+        default_factory=lambda: [10, 11, 12, 13, 14, 15, 16]
+    )
+    disable_taps: bool = False
 
     # Optional initial power settings
     initial_mzi_voltages: Optional[Dict[str, float]] = field(
