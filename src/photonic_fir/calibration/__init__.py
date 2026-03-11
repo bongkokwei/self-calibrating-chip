@@ -27,6 +27,8 @@ from .calibration_loop import (
     load_config,
 )
 
+from .trim_spectrum_to_fsr import trim_spectrum_to_fsr
+
 __all__ = [
     "run_calibration_iteration",
     "check_convergence",
@@ -34,4 +36,5 @@ __all__ = [
     "save_results",
     "load_config",
     "measure_and_detect_taps",
+    "trim_spectrum_to_fsr",
 ]

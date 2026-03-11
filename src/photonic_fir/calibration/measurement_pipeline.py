@@ -7,6 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+from photonic_fir.calibration import trim_spectrum_to_fsr
 from photonic_fir.core import ExperimentConfig, ChipState
 
 try:
@@ -74,9 +75,17 @@ def measure_and_detect_taps(
     else:
         logger.info("Using provided DataFrame, skipping spectrum measurement.")
 
+    # 3. Trim spectrum to FSR
+    df_trimmed, trim_info = trim_spectrum_to_fsr(
+        df=df,
+        nominal_fsr_hz=config.chip.fsr_hz,
+        freq_col=config.measurement.frequency_col,
+        il_col=config.measurement.insertion_loss_col,
+    )
+
     # 2. Recover impulse response
     time_ps, h_time = recover_impulse_response_from_df(
-        df=df,
+        df=df_trimmed,
         fsr_hz=config.chip.fsr_hz,
         wavelength_col=config.measurement.wavelength_col,
         freq_col=config.measurement.frequency_col,
