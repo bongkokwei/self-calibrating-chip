@@ -79,6 +79,7 @@ def measure_and_detect_taps(
     df_trimmed, trim_info = trim_spectrum_to_fsr(
         df=df,
         nominal_fsr_hz=config.chip.fsr_hz,
+        n_fsr=10,
         freq_col=config.measurement.frequency_col,
         il_col=config.measurement.insertion_loss_col,
     )
