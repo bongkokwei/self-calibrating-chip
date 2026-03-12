@@ -574,6 +574,7 @@ class CalibrationConfig:
 
     # Number of FSRs to tile when performing KK recovery of impulse response
     num_tiles_for_kk_recovery: int = 20
+    tap_detection_window_width_ps: float = 3.0
 
     # Optional initial power settings
     initial_mzi_voltages: Optional[Dict[str, float]] = field(

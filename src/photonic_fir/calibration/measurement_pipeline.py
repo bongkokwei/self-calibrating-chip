@@ -104,6 +104,7 @@ def measure_and_detect_taps(
         fsr_hz=config.chip.fsr_hz,
         delay_step_s=config.chip.delay_step_s,
         n_taps=config.chip.n_taps,
+        window_width_ps=config.calibration.tap_detection_window_width_ps,
     )
 
     return df, tap_times, tap_coeffs, time_ps, h_time
