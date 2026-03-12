@@ -92,7 +92,6 @@ def measure_and_detect_taps(
     time_ps, h_time = recover_impulse_response_from_df(
         df=df_trimmed,
         fsr_hz=config.chip.fsr_hz,
-        wavelength_col=config.measurement.wavelength_col,
         freq_col=config.measurement.frequency_col,
         insertion_loss_col=config.measurement.insertion_loss_col,
     )

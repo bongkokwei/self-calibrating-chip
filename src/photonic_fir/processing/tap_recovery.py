@@ -87,11 +87,6 @@ def recover_impulse_response(
     time_s = np.fft.fftfreq(len(H_tiled), d=df_hz)
     time_ps = fftshift(time_s) * 1e12
 
-    # === Extract central period ===
-    n_time_per_tile = len(H_tiled) // n_tiles
-    start = (n_tiles // 2) * n_time_per_tile
-    time_ps = time_ps[start : start + n_time_per_tile]
-    h_time_shifted = h_time_shifted[start : start + n_time_per_tile]
 
     logger.info(f"Time resolution: {np.mean(np.diff(time_ps)):.3f} ps")
     logger.info(f"Time span: {time_ps[0]:.1f} to {time_ps[-1]:.1f} ps")
