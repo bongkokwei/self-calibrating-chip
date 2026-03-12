@@ -36,6 +36,7 @@ from photonic_fir.core.power_splitting_ratio import (
     tap_coeffs_to_power_splitting_ratios,
 )
 from photonic_fir.core.data_structure import ExperimentConfig, ChipState
+from .measurement_pipeline import measure_and_extract_tap_coeff
 
 
 @dataclass
@@ -96,52 +97,6 @@ def apply_single_mzi_perturbation(
     settling_time = config.chip.thermal_time_constant_s * 5  # 5 time constants
     logger.info(f"  Waiting {settling_time:.3f}s for thermal settling...")
     time.sleep(settling_time)
-
-
-def measure_and_extract_tap_coeff(
-    config: ExperimentConfig,
-) -> np.ndarray:
-    """
-    Measure spectrum and extract tap cofficient for all MZIs.
-
-    Args:
-        config: Experiment configuration
-
-    Returns:
-        Array of tap coefficients for all MZIs in order
-    """
-    # 1. Measure spectrum
-    df = measure_spectrum(
-        center_wavelength_nm=config.measurement.center_wavelength_nm,
-        wavelength_span_nm=config.measurement.wavelength_span_nm,
-        num_averages=config.measurement.num_averages,
-        edfa_port=config.measurement.edfa_port,
-        edfa_baudrate=config.measurement.edfa_baudrate,
-        edfa_output_power_dbm=config.measurement.edfa_output_power_dbm,
-        ova_ip=config.measurement.ova_address,
-        folder_dir=None,  # Don't save during characterisation
-        file_name=None,
-    )
-
-    # 2. Recover impulse response
-    time_ps, h_time = recover_impulse_response_from_df(
-        df=df,
-        fsr_hz=config.chip.fsr_hz,
-        wavelength_col=config.measurement.wavelength_col,
-        freq_col=config.measurement.frequency_col,
-        insertion_loss_col=config.measurement.insertion_loss_col,
-    )
-
-    # 3. Detect taps
-    tap_times, tap_coeffs = detect_taps_noise_tolerant(
-        time_ps=time_ps,
-        h_time=h_time,
-        fsr_hz=config.chip.fsr_hz,
-        delay_step_s=config.chip.delay_step_s,
-        n_taps=config.chip.n_taps,
-    )
-
-    return tap_coeffs
 
 
 def characterise_mzi_phi_init(

@@ -206,7 +206,7 @@ def calculate_power_adjustments(
         if new_P < 0:
             new_P = new_P + power_for_ps_2pi
             logger.info(f"  PS {tap_num}: lower phase-wrap → {new_P:.4f} W")
-        elif new_P > power_for_ps_2pi:
+        elif new_P > 1.25 * power_for_ps_2pi:
             new_P = new_P - power_for_ps_2pi
             logger.info(f"  PS {tap_num}: upper phase-wrap → {new_P:.4f} W")
 

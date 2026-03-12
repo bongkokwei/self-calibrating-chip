@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks, savgol_filter
 from typing import Tuple, Optional, Dict
+from pathlib import Path
 
 import logging
 
@@ -34,6 +35,8 @@ def trim_spectrum_to_fsr(
     smooth_window_ghz: float = 5.0,
     dip_prominence_db: float = 1.0,
     fsr_tolerance: float = 0.3,
+    folder_dir: Optional[str] = None,
+    file_name: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Dict]:
     """
     Trim measured spectrum to an integer number of FSRs using dip alignment.
@@ -65,11 +68,11 @@ def trim_spectrum_to_fsr(
     df_trimmed : pd.DataFrame
         Trimmed DataFrame with same columns as input.
     info : dict
-        Metadata: "measured_fsr_hz", "n_fsr", "n_dips", "dip_freqs_hz",
+        "measured_fsr_hz", "n_fsr", "n_dips", "dip_freqs_hz",
         "trim_start_hz", "trim_end_hz".
     """
     # --- Extract and sort by frequency ---
-    freq_hz = df[freq_col].values.copy() * 1e12  # THz -> Hz
+    freq_hz = df[freq_col].values.copy() * 1e12
     il_db = df[il_col].values.copy()
 
     sort_idx = np.argsort(freq_hz)
@@ -90,7 +93,7 @@ def trim_spectrum_to_fsr(
     il_smooth = savgol_filter(il_sorted, window_length=win, polyorder=3)
 
     # --- Detect dips (peaks in -IL) ---
-    min_dist = int(0.5 * nominal_fsr_hz / df_freq)
+    min_dist = int(0.7 * nominal_fsr_hz / df_freq)
     dip_idx, _ = find_peaks(-il_smooth, distance=min_dist, prominence=dip_prominence_db)
 
     if len(dip_idx) < 2:
@@ -104,38 +107,24 @@ def trim_spectrum_to_fsr(
 
     # --- Measure FSR from dip spacings ---
     spacings = np.diff(dip_freqs)
-
-    # Accept spacings within tolerance of nominal FSR
     valid = (spacings > nominal_fsr_hz * (1 - fsr_tolerance)) & (
         spacings < nominal_fsr_hz * (1 + fsr_tolerance)
     )
 
     if not np.any(valid):
-        # Check for half-FSR spacings (reference tap at 0.5T offset)
-        half_valid = (spacings > 0.5 * nominal_fsr_hz * (1 - fsr_tolerance)) & (
-            spacings < 0.5 * nominal_fsr_hz * (1 + fsr_tolerance)
-        )
-        if np.any(half_valid):
-            measured_fsr = 2.0 * np.median(spacings[half_valid])
-            dip_freqs = dip_freqs[::2]  # keep every other dip
-            logger.info(
-                f"Dips at ~FSR/2 spacing - using every other dip. "
-                f"Measured FSR: {measured_fsr/1e9:.2f} GHz"
-            )
-        else:
-            raise ValueError(
-                f"No dip spacings match nominal FSR ({nominal_fsr_hz/1e9:.1f} GHz). "
-                f"Found spacings: {spacings/1e9} GHz"
-            )
-    else:
-        measured_fsr = np.median(spacings[valid])
-        logger.info(
-            f"Measured FSR: {measured_fsr/1e9:.2f} GHz "
-            f"(from {np.sum(valid)} spacings, "
-            f"std {np.std(spacings[valid])/1e9:.2f} GHz)"
+        raise ValueError(
+            f"No dip spacings match nominal FSR ({nominal_fsr_hz/1e9:.1f} GHz "
+            f"+/-{fsr_tolerance*100:.0f}%). Found: {spacings/1e9} GHz"
         )
 
-    # --- Select trim boundaries ---
+    measured_fsr = np.median(spacings[valid])
+    logger.info(
+        f"Measured FSR: {measured_fsr/1e9:.2f} GHz "
+        f"(from {np.sum(valid)} spacings, "
+        f"std {np.std(spacings[valid])/1e9:.2f} GHz)"
+    )
+
+    # --- Select trim boundaries (centred) ---
     n_available = len(dip_freqs) - 1
     if n_fsr is None:
         n_fsr = n_available
@@ -144,7 +133,6 @@ def trim_spectrum_to_fsr(
     if n_fsr < 1:
         raise ValueError("Cannot form even 1 complete FSR from detected dips.")
 
-    # Centre the selection within available dips
     start_dip = (len(dip_freqs) - 1 - n_fsr) // 2
     end_dip = start_dip + n_fsr
 
@@ -160,6 +148,20 @@ def trim_spectrum_to_fsr(
         f"Trimmed: {len(df)} -> {len(df_trimmed)} pts, "
         f"{n_fsr} FSRs, span {(freq_end - freq_start)/1e9:.1f} GHz"
     )
+
+    # Create output directory if it doesn't exist
+    if folder_dir is not None:
+        output_dir = Path(folder_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save to CSV
+    if file_name is not None:
+        output_path = output_dir / f"{file_name}.csv"
+        df.to_csv(output_path, mode="a", index=False)
+
+        logger.info(f"Data saved to: {output_path}")
+        logger.info(f"Columns saved: {list(df.columns)}")
+        logger.info(f"Number of data points: {len(df)}")
 
     info = {
         "measured_fsr_hz": measured_fsr,

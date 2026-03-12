@@ -144,8 +144,12 @@ def run_calibration_iteration(
         logger.info("\nMeasuring impulse response and detecting taps...")
         df, tap_times, tap_coeffs, time_ps, h_time = measure_and_detect_taps(
             config=config,
-            folder_dir=None,
-            file_name=None,
+            folder_dir=output_dir,
+            file_name=(
+                f"iteration_{iteration}_spectrum"
+                if config.calibration.save_spectrum
+                else None
+            ),
         )
 
     plot_impulse_response(
@@ -153,7 +157,11 @@ def run_calibration_iteration(
         h_time=h_time,
         tap_times_ps=tap_times,
         tap_coeffs=tap_coeffs,
-        # save_fig=output_dir + f"/iteration_{iteration}_impulse_response.png",
+        save_fig=(
+            output_dir + f"/iteration_{iteration}_impulse_response.png"
+            if config.calibration.save_impulse_response
+            else None
+        ),
     )
 
     # 4. Calculate errors (only for signal processing taps)

@@ -23,6 +23,8 @@ from photonic_fir.processing import (
     detect_taps_noise_tolerant,
 )
 
+from .trim_spectrum_to_fsr import trim_spectrum_to_fsr
+
 
 def measure_and_detect_taps(
     config: ExperimentConfig,
@@ -69,8 +71,8 @@ def measure_and_detect_taps(
             edfa_baudrate=config.measurement.edfa_baudrate,
             edfa_output_power_dbm=config.measurement.edfa_output_power_dbm,
             ova_ip=config.measurement.ova_address,
-            folder_dir=folder_dir,
-            file_name=file_name,
+            folder_dir=None,
+            file_name=None,
         )
     else:
         logger.info("Using provided DataFrame, skipping spectrum measurement.")
@@ -79,9 +81,11 @@ def measure_and_detect_taps(
     df_trimmed, trim_info = trim_spectrum_to_fsr(
         df=df,
         nominal_fsr_hz=config.chip.fsr_hz,
-        n_fsr=10,
+        n_fsr=config.calibration.trim_n_fsr,
         freq_col=config.measurement.frequency_col,
         il_col=config.measurement.insertion_loss_col,
+        folder_dir=folder_dir,
+        file_name=file_name,
     )
 
     # 2. Recover impulse response

@@ -525,6 +525,9 @@ class CalibrationConfig:
     # Learning parameters
     learning_rate: float = 0.5
     max_iterations: int = 25
+    trim_n_fsr: int = (
+        10  # Number of FSRs to keep when trimming spectrum for impulse response recovery
+    )
 
     # Convergence criteria
     amplitude_tolerance_db: float = 0.5
@@ -591,6 +594,10 @@ class CalibrationConfig:
     )
     initial_mzi_powers: Optional[Dict[str, float]] = None  # e.g. {"2-1": 0.3}
     initial_ps_powers: Optional[Dict[int, float]] = None  # e.g. {9: 0.4}
+
+    # --- Save settings ---
+    save_spectrum: bool = True
+    save_impulse_response: bool = True
 
     def adaptive_lr_kwargs(self) -> dict:
         return {
