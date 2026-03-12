@@ -20,7 +20,7 @@ except ImportError:
 
 from photonic_fir.processing import (
     recover_impulse_response_from_df,
-    detect_taps_noise_tolerant,
+    detect_taps_windowed,
 )
 
 from .trim_spectrum_to_fsr import trim_spectrum_to_fsr
@@ -98,7 +98,7 @@ def measure_and_detect_taps(
     )
 
     # 3. Detect taps
-    tap_times, tap_coeffs = detect_taps_noise_tolerant(
+    tap_times, tap_coeffs = detect_taps_windowed(
         time_ps=time_ps,
         h_time=h_time,
         fsr_hz=config.chip.fsr_hz,
