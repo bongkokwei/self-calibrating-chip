@@ -128,32 +128,13 @@ def plot_impulse_response(
     save_fig: Optional[str] = None,
     show_plot: bool = False,
 ):
-    """
-    Plot impulse response magnitude with detected taps.
-
-    Parameters
-    ----------
-    time_ps : np.ndarray
-        Time axis in picoseconds
-    h_time : np.ndarray
-        Complex impulse response
-    tap_times_ps : np.ndarray, optional
-        Detected tap positions
-    tap_coeffs : np.ndarray, optional
-        Detected tap coefficients
-    save_fig : str, optional
-        File path to save the figure. If None, the figure is not saved.
-    show_plot : bool
-        Whether to display the plot interactively. Set to False when called
-        during calibration to avoid disrupting CalibrationPlotter's interactive mode.
-    """
     h_magnitude = np.abs(h_time)
 
     fig, ax = plt.subplots(1, 1, figsize=(12, 6))
 
     ax.plot(
         time_ps,
-        10 * np.log10(h_magnitude) + 1e-12,
+        10 * np.log10(h_magnitude + 1e-12),
         "b-",
         linewidth=1.5,
         label="Impulse Response",
@@ -166,13 +147,33 @@ def plot_impulse_response(
             10 * np.log10(tap_magnitudes),
             "ro",
             markersize=8,
-            label="Detected Taps",
+            label="Tap Magnitude",
         )
 
+        ax_phase = ax.twinx()
+        tap_phases = np.rad2deg(np.angle(tap_coeffs))
+        ax_phase.plot(
+            tap_times_ps,
+            tap_phases,
+            "r^",
+            markersize=8,
+            label="Tap Phase",
+        )
+        ax_phase.set_ylabel("Phase (°)", fontsize=12)
+        ax_phase.set_ylim(-180, 180)
+        ax_phase.set_yticks([-180, -90, 0, 90, 180])
+        ax_phase.axhline(0, color="gray", linewidth=0.8, linestyle="--")
+
+        # Combine legends from both axes
+        lines, labels = ax.get_legend_handles_labels()
+        lines_p, labels_p = ax_phase.get_legend_handles_labels()
+        ax.legend(lines + lines_p, labels + labels_p, fontsize=11)
+    else:
+        ax.legend(fontsize=11)
+
     ax.set_xlabel("Time (ps)", fontsize=12)
-    ax.set_ylabel("Magnitude", fontsize=12)
+    ax.set_ylabel("Magnitude (dB)", fontsize=12)
     ax.set_title("Impulse Response (Kramers-Kronig Phase Recovery)", fontsize=14)
-    ax.legend(fontsize=11)
     ax.set_ylim(bottom=-40)
     ax.set_xlim(left=-(1 / 160e9) * 1e12, right=16 * (1 / 160e9) * 1e12)
 
