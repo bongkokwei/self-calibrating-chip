@@ -572,6 +572,9 @@ class CalibrationConfig:
     )
     disable_taps: bool = False
 
+    # Number of FSRs to tile when performing KK recovery of impulse response
+    num_tiles_for_kk_recovery: int = 20
+
     # Optional initial power settings
     initial_mzi_voltages: Optional[Dict[str, float]] = field(
         default_factory=lambda: {

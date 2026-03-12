@@ -94,6 +94,7 @@ def measure_and_detect_taps(
         fsr_hz=config.chip.fsr_hz,
         freq_col=config.measurement.frequency_col,
         insertion_loss_col=config.measurement.insertion_loss_col,
+        n_tiles=config.calibration.num_tiles_for_kk_recovery,
     )
 
     # 3. Detect taps

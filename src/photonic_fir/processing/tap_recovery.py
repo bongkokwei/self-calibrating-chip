@@ -87,7 +87,6 @@ def recover_impulse_response(
     time_s = np.fft.fftfreq(len(H_tiled), d=df_hz)
     time_ps = fftshift(time_s) * 1e12
 
-
     logger.info(f"Time resolution: {np.mean(np.diff(time_ps)):.3f} ps")
     logger.info(f"Time span: {time_ps[0]:.1f} to {time_ps[-1]:.1f} ps")
 
@@ -99,6 +98,7 @@ def recover_impulse_response_from_df(
     fsr_hz: float,
     freq_col: str = "f_axis",
     insertion_loss_col: str = "IL",
+    n_tiles: int = 20,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Extract impulse response from measured insertion loss spectra (DataFrame interface).
@@ -136,6 +136,7 @@ def recover_impulse_response_from_df(
         freq_hz=freq_hz,
         insertion_loss_db=insertion_loss_db,
         fsr_hz=fsr_hz,
+        n_tiles=n_tiles,
     )
 
 
