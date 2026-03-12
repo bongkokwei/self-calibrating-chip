@@ -157,7 +157,7 @@ def trim_spectrum_to_fsr(
     # Save to CSV
     if file_name is not None:
         output_path = output_dir / f"{file_name}.csv"
-        df.to_csv(output_path, mode="a", index=False)
+        df_trimmed.to_csv(output_path, mode="w", index=False)
 
         logger.info(f"Data saved to: {output_path}")
         logger.info(f"Columns saved: {list(df.columns)}")
