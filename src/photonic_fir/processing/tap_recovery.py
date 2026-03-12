@@ -18,97 +18,8 @@ import matplotlib.pyplot as plt
 
 
 def kramers_kronig_phase_recovery(insertion_loss_db: np.ndarray) -> np.ndarray:
-    """
-    Recover phase response from insertion loss using Kramers-Kronig relationship.
-
-    For a minimum-phase system:
-    φ(ω) = -H[ln|H(ω)|]
-    where H[·] is the Hilbert transform.
-
-    Parameters
-    ----------
-    insertion_loss_db : np.ndarray
-        Insertion loss in dB
-
-    Returns
-    -------
-    phase_recovered_rad : np.ndarray
-        Recovered phase in radians
-
-    Notes
-    -----
-    The Kramers-Kronig relationship states that for a minimum-phase system:
-    In terms of insertion loss:
-    IL(dB) = 20*log10(|H(ω)|)
-    ln|H(ω)| = IL(dB) * ln(10) / 20
-    """
-    # Convert IL (dB) to natural log of amplitude
-    # IL = -20*log10|H| → ln|H| = -IL*ln(10)/20
-    ln_amplitude = insertion_loss_db * np.log(10) / 20  # ← Added negative sign
-
-    # Remove DC component for better Hilbert transform
-    ln_amplitude_mean = np.mean(ln_amplitude)
-    ln_amplitude_centered = ln_amplitude - ln_amplitude_mean
-
-    # Apply Hilbert transform to get phase
-    phase_recovered_rad = -np.imag(hilbert(ln_amplitude_centered))
-
-    return phase_recovered_rad
-
-
-def kramers_kronig_with_hanning(
-    insertion_loss_db: np.ndarray,
-    freq_hz: np.ndarray,
-    fsr_hz: float = 160e9,
-    bw_multi: int = 3,
-) -> np.ndarray:
-    """
-    KK recovery with Hanning window as per Xu lab note
-
-    Parameters
-    ----------
-    wavelength_nm : array
-        Wavelength axis
-    insertion_loss_db : array
-        Insertion loss in dB
-    fsr_hz : float
-        Free spectral range in Hz (160 GHz for 16-tap)
-    bw_multi : int
-        Window width multiplier (odd integer ≥ 1, recommend 3-5)
-    """
-
-    # Compute effective window width in samples
-    freq_span = np.max(freq_hz) - np.min(freq_hz)
-    samples_per_fsr = len(freq_hz) * (fsr_hz / freq_span)
-    window_width = int(samples_per_fsr * bw_multi)
-
-    # Ensure window doesn't exceed data length
-    window_width = min(window_width, len(insertion_loss_db))
-
-    # Convert to LINEAR insertion loss
-    il_linear = 10 ** (-insertion_loss_db / 10)
-
-    # Create Hanning window centred on data
-    hanning_window = np.hanning(window_width)
-
-    # Pad to match data length
-    pad_left = (len(il_linear) - window_width) // 2
-    pad_right = len(il_linear) - window_width - pad_left
-    hanning_full = np.pad(
-        hanning_window, (pad_left, pad_right), mode="constant", constant_values=0
-    )
-
-    # Apply window to linear IL
-    il_linear_windowed = il_linear * hanning_full
-
-    # Convert back to dB for KK (but keep windowed)
-    il_db_windowed = -10 * np.log10(il_linear_windowed + 1e-12)
-
-    # Standard KK recovery
-    ln_amplitude = il_db_windowed * np.log(10) / 20
-    ln_amplitude_centered = ln_amplitude - np.mean(ln_amplitude)
-    phase_recovered_rad = -np.imag(hilbert(ln_amplitude_centered))
-
+    ln_amplitude = insertion_loss_db * np.log(10) / 20
+    phase_recovered_rad = -np.imag(hilbert(ln_amplitude))
     return phase_recovered_rad
 
 
@@ -116,13 +27,13 @@ def recover_impulse_response(
     freq_hz: np.ndarray,
     insertion_loss_db: np.ndarray,
     fsr_hz: float,
-    zero_pad_factor: int = 4,
+    n_tiles: int = 20,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Extract impulse response from measured insertion loss spectra.
 
-    Implements the Kramers-Kronig phase recovery and inverse Fourier
-    transform approach from Xu et al. (2022).
+    Tiles the spectrum n_tiles times before KK phase recovery and IFFT
+    to suppress edge artefacts, then extracts the central period.
 
     Parameters
     ----------
@@ -132,9 +43,8 @@ def recover_impulse_response(
         Insertion loss data in dB
     fsr_hz : float
         Free spectral range in Hz
-    zero_pad_factor : int, optional
-        Zero-padding factor for improved time resolution (default: 4)
-        Set to 1 for no padding. Higher values give smoother plots.
+    n_tiles : int
+        Number of periodic tiles for Hilbert transform (default: 20)
 
     Returns
     -------
@@ -159,33 +69,29 @@ def recover_impulse_response(
 
     logger.info(f"Uniform df: {df_hz/1e6:.3f} MHz")
 
-    # Recover phase using Kramers-Kronig
-    logger.info("Recovering phase using Kramers-Kronig...")
-    phase_rad = kramers_kronig_phase_recovery(insertion_loss_uniform)
+    # === Tile spectrum for periodic Hilbert transform ===
+    il_tiled = np.tile(insertion_loss_uniform, n_tiles)
 
-    # Convert to complex transfer function
-    amplitude = 10 ** (insertion_loss_uniform / 20)
-    H_complex = amplitude * np.exp(1j * phase_rad)
+    logger.info(f"Recovering phase using Kramers-Kronig ({n_tiles}x tiled)...")
+    phase_tiled = kramers_kronig_phase_recovery(il_tiled)
 
-    # === Zero-pad for improved time resolution ===
-    if zero_pad_factor > 1:
-        n_padded = n_points * zero_pad_factor
-        H_padded = np.zeros(n_padded, dtype=complex)
-        H_padded[:n_points] = H_complex
-        logger.info(
-            f"Zero-padding: {n_points} → {n_padded} points ({zero_pad_factor}x)"
-        )
-    else:
-        H_padded = H_complex
-        n_padded = n_points
+    # Build tiled complex transfer function
+    amplitude_tiled = 10 ** (il_tiled / 20)
+    H_tiled = amplitude_tiled * np.exp(1j * phase_tiled)
 
     # IFFT to time domain
-    h_time = ifft(H_padded)
+    h_time = ifft(H_tiled)
     h_time_shifted = fftshift(h_time)
 
     # Time axis
-    time_s = np.fft.fftfreq(n_padded, d=df_hz)
+    time_s = np.fft.fftfreq(len(H_tiled), d=df_hz)
     time_ps = fftshift(time_s) * 1e12
+
+    # === Extract central period ===
+    n_time_per_tile = len(H_tiled) // n_tiles
+    start = (n_tiles // 2) * n_time_per_tile
+    time_ps = time_ps[start : start + n_time_per_tile]
+    h_time_shifted = h_time_shifted[start : start + n_time_per_tile]
 
     logger.info(f"Time resolution: {np.mean(np.diff(time_ps)):.3f} ps")
     logger.info(f"Time span: {time_ps[0]:.1f} to {time_ps[-1]:.1f} ps")
@@ -196,10 +102,8 @@ def recover_impulse_response(
 def recover_impulse_response_from_df(
     df: pd.DataFrame,
     fsr_hz: float,
-    wavelength_col: str = "wl_axis",
     freq_col: str = "f_axis",
     insertion_loss_col: str = "IL",
-    zero_pad_factor: int = 4,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Extract impulse response from measured insertion loss spectra (DataFrame interface).
@@ -237,7 +141,6 @@ def recover_impulse_response_from_df(
         freq_hz=freq_hz,
         insertion_loss_db=insertion_loss_db,
         fsr_hz=fsr_hz,
-        zero_pad_factor=zero_pad_factor,
     )
 
 
