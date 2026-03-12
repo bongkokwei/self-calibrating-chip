@@ -54,5 +54,5 @@ rename_plan.txt
 references/
 _deprecated
 .gitignore
-_delete_me.*
+_delete_me*.*
 *.bak_*
