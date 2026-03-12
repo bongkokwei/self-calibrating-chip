@@ -36,7 +36,7 @@ from photonic_fir.core.power_splitting_ratio import (
     tap_coeffs_to_power_splitting_ratios,
 )
 from photonic_fir.core.data_structure import ExperimentConfig, ChipState
-from .measurement_pipeline import measure_and_extract_tap_coeff
+from .measurement_pipeline import measure_and_detect_taps
 
 
 @dataclass
@@ -174,7 +174,7 @@ def characterise_mzi_phi_init(
         config=config,
         voltage_ctrl=voltage_ctrl,
     )
-    baseline_tap_coeffs = measure_and_extract_tap_coeff(config)
+    baseline_tap_coeffs = measure_and_detect_taps(config)
     psr_baseline = tap_coeffs_to_power_splitting_ratios(
         baseline_tap_coeffs,
         mzi_tree=mzi_tree,
@@ -208,7 +208,7 @@ def characterise_mzi_phi_init(
         )
 
         # Measure PSRs
-        tap_coeff_perturbed = measure_and_extract_tap_coeff(config)
+        tap_coeff_perturbed = measure_and_detect_taps(config)
         psr_perturbed = tap_coeffs_to_power_splitting_ratios(
             tap_coeff_perturbed,
             mzi_tree=mzi_tree,
