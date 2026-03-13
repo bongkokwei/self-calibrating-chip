@@ -144,7 +144,7 @@ def calculate_power_adjustments(
         # Optionally apply adaptive learning rate based on error trend
         if kwargs.get("adaptive_learning", False):
             logger.info(
-                f"  PS {tap_num}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
+                f"  MZI {mzi_id}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
             )
 
             adaptive_lr = adaptive_learning_rate(
