@@ -129,6 +129,7 @@ def calculate_power_adjustments(
     for mzi_id, phi_err in mzi_phase_errors.items():
         # Rule (a): Check if PSR error increased > threshold
         # Indicates we're on wrong side of symmetric MZI transfer function
+        prev_err = None
         if prev_mzi_psr_errors is not None:
             prev_err = prev_mzi_psr_errors.get(mzi_id, 0.0)
             curr_err = mzi_psr_errors.get(mzi_id, 0.0)
@@ -143,9 +144,6 @@ def calculate_power_adjustments(
 
         # Optionally apply adaptive learning rate based on error trend
         if kwargs.get("adaptive_learning", False):
-            logger.info(
-                f"  MZI {mzi_id}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
-            )
 
             adaptive_lr = adaptive_learning_rate(
                 phi_err_rms=np.abs(phi_err),
@@ -156,6 +154,10 @@ def calculate_power_adjustments(
                 decay=decay,
                 grow=grow,
                 phi_scale=phi_scale,
+            )
+
+            logger.info(
+                f"  MZI {mzi_id}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
             )
 
             delta_P = (
@@ -198,9 +200,6 @@ def calculate_power_adjustments(
 
         # Optionally apply adaptive learning rate based on error trend
         if kwargs.get("adaptive_learning", False):
-            logger.info(
-                f"  PS {tap_num}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
-            )
 
             adaptive_lr = adaptive_learning_rate(
                 phi_err_rms=np.abs(phi_err),
@@ -211,6 +210,10 @@ def calculate_power_adjustments(
                 decay=decay,
                 grow=grow,
                 phi_scale=phi_scale,
+            )
+
+            logger.info(
+                f"  PS {tap_num}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
             )
 
             delta_P = (
