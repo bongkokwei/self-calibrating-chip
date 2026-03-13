@@ -119,6 +119,12 @@ def calculate_power_adjustments(
     new_mzi_powers = {}
     phi_init_adjustments = {}
 
+    lr_min = kwargs.get("lr_min", 1e-4)
+    lr_max = kwargs.get("lr_max", 0.8)
+    decay = kwargs.get("decay", 0.7)
+    grow = kwargs.get("grow", 1.05)
+    phi_scale = kwargs.get("phi_scale", np.pi)
+
     # Process each MZI
     for mzi_id, phi_err in mzi_phase_errors.items():
         # Rule (a): Check if PSR error increased > threshold
@@ -135,8 +141,28 @@ def calculate_power_adjustments(
                     f"({prev_err:.2f} → {curr_err:.2f} dB), adding π to φ_init"
                 )
 
-        # Calculate power adjustment: ΔP = (φ_err / 2π) × P_2π × LR
-        delta_P = ((phi_err) / (2 * np.pi)) * power_for_mzi_2pi * learning_rate
+        # Optionally apply adaptive learning rate based on error trend
+        if kwargs.get("adaptive_learning", False):
+            logger.info(
+                f"  PS {tap_num}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
+            )
+
+            adaptive_lr = adaptive_learning_rate(
+                phi_err_rms=np.abs(phi_err),
+                prev_phi_err_rms=prev_err,
+                prev_lr=learning_rate,
+                lr_min=lr_min,
+                lr_max=lr_max,
+                decay=decay,
+                grow=grow,
+                phi_scale=phi_scale,
+            )
+
+            delta_P = (
+                ((phi_err) / (2 * np.pi)) * power_for_mzi_2pi * adaptive_lr
+            )  # Use smaller LR for PS to prevent overshooting
+        else:
+            delta_P = ((phi_err) / (2 * np.pi)) * power_for_mzi_2pi * learning_rate
 
         # Get current power
         current_P = current_mzi_powers.get(mzi_id, 0.0)
@@ -176,11 +202,6 @@ def calculate_power_adjustments(
                 f"  PS {tap_num}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
             )
 
-            lr_min = kwargs.get("lr_min", 1e-4)
-            lr_max = kwargs.get("lr_max", 0.8)
-            decay = kwargs.get("decay", 0.7)
-            grow = kwargs.get("grow", 1.05)
-            phi_scale = kwargs.get("phi_scale", np.pi)
             adaptive_lr = adaptive_learning_rate(
                 phi_err_rms=np.abs(phi_err),
                 prev_phi_err_rms=prev_err,
