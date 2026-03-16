@@ -26,7 +26,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def trim_spectrum_to_fsr(
+def trim_spectrum_to_fsr_with_dips(
     df: pd.DataFrame,
     nominal_fsr_hz: float = 160e9,
     n_fsr: Optional[int] = None,
@@ -172,4 +172,41 @@ def trim_spectrum_to_fsr(
         "trim_end_hz": freq_end,
     }
 
+    return df_trimmed, info
+
+def trim_spectrum_to_fsr(
+    df: pd.DataFrame,
+    fsr_hz: float,
+    n_fsr: int = 1,
+    freq_col: str = "f_axis",
+    il_col: str = "IL",
+) -> Tuple[pd.DataFrame, dict]:
+    freq_hz = df[freq_col].values * 1e12
+    sort_idx = np.argsort(freq_hz)
+    freq_hz = freq_hz[sort_idx]
+    df_sorted = df.iloc[sort_idx].reset_index(drop=True)
+
+    df_hz = np.median(np.diff(freq_hz))
+    n_points = round(fsr_hz / df_hz) * n_fsr       # <-- scaled by n_fsr
+
+    centre_idx = len(freq_hz) // 2
+    i_start = centre_idx - n_points // 2
+    i_end = i_start + n_points
+
+    if i_start < 0 or i_end > len(freq_hz):
+        raise ValueError(
+            f"Requested span ({n_fsr} FSR = {n_fsr * fsr_hz/1e9:.1f} GHz) "
+            f"exceeds measured span ({(freq_hz[-1]-freq_hz[0])/1e9:.1f} GHz)."
+        )
+
+    df_trimmed = df_sorted.iloc[i_start:i_end].copy().reset_index(drop=True)
+
+    info = {
+        "fsr_hz": fsr_hz,
+        "n_fsr": n_fsr,
+        "df_hz": df_hz,
+        "n_points": n_points,
+        "trim_start_hz": freq_hz[i_start],
+        "trim_end_hz": freq_hz[i_end - 1],
+    }
     return df_trimmed, info

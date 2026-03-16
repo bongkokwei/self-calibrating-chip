@@ -80,12 +80,10 @@ def measure_and_detect_taps(
     # 3. Trim spectrum to FSR
     df_trimmed, trim_info = trim_spectrum_to_fsr(
         df=df,
-        nominal_fsr_hz=config.chip.fsr_hz,
+        fsr_hz=config.chip.fsr_hz,
         n_fsr=config.calibration.trim_n_fsr,
         freq_col=config.measurement.frequency_col,
         il_col=config.measurement.insertion_loss_col,
-        folder_dir=folder_dir,
-        file_name=file_name,
     )
 
     # 2. Recover impulse response
