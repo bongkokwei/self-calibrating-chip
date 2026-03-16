@@ -125,7 +125,10 @@ class CalibrationPlotter:
         ax4.legend(loc="best", fontsize=8, ncol=2)
 
         # Initial layout pass
-        self.fig.tight_layout()
+        plt.tight_layout()
+        plt.show(block=False)
+        plt.pause(0.01)  # lets the window manager realise the window
+        self._move_to_top_right(self.fig)
 
         # Turn on interactive mode and show
         plt.ion()
@@ -275,6 +278,25 @@ class CalibrationPlotter:
         # Non-blocking redraw
         self.fig_mzi.canvas.draw_idle()
         self.fig_mzi.canvas.flush_events()
+
+    @staticmethod
+    def _move_to_top_right(fig) -> None:
+        """Position figure at the top-right corner of the screen (best-effort)."""
+        import matplotlib
+
+        try:
+            mgr = fig.canvas.manager
+            fig_w = int(fig.get_figwidth() * fig.dpi)
+            backend = matplotlib.get_backend().lower()
+            if "qt" in backend:
+                screen = mgr.window.screen().availableGeometry()
+                mgr.window.move(screen.width() - fig_w, 0)
+            elif "tk" in backend:
+                mgr.window.update_idletasks()
+                sw = mgr.window.winfo_screenwidth()
+                mgr.window.wm_geometry(f"+{sw - fig_w}+0")
+        except Exception:
+            pass  # silently ignore if backend doesn't support window positioning
 
     # ------------------------------------------------------------------ #
     #  Save / close                                                        #
