@@ -1,11 +1,27 @@
+"""
+voltage_adjustment.py  — updated MZI adaptive learning
+========================================================
+
+Replaces the Rprop adaptive_learning_rate call in the MZI loop with the
+MATLAB-faithful approach from kk_shaping_main.m:
+
+  - slope_factor (+1 / -1): reset to +1 each iteration; flip if PSR error
+    diverged by > sr_diverge_threshold dB vs the previous iteration.
+    MATLAB compares to 2 iterations ago (floor(1/amp_lrt)=2 for lrt=0.5).
+    We use 1-step here since only one iteration of history is held; pass
+    prev2_mzi_psr_errors via kwargs to enable the full 2-step check.
+  - Dead zone: skip update entirely if |PSR err| < mzi_dead_zone_db (0.1 dB).
+  - Learning rate: plain scalar — no trend/magnitude Rprop logic for MZIs.
+
+PS adaptive learning (Rprop) is unchanged.
+"""
+
 from typing import Dict, Optional, Tuple
 import numpy as np
+import logging
 import time
 
-import logging
-
 logger = logging.getLogger(__name__)
-
 
 from ..core.data_structure import (
     ChipState,
@@ -13,8 +29,12 @@ from ..core.data_structure import (
     PhaseShifterState,
     ExperimentConfig,
 )
-
 from voltage_ctrl import VoltageController
+
+
+# ---------------------------------------------------------------------------
+# PS-only Rprop helper (kept for phase-shifter loop)
+# ---------------------------------------------------------------------------
 
 
 def adaptive_learning_rate(
@@ -25,15 +45,9 @@ def adaptive_learning_rate(
     lr_max: float = 0.8,
     decay: float = 0.7,
     grow: float = 1.05,
-    phi_scale: float = np.pi,  # error at which LR reaches lr_max
+    phi_scale: float = np.pi,
 ) -> float:
-    """Rprop-style adaptive LR with magnitude-based ceiling.
-
-    - Trend logic: decay if error worsened, grow if improving.
-    - Magnitude ceiling: cap LR proportional to |φ_err| / phi_scale,
-      so small residual errors automatically take smaller steps.
-    """
-    # --- Trend component (Rprop) ---
+    """Rprop-style adaptive LR with magnitude-based ceiling (used for PS only)."""
     if prev_phi_err_rms is None:
         lr_trend = prev_lr
     elif phi_err_rms > prev_phi_err_rms:
@@ -41,14 +55,14 @@ def adaptive_learning_rate(
     else:
         lr_trend = prev_lr * grow
 
-    # --- Magnitude ceiling ---
-    # Scales 0 → 0 at zero error, lr_max at phi_scale (π rad)
     lr_magnitude = lr_max * min(phi_err_rms / phi_scale, 1.0)
-
-    # Take the more conservative of the two
     lr = min(lr_trend, lr_magnitude)
-
     return float(np.clip(lr, lr_min, lr_max))
+
+
+# ---------------------------------------------------------------------------
+# Main power-adjustment function
+# ---------------------------------------------------------------------------
 
 
 def calculate_power_adjustments(
@@ -69,138 +83,118 @@ def calculate_power_adjustments(
     **kwargs,
 ) -> Tuple[Dict[str, float], Dict[str, float], Dict[str, float]]:
     """
-    Calculate power adjustments for MZIs and phase shifters based on calibration errors.
+    Calculate power adjustments for MZIs and phase shifters.
 
-    Implements the algorithm from Xu et al. (2022) supplement:
-        ΔP = (φ_err / 2π) × P_2π × LR
+    MZI update — MATLAB kk_shaping_main.m style:
+        ΔP = (φ_err / 2π) × P_2π × slope_factor × LR
+        slope_factor = −1 if |PSR_err(n)| − |PSR_err(n−k)| > sr_diverge_threshold
+        skip update if |PSR_err| < mzi_dead_zone_db
 
-    With convergence rules:
-        (a) If PSR_err(m,n) - PSR_err(m,n-1) > threshold, add π to φ_init
-        (b) If P < 0, add P_2π (handle 2π phase wrapping)
+    PS update — Rprop adaptive LR (unchanged):
+        ΔP = (φ_err / 2π) × P_2π × adaptive_LR
 
-    Args:
-        mzi_phase_errors: Phase errors for each MZI in radians, e.g. {"2-1": 0.3, "3-3": -0.1}
-        ps_phase_errors: Phase errors for each phase shifter in radians, e.g. {9: 0.2, 10: -0.15}
-        mzi_psr_errors: Current power splitting ratio errors in dB, e.g. {"2-1": 1.5}
-        prev_mzi_psr_errors: Previous iteration's PSR errors (None for first iteration)
-        current_mzi_powers: Current applied powers for MZIs in watts, e.g. {"2-1": 0.3}
-        current_ps_powers: Current applied powers for phase shifters in watts, e.g. {9: 0.4}
-        mzi_phi_init: Initial phase offsets for MZIs in radians, e.g. {"2-1": -1.2}
-        ps_phi_init: Initial phase offsets for phase shifters in radians, e.g. {9: 0.5}
-        power_for_2pi: Nominal power for 2π phase shift (watts), typically 0.75
-        learning_rate: Learning rate for power updates, typically 0.5
-        min_power: Minimum allowed power (watts), typically 0.0
-        max_power: Maximum allowed power (watts), typically 1.0
-        psr_increase_threshold_db: PSR error increase threshold for rule (a), default 0.2 dB
-
-    Returns:
-        Tuple of (new_mzi_powers, new_ps_powers, phi_init_adjustments):
-            - new_mzi_powers: Updated MZI powers in watts, e.g. {"2-1": 0.35}
-            - new_ps_powers: Updated phase shifter powers in watts, e.g. {9: 0.42}
-            - phi_init_adjustments: Phase offset corrections applied, e.g. {"2-1": π}
-
-    Example:
-        >>> mzi_phase_errors = {"2-1": 0.3, "3-3": -0.2}
-        >>> ps_phase_errors = {9: 0.1, 10: -0.15}
-        >>> mzi_psr_errors = {"2-1": 1.2, "3-3": -0.5}
-        >>> prev_psr_errors = {"2-1": 0.8, "3-3": -0.3}  # PSR error increased for 2-1
-        >>> current_mzi_powers = {"2-1": 0.3, "3-3": 0.4}
-        >>> current_ps_powers = {9: 0.35, 10: 0.40}
-        >>> mzi_phi_init = {"2-1": 0.0, "3-3": 0.0}
-        >>> ps_phi_init = {9: 0.0, 10: 0.0}
-        >>>
-        >>> new_mzi, new_ps, adjusts = calculate_power_adjustments(
-        ...     mzi_phase_errors, ps_phase_errors, mzi_psr_errors, prev_psr_errors,
-        ...     current_mzi_powers, current_ps_powers, mzi_phi_init, ps_phi_init,
-        ...     power_for_2pi=0.75, learning_rate=0.5, min_power=0.0, max_power=1.0
-        ... )
+    Convergence rules (both):
+        (a) If PSR_err(m,n) − PSR_err(m,n−1) > psr_increase_threshold_db → add π to φ_init
+        (b) If P < 0 → P += P_2π
     """
 
-    new_mzi_powers = {}
-    phi_init_adjustments = {}
+    # --- MZI kwargs ---
+    sr_diverge_threshold = kwargs.get("sr_diverge_threshold", 5.0)  # dB; MATLAB uses 5
+    mzi_dead_zone_db = kwargs.get("mzi_dead_zone_db", 0.1)  # dB; MATLAB uses 0.1
+    # Optional 2-step PSR history for MATLAB-exact slope check (floor(1/0.5)=2)
+    prev2_mzi_psr_errors: Optional[Dict[str, float]] = kwargs.get(
+        "prev2_mzi_psr_errors", None
+    )
 
+    # --- PS kwargs (Rprop) ---
     lr_min = kwargs.get("lr_min", 1e-4)
     lr_max = kwargs.get("lr_max", 0.8)
     decay = kwargs.get("decay", 0.7)
     grow = kwargs.get("grow", 1.05)
     phi_scale = kwargs.get("phi_scale", np.pi)
 
-    # Process each MZI
-    for mzi_id, phi_err in mzi_phase_errors.items():
-        # Rule (a): Check if PSR error increased > threshold
-        # Indicates we're on wrong side of symmetric MZI transfer function
-        prev_err = None
-        if prev_mzi_psr_errors is not None:
-            prev_err = prev_mzi_psr_errors.get(mzi_id, 0.0)
-            curr_err = mzi_psr_errors.get(mzi_id, 0.0)
+    new_mzi_powers: Dict[str, float] = {}
+    phi_init_adjustments: Dict[str, float] = {}
 
-            if curr_err - prev_err > psr_increase_threshold_db:
-                # Add π to initial phase to flip to correct branch
+    # -----------------------------------------------------------------------
+    # MZIs
+    # -----------------------------------------------------------------------
+    for mzi_id, phi_err in mzi_phase_errors.items():
+        curr_psr_err = mzi_psr_errors.get(mzi_id, 0.0)
+
+        # Rule (a): PSR error increased → flip φ_init branch (Xu et al. paper)
+        if prev_mzi_psr_errors is not None:
+            prev_psr_err = prev_mzi_psr_errors.get(mzi_id, 0.0)
+            if curr_psr_err - prev_psr_err > psr_increase_threshold_db:
                 phi_init_adjustments[mzi_id] = np.pi
                 logger.info(
-                    f"  MZI {mzi_id}: PSR error increased "
-                    f"({prev_err:.2f} → {curr_err:.2f} dB), adding π to φ_init"
+                    f"  MZI {mzi_id}: PSR err increased "
+                    f"({prev_psr_err:.2f} → {curr_psr_err:.2f} dB), adding π to φ_init"
                 )
 
-        # Optionally apply adaptive learning rate based on error trend
-        if kwargs.get("adaptive_learning", False):
-
-            adaptive_lr = adaptive_learning_rate(
-                phi_err_rms=np.abs(phi_err),
-                prev_phi_err_rms=prev_err,
-                prev_lr=learning_rate,
-                lr_min=lr_min,
-                lr_max=lr_max,
-                decay=decay,
-                grow=grow,
-                phi_scale=phi_scale,
-            )
-
+        # Dead zone — MATLAB: if |d_SR| < 0.1 dB, zero the update
+        if abs(curr_psr_err) < mzi_dead_zone_db:
+            new_mzi_powers[mzi_id] = current_mzi_powers.get(mzi_id, 0.0)
             logger.info(
-                f"  MZI {mzi_id}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
+                f"  MZI {mzi_id}: |PSR err|={abs(curr_psr_err):.3f} dB "
+                f"< dead zone ({mzi_dead_zone_db} dB), no update"
             )
+            continue
 
-            delta_P = (
-                ((phi_err) / (2 * np.pi)) * power_for_mzi_2pi * adaptive_lr
-            )  # Use smaller LR for PS to prevent overshooting
-        else:
-            delta_P = ((phi_err) / (2 * np.pi)) * power_for_mzi_2pi * learning_rate
+        # Slope factor — MATLAB: compare |d_SR(n)| vs |d_SR(n − floor(1/lrt))|
+        # With lrt=0.5 that is 2 steps ago; use prev2 if available, else prev.
+        slope_factor = 1.0
+        reference_psr_err = None
+        if prev2_mzi_psr_errors is not None:
+            reference_psr_err = prev2_mzi_psr_errors.get(mzi_id)
+        elif prev_mzi_psr_errors is not None:
+            reference_psr_err = prev_mzi_psr_errors.get(mzi_id)
 
-        # Get current power
+        if reference_psr_err is not None:
+            if abs(curr_psr_err) - abs(reference_psr_err) > sr_diverge_threshold:
+                slope_factor = -1.0
+                logger.info(
+                    f"  MZI {mzi_id}: slope_factor = -1 "
+                    f"(PSR err worsened {abs(reference_psr_err):.2f} → {abs(curr_psr_err):.2f} dB)"
+                )
+
+        # Power update: ΔP = (φ_err / 2π) × P_2π × slope_factor × LR
+        delta_P = (
+            (phi_err / (2 * np.pi)) * power_for_mzi_2pi * slope_factor * learning_rate
+        )
+
+        logger.info(
+            f"  MZI {mzi_id}: φ_err={phi_err:.4f} rad, "
+            f"PSR_err={curr_psr_err:.3f} dB, slope={slope_factor:+.0f}, ΔP={delta_P:.4f} W"
+        )
+
         current_P = current_mzi_powers.get(mzi_id, 0.0)
         new_P = current_P + delta_P
 
-        # Rule (b): Handle negative power (2π phase wrapping)
+        # Rule (b): negative power → wrap by P_2π
         if new_P < 0:
-            new_P = new_P + power_for_mzi_2pi
-            logger.info(
-                f"  MZI {mzi_id}: Wrapped negative power "
-                f"({current_P + delta_P:.4f} → {new_P:.4f} W)"
-            )
+            new_P += power_for_mzi_2pi
+            logger.info(f"  MZI {mzi_id}: wrapped negative power → {new_P:.4f} W")
 
-        # Clamp to power limits
         new_P = np.clip(new_P, min_power, max_power)
-
         new_mzi_powers[mzi_id] = new_P
 
-    # Process each phase shifter
-    new_ps_powers = {}
+    # -----------------------------------------------------------------------
+    # Phase shifters — Rprop adaptive LR (unchanged)
+    # -----------------------------------------------------------------------
+    new_ps_powers: Dict[str, float] = {}
     for tap_num, phi_err in ps_phase_errors.items():
-        # For PS, we can also apply adaptive learning rate based on error trend
         prev_err = (
             np.abs(prev_ps_phase_errors[tap_num])
             if (prev_ps_phase_errors is not None and tap_num in prev_ps_phase_errors)
             else None
         )
 
-        # Calculate power adjustment
         if wrap_phase:
-            phi_err = np.angle(np.exp(1j * phi_err))  # Wrap to [-π, π]
+            phi_err = np.angle(np.exp(1j * phi_err))
             logger.info(f"  PS {tap_num}: Wrapped φ_err to {phi_err:.4f} rad")
 
-        # Optionally apply adaptive learning rate based on error trend
         if kwargs.get("adaptive_learning", False):
-
             adaptive_lr = adaptive_learning_rate(
                 phi_err_rms=np.abs(phi_err),
                 prev_phi_err_rms=prev_err,
@@ -211,27 +205,21 @@ def calculate_power_adjustments(
                 grow=grow,
                 phi_scale=phi_scale,
             )
-
             logger.info(
                 f"  PS {tap_num}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
             )
-
-            delta_P = (
-                ((phi_err) / (2 * np.pi)) * power_for_ps_2pi * adaptive_lr
-            )  # Use smaller LR for PS to prevent overshooting
+            delta_P = (phi_err / (2 * np.pi)) * power_for_ps_2pi * adaptive_lr
         else:
-            delta_P = ((phi_err) / (2 * np.pi)) * power_for_ps_2pi * learning_rate
+            delta_P = (phi_err / (2 * np.pi)) * power_for_ps_2pi * learning_rate
 
-        # Get current power
         current_P = current_ps_powers.get(tap_num, 0.0)
         new_P = current_P + delta_P
 
-        # Handle negative power
         if new_P < 0:
-            new_P = new_P + power_for_ps_2pi
+            new_P += power_for_ps_2pi
             logger.info(f"  PS {tap_num}: lower phase-wrap → {new_P:.4f} W")
         elif new_P > 1.25 * power_for_ps_2pi:
-            new_P = new_P - power_for_ps_2pi
+            new_P -= power_for_ps_2pi
             logger.info(f"  PS {tap_num}: upper phase-wrap → {new_P:.4f} W")
 
         new_P = np.clip(new_P, min_power, max_power)

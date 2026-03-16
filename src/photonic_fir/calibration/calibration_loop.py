@@ -103,6 +103,7 @@ def run_calibration_iteration(
     chip_state: ChipState,
     config: ExperimentConfig,
     prev_iter_data: Optional[IterationData] = None,
+    prev_prev_iter_data: Optional[IterationData] = None,
     output_dir: str = "",
     calibration_mode: str = "simultaneous",
 ) -> IterationData:
@@ -225,6 +226,9 @@ def run_calibration_iteration(
         max_power=config.calibration.max_power_watts,
         psr_increase_threshold_db=config.calibration.psr_increase_threshold_db,
         wrap_phase=config.calibration.wrap_phase,
+        prev2_mzi_psr_errors=(
+            prev_prev_iter_data.mzi_psr_errors_db if prev_prev_iter_data else None
+        ),
         **config.calibration.adaptive_lr_kwargs(),
     )
 
@@ -375,6 +379,7 @@ def run_experiment(config_path: str):
     iterations = []
     converged = False
     prev_iter_data = None
+    prev_prev_iter_data = None
 
     _amp_stable_count = 0  # consecutive iters below amp threshold
     _stability_window = getattr(config.calibration, "amplitude_stability_window", 3)
@@ -437,6 +442,7 @@ def run_experiment(config_path: str):
                 chip_state=chip_state,
                 config=config,
                 prev_iter_data=prev_iter_data,
+                prev_prev_iter_data=prev_prev_iter_data,
                 output_dir=str(output_dir),
                 calibration_mode=calibration_mode,
             )
