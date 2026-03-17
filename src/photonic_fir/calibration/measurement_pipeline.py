@@ -71,8 +71,8 @@ def measure_and_detect_taps(
             edfa_baudrate=config.measurement.edfa_baudrate,
             edfa_output_power_dbm=config.measurement.edfa_output_power_dbm,
             ova_ip=config.measurement.ova_address,
-            folder_dir=None,
-            file_name=None,
+            folder_dir=folder_dir,
+            file_name=file_name,
         )
     else:
         logger.info("Using provided DataFrame, skipping spectrum measurement.")
