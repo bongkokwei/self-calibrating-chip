@@ -692,12 +692,12 @@ def main():
     # CONFIGURATION — edit these parameters
     # ============================================================
 
-    CONFIG_PATH = "measurements/batch_mzi_scan_config.yaml"  # Reuse same config file
+    CONFIG_PATH = "measurements/calibration_config.yaml"  # Reuse same config file
 
     # Voltage scan parameters
     V_MIN = 0.0  # V
-    V_MAX = 30.0  # V  (PS heaters typically need less than MZIs)
-    N_POINTS = 81  # 31 points → ~0.67 V steps (uniform in V²)
+    V_MAX = 20.0  # V  (PS heaters typically need less than MZIs)
+    N_POINTS = 31  # 31 points → ~0.67 V steps (uniform in V²)
 
     # Timing
     SETTLING_TIME = 2.0  # seconds per voltage step
