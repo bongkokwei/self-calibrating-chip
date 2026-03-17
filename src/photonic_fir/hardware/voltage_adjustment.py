@@ -101,7 +101,6 @@ def calculate_power_adjustments(
     # --- MZI kwargs ---
     sr_diverge_threshold = kwargs.get("sr_diverge_threshold", 5.0)
     mzi_dead_zone_db = kwargs.get("mzi_dead_zone_db", 0.2)
-    # Optional 2-step PSR history for MATLAB-exact slope check (floor(1/0.5)=2)
     prev2_mzi_psr_errors: Optional[Dict[str, float]] = kwargs.get(
         "prev2_mzi_psr_errors", None
     )
