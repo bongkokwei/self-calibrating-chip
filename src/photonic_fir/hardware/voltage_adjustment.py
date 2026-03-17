@@ -99,8 +99,8 @@ def calculate_power_adjustments(
     """
 
     # --- MZI kwargs ---
-    sr_diverge_threshold = kwargs.get("sr_diverge_threshold", 5.0)  # dB; MATLAB uses 5
-    mzi_dead_zone_db = kwargs.get("mzi_dead_zone_db", 0.1)  # dB; MATLAB uses 0.1
+    sr_diverge_threshold = kwargs.get("sr_diverge_threshold", 5.0)
+    mzi_dead_zone_db = kwargs.get("mzi_dead_zone_db", 0.2)
     # Optional 2-step PSR history for MATLAB-exact slope check (floor(1/0.5)=2)
     prev2_mzi_psr_errors: Optional[Dict[str, float]] = kwargs.get(
         "prev2_mzi_psr_errors", None
@@ -141,9 +141,7 @@ def calculate_power_adjustments(
             )
             continue
 
-        delta_P = (
-            (phi_err / (2 * np.pi)) * power_for_mzi_2pi * learning_rate
-        )
+        delta_P = (phi_err / (2 * np.pi)) * power_for_mzi_2pi * learning_rate
 
         logger.info(
             f"  MZI {mzi_id}: φ_err={phi_err:.4f} rad, "
