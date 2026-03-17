@@ -141,31 +141,13 @@ def calculate_power_adjustments(
             )
             continue
 
-        # Slope factor — MATLAB: compare |d_SR(n)| vs |d_SR(n − floor(1/lrt))|
-        # With lrt=0.5 that is 2 steps ago; use prev2 if available, else prev.
-        slope_factor = 1.0
-        reference_psr_err = None
-        if prev2_mzi_psr_errors is not None:
-            reference_psr_err = prev2_mzi_psr_errors.get(mzi_id)
-        elif prev_mzi_psr_errors is not None:
-            reference_psr_err = prev_mzi_psr_errors.get(mzi_id)
-
-        if reference_psr_err is not None:
-            if abs(curr_psr_err) - abs(reference_psr_err) > sr_diverge_threshold:
-                slope_factor = -1.0
-                logger.info(
-                    f"  MZI {mzi_id}: slope_factor = -1 "
-                    f"(PSR err worsened {abs(reference_psr_err):.2f} → {abs(curr_psr_err):.2f} dB)"
-                )
-
-        # Power update: ΔP = (φ_err / 2π) × P_2π × slope_factor × LR
         delta_P = (
-            (phi_err / (2 * np.pi)) * power_for_mzi_2pi * slope_factor * learning_rate
+            (phi_err / (2 * np.pi)) * power_for_mzi_2pi * learning_rate
         )
 
         logger.info(
             f"  MZI {mzi_id}: φ_err={phi_err:.4f} rad, "
-            f"PSR_err={curr_psr_err:.3f} dB, slope={slope_factor:+.0f}, ΔP={delta_P:.4f} W"
+            f"PSR_err={curr_psr_err:.3f} dB, ΔP={delta_P:.4f} W"
         )
 
         current_P = current_mzi_powers.get(mzi_id, 0.0)
