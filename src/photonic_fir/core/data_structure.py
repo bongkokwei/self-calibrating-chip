@@ -530,6 +530,7 @@ class CalibrationConfig:
     )
 
     # Convergence criteria
+    mzi_dead_zone_db: float = 0.1  # Minimum power step to consider MZI "active"
     amplitude_tolerance_db: float = 0.5
     phase_tolerance_rad: float = 0.1
 
