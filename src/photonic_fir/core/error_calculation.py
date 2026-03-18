@@ -134,7 +134,12 @@ def _log_dict(label: str, d: dict, fmt: str = ".6f") -> None:
 def _log_array(label: str, arr: np.ndarray, fmt: str = ".6f") -> None:
     logger.info(f"{label}:")
     for i, v in enumerate(arr):
-        logger.info(f"  [{i}]: {v:{fmt}}")
+        if np.iscomplexobj(v):
+            logger.info(
+                f"  [{i}]: {v.real:{fmt}} + {v.imag:{fmt}}j  |mag|={np.abs(v):{fmt}}  arg={np.degrees(np.angle(v)):+.2f}°"
+            )
+        else:
+            logger.info(f"  [{i}]: {v:{fmt}}")
 
 
 def calculate_all_errors(
@@ -152,8 +157,8 @@ def calculate_all_errors(
     logger.info("=== calculate_all_errors ===")
     logger.info(f"signal_tap_indices : {signal_tap_indices}")
     logger.info(f"signal_tap_numbers : {signal_tap_numbers}")
-    _log_array("measured_taps (all 16)", np.abs(measured_taps), fmt=".6f")
-    _log_array("target_taps  (all 16)", np.abs(target_taps), fmt=".6f")
+    _log_array("measured_taps (all 16)", measured_taps, fmt=".6f")
+    _log_array("target_taps  (all 16)", target_taps, fmt=".6f")
 
     # --- Normalisation ---
     measured_power = np.sum(np.abs(measured_taps[idx]) ** 2)
