@@ -9,6 +9,10 @@ Uses power_splitting_ratio.py for all PSR and phase conversions.
 
 import numpy as np
 from typing import Dict, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
+
 from .power_splitting_ratio import (
     tap_coeffs_to_power_splitting_ratios,
     power_splitting_ratios_to_mzi_phases,
@@ -121,6 +125,18 @@ def wrap_phase_error(phase_error: float) -> float:
     return np.arctan2(np.sin(phase_error), np.cos(phase_error))
 
 
+def _log_dict(label: str, d: dict, fmt: str = ".6f") -> None:
+    logger.info(f"{label}:")
+    for k, v in sorted(d.items()):
+        logger.info(f"  {k}: {v:{fmt}}")
+
+
+def _log_array(label: str, arr: np.ndarray, fmt: str = ".6f") -> None:
+    logger.info(f"{label}:")
+    for i, v in enumerate(arr):
+        logger.info(f"  [{i}]: {v:{fmt}}")
+
+
 def calculate_all_errors(
     measured_taps: np.ndarray,
     target_taps: np.ndarray,
@@ -130,79 +146,87 @@ def calculate_all_errors(
     mzi_phi_init: Dict[str, float],
     ps_phi_init: Dict[int, float],
 ) -> Dict:
-    """
-    Calculate all errors (MZI and phase shifter) for calibration iteration.
-
-    Args:
-        measured_taps: Measured complex tap coefficients from KK recovery (length n_taps=16)
-        target_taps: Target complex tap coefficients, zero-padded to n_taps=16
-                     (signal taps at indices signal_tap_indices, zeros elsewhere)
-        signal_tap_indices: Indices of signal processing taps, e.g. (8, 9, ..., 15)
-        signal_tap_numbers: Tap numbers for signal processing, e.g. (9, 10, ..., 16)
-        mzi_tree: MZI tree structure from build_mzi_tree_structure()
-        mzi_phi_init: Initial phase offsets for MZIs in radians (dict keyed by MZI ID)
-        ps_phi_init: Initial phase offsets for phase shifters in radians (dict keyed by tap number)
-
-    Returns:
-        Dictionary containing all error metrics.
-    """
-    # =========================================================================
-    # NORMALISE TO UNIT SIGNAL TAP POWER
-    # Power sum is over signal taps only — excludes reference and unused taps.
-    # Normalisation is applied to the full 16-element arrays so that
-    # tap_coeffs_to_power_splitting_ratios receives correctly-aligned indices.
-    # =========================================================================
     idx = list(signal_tap_indices)
 
+    # --- Raw tap inputs ---
+    logger.info("=== calculate_all_errors ===")
+    logger.info(f"signal_tap_indices : {signal_tap_indices}")
+    logger.info(f"signal_tap_numbers : {signal_tap_numbers}")
+    _log_array("measured_taps (all 16)", np.abs(measured_taps), fmt=".6f")
+    _log_array("target_taps  (all 16)", np.abs(target_taps), fmt=".6f")
+
+    # --- Normalisation ---
     measured_power = np.sum(np.abs(measured_taps[idx]) ** 2)
     target_power = np.sum(np.abs(target_taps[idx]) ** 2)
+    logger.info(f"measured_power (signal taps): {measured_power:.6f}")
+    logger.info(f"target_power   (signal taps): {target_power:.6f}")
 
-    measured_norm = measured_taps / np.sqrt(measured_power)  # shape (16,)
-    target_norm = target_taps / np.sqrt(target_power)  # shape (16,)
+    measured_norm = measured_taps / np.sqrt(measured_power)
+    target_norm = target_taps / np.sqrt(target_power)
+    _log_array("measured_norm (all 16)", np.abs(measured_norm), fmt=".6f")
+    _log_array("target_norm   (all 16)", np.abs(target_norm), fmt=".6f")
 
-    # PSR: full 16-element arrays — tree indices 8-15 are now valid
+    # --- PSR ---
     measured_psr = tap_coeffs_to_power_splitting_ratios(measured_norm, mzi_tree)
     target_psr = tap_coeffs_to_power_splitting_ratios(target_norm, mzi_tree)
+    _log_dict("measured_psr (dB)", measured_psr)
+    _log_dict("target_psr (dB)", target_psr)
 
-    # MZI errors
+    # --- MZI errors ---
     mzi_psr_errors, mzi_phase_errors = calculate_mzi_errors(
         measured_psr=measured_psr,
         target_psr=target_psr,
         mzi_phi_init=mzi_phi_init,
     )
+    _log_dict("mzi_psr_errors (dB)", mzi_psr_errors)
+    _log_dict("mzi_phase_errors (rad)", mzi_phase_errors)
 
-    # =========================================================================
-    # PHASE AND AMPLITUDE ERRORS
-    # Slice to signal taps only for the remaining calculations.
-    # Phase uses unnormalised taps — scaling doesn't affect angle.
-    # Amplitude uses normalised taps — relative power distribution.
-    # =========================================================================
-    measured_signal = measured_taps[idx]  # (8,) unnormalised
-    target_signal = target_taps[idx]  # (8,) unnormalised
-    measured_signal_norm = measured_norm[idx]  # (8,) normalised
-    target_signal_norm = target_norm[idx]  # (8,) normalised
+    # --- Signal-tap slices ---
+    measured_signal = measured_taps[idx]
+    target_signal = target_taps[idx]
+    measured_signal_norm = measured_norm[idx]
+    target_signal_norm = target_norm[idx]
+    _log_array("measured_signal (signal taps)", np.abs(measured_signal), fmt=".6f")
+    _log_array("target_signal   (signal taps)", np.abs(target_signal), fmt=".6f")
+    _log_array(
+        "measured_signal_norm (signal taps)", np.abs(measured_signal_norm), fmt=".6f"
+    )
+    _log_array(
+        "target_signal_norm   (signal taps)", np.abs(target_signal_norm), fmt=".6f"
+    )
 
+    # --- Phases ---
     measured_phases = extract_tap_phases(measured_signal, signal_tap_numbers)
     target_phases = extract_tap_phases(target_signal, signal_tap_numbers)
+    _log_dict("measured_phases (rad)", measured_phases)
+    _log_dict("target_phases   (rad)", target_phases)
 
+    # --- PS phase errors ---
     ps_phase_errors = calculate_phase_shifter_errors(
         measured_phases=measured_phases,
         target_phases=target_phases,
         ps_phi_init=ps_phi_init,
     )
+    _log_dict("ps_phase_errors (rad)", ps_phase_errors)
 
+    # --- Amplitude errors ---
     tap_amp_errors = 20 * np.log10(np.abs(target_signal_norm) + 1e-12) - 20 * np.log10(
         np.abs(measured_signal_norm) + 1e-12
     )
+    _log_array("tap_amp_errors (dB, target - measured)", tap_amp_errors, fmt=".6f")
 
     tap_phase_errors = np.array(
         [ps_phase_errors[tap_num] for tap_num in sorted(ps_phase_errors.keys())]
     )
+    _log_array("tap_phase_errors (rad, target - measured)", tap_phase_errors, fmt=".6f")
 
+    # --- RMS ---
     rms_amp, rms_phase = calculate_rms_errors(
         amplitude_errors=tap_amp_errors,
         phase_errors=tap_phase_errors,
     )
+    _log_array("rms_amplitude_error (dB)", [rms_amp], fmt=".6f")
+    _log_array("rms_phase_error    (rad)", [rms_phase], fmt=".6f")
 
     return {
         "mzi_psr_errors": mzi_psr_errors,

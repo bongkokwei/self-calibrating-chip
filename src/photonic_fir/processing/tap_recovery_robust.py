@@ -443,7 +443,9 @@ def detect_taps_windowed(
             tap_times_ps[tap_idx] = expected_ps
             tap_coefficients[tap_idx] = threshold_magnitude + 0j
         else:
-            logger.info(f"Tap {tap_idx}: {mag_db:.1f} dB at {time_win[best]:.2f} ps")
+            logger.info(
+                f"Tap {tap_idx}: {mag_db:.1f} dB, {np.angle(h_win[best]):.4f} rad at {time_win[best]:.2f} ps"
+            )
             tap_times_ps[tap_idx] = time_win[best]
             # tap_coefficients[tap_idx] = h_win[best]
             tap_coefficients[tap_idx] = np.conj(h_win[best])
