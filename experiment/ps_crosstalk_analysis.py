@@ -57,26 +57,23 @@ Output DataFrame columns
 
 Cross-coupling matrix
 ---------------------
-After collecting sweeps for all PSs, assemble the matrix:
+The matrix is assembled automatically in main() once all per-PS CSVs are
+present alongside the current one.  It is written to ps_crosstalk_matrix.csv
+in the same directory as the per-PS CSVs.
 
+Format:
+    tap\\swept_ps,9,10,11,...,16
+    9,C_99,C_9_10,...
+    10,C_10_9,C_10_10,...
+    ...
+
+Units: rad/W (slopes converted from rad/V² using heater resistance R).
+Diagonal entries are primary sensitivities; off-diagonals are crosstalk.
+
+To load:
     import numpy as np
-    import pandas as pd
-
-    ps_taps = list(range(9, 17))
-    C = np.zeros((8, 8))
-
-    for k, ps in enumerate(ps_taps):
-        df = pd.read_csv(f"results/ps_crosstalk_ps{ps}.csv")
-        # Fit linear slope dφ/d(V²) for each tap
-        v2 = df["voltage"].values ** 2
-        for j, tap in enumerate(ps_taps):
-            col = f"tap_{tap}"
-            phi_uw = np.unwrap(df[col].values)
-            slope, _ = np.polyfit(v2, phi_uw, 1)[::-1]
-            C[j, k] = slope   # rad / V²  (proportional to rad/W via R)
-
-    print("Cross-coupling matrix (rad/V²):")
-    print(np.round(C, 4))
+    data = np.loadtxt("ps_crosstalk_matrix.csv", delimiter=",", skiprows=1)
+    C = data[:, 1:]   # drop the tap-number column
 """
 
 import argparse
@@ -201,6 +198,98 @@ def analyse_ps_crosstalk(
 
     df_out = pd.DataFrame(results).sort_values("voltage").reset_index(drop=True)
     return df_out
+
+
+# ---------------------------------------------------------------------------
+# Crosstalk matrix
+# ---------------------------------------------------------------------------
+
+
+def save_crosstalk_matrix(
+    per_ps_csv_paths: dict[int, Path],
+    resistance_ohm: float,
+    output_path: Path,
+) -> np.ndarray | None:
+    """
+    Assemble and save the crosstalk matrix C from per-PS result CSVs.
+
+    Fits dφ/dV² for every (tap, swept-PS) pair, converts to rad/W via R,
+    and writes the matrix to a labelled CSV.
+
+    Parameters
+    ----------
+    per_ps_csv_paths : dict[int, Path]
+        Mapping from swept-PS tap number to its results CSV path.
+        Only paths that exist are used; missing columns are left as NaN.
+    resistance_ohm : float
+        Nominal heater resistance (Ω).  Converts rad/V² → rad/W via R.
+    output_path : Path
+        Destination CSV path for the assembled matrix.
+
+    Returns
+    -------
+    C : np.ndarray of shape (N, N) or None
+        The crosstalk matrix in rad/W, or None if no CSVs could be loaded.
+    """
+    # Determine tap order from whichever CSVs are present
+    available = {ps: p for ps, p in per_ps_csv_paths.items() if p.exists()}
+    if not available:
+        print("  No per-PS CSVs found — skipping matrix assembly.")
+        return None
+
+    # Infer full tap list from the first available CSV
+    first_df = pd.read_csv(next(iter(available.values())))
+    tap_cols = sorted(
+        [c for c in first_df.columns if c.startswith("tap_")],
+        key=lambda c: int(c.split("_")[1]),
+    )
+    tap_nums = [int(c.split("_")[1]) for c in tap_cols]
+    N = len(tap_nums)
+    tap_index = {t: i for i, t in enumerate(tap_nums)}
+
+    C = np.full((N, N), np.nan)
+
+    for swept_ps, csv_path in available.items():
+        if swept_ps not in tap_index:
+            print(f"  Warning: swept PS {swept_ps} not in tap list, skipping column.")
+            continue
+        col_idx = tap_index[swept_ps]
+
+        df = pd.read_csv(csv_path)
+        v2 = df["voltage"].values ** 2
+
+        for tap_col in tap_cols:
+            row_idx = tap_index[int(tap_col.split("_")[1])]
+            phi = np.unwrap(df[tap_col].values)
+            valid = ~np.isnan(phi)
+            if valid.sum() < 2:
+                continue
+            slope_v2, _ = np.polyfit(v2[valid], phi[valid], 1)
+            C[row_idx, col_idx] = slope_v2 * resistance_ohm  # rad/W
+
+    # Write labelled CSV
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    header = "tap\\swept_ps," + ",".join(str(t) for t in tap_nums)
+    lines = [header]
+    for row_idx, tap_num in enumerate(tap_nums):
+        vals = ",".join(
+            f"{C[row_idx, col_idx]:.6f}" if not np.isnan(C[row_idx, col_idx]) else ""
+            for col_idx in range(N)
+        )
+        lines.append(f"{tap_num},{vals}")
+
+    output_path.write_text("\n".join(lines) + "\n")
+
+    n_available = len(available)
+    n_total = len(per_ps_csv_paths)
+    print(f"\n✓ Crosstalk matrix saved: {output_path}")
+    print(f"  Shape: {N}×{N}   Units: rad/W")
+    print(f"  Columns populated: {n_available}/{n_total} PSs measured")
+    if n_available < n_total:
+        missing = sorted(set(per_ps_csv_paths) - set(available))
+        print(f"  Missing PSs (NaN columns): {missing}")
+
+    return C
 
 
 # ---------------------------------------------------------------------------
@@ -414,7 +503,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("measurements/experiment_config_shorter_range.yaml"),
+        default=Path("measurements/calibration_config.yaml"),
         help="Path to experiment configuration YAML",
     )
     parser.add_argument(
@@ -439,7 +528,7 @@ def parse_args() -> argparse.Namespace:
         "--output-csv",
         type=Path,
         default=None,
-        help="Output path for the results CSV (optional)",
+        help="Output path for the per-PS results CSV (optional)",
     )
     return parser.parse_args()
 
@@ -470,6 +559,20 @@ def main() -> None:
     if args.output_csv:
         df.to_csv(args.output_csv, index=False)
         print(f"Data saved to {args.output_csv}")
+
+        # # After saving, attempt to assemble the full crosstalk matrix.
+        # # Assumes sibling CSVs are named ps_crosstalk_ps{tap}.csv in the same directory.
+        # output_dir = args.output_csv.parent
+        # all_ps_taps = list(range(args.first_tap, args.first_tap + args.n_signal_taps))
+        # per_ps_csvs = {
+        #     tap: output_dir / f"ps_crosstalk_ps{tap}.csv" for tap in all_ps_taps
+        # }
+        # matrix_path = output_dir / "ps_crosstalk_matrix.csv"
+        # save_crosstalk_matrix(
+        #     per_ps_csv_paths=per_ps_csvs,
+        #     resistance_ohm=config.chip.heater_resistance_ohm,
+        #     output_path=matrix_path,
+        # )
 
     plot_ps_crosstalk(df, output_path=args.output_fig)
 
