@@ -30,8 +30,7 @@ def main():
         config_path = sys.argv[1]
     else:
         # Default to config in same directory
-        script_dir = Path(__file__).parent
-        config_path = script_dir / "configs" / "example_config.yaml"
+        config_path ="measurements/calibration_config.yaml"
 
     print(f"Loading config from: {config_path}")
 

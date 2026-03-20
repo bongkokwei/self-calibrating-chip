@@ -1,19 +1,20 @@
 """
-voltage_adjustment.py  — updated MZI adaptive learning
-========================================================
+voltage_adjustment.py
+=====================
 
-Replaces the Rprop adaptive_learning_rate call in the MZI loop with the
-MATLAB-faithful approach from kk_shaping_main.m:
+Power-adjustment helpers for the MZI and PS calibration loops.
 
-  - slope_factor (+1 / -1): reset to +1 each iteration; flip if PSR error
-    diverged by > sr_diverge_threshold dB vs the previous iteration.
-    MATLAB compares to 2 iterations ago (floor(1/amp_lrt)=2 for lrt=0.5).
-    We use 1-step here since only one iteration of history is held; pass
-    prev2_mzi_psr_errors via kwargs to enable the full 2-step check.
-  - Dead zone: skip update entirely if |PSR err| < mzi_dead_zone_db (0.1 dB).
-  - Learning rate: plain scalar — no trend/magnitude Rprop logic for MZIs.
+Both actuators share the same update skeleton via _compute_new_power:
 
-PS adaptive learning (Rprop) is unchanged.
+    ΔP = (error / 2π) × P_2π × lr
+    P_new = clip(P + ΔP,  wrap by P_2π)
+
+Differences:
+  MZI  — dead zone gated on PSR error (dB); step driven by φ_err (rad).
+  PS   — dead zone and step both driven by φ_err (rad); optional Rprop
+         adaptive LR; optional crosstalk-decoupled update.
+
+φ_init flipping on PSR divergence has been moved to calibration_loop.py.
 """
 
 from typing import Dict, Optional, Tuple
@@ -25,17 +26,86 @@ logger = logging.getLogger(__name__)
 
 from ..core.data_structure import (
     ChipState,
-    MZIState,
-    PhaseShifterState,
     ExperimentConfig,
 )
 from voltage_ctrl import VoltageController
 
 
 # ---------------------------------------------------------------------------
-# PS-only Rprop helper (kept for phase-shifter loop)
+# Shared inner helpers
 # ---------------------------------------------------------------------------
 
+def _compute_new_power(
+    error: float,
+    current_P: float,
+    lr: float,
+    power_for_2pi: float,
+    min_power: float,
+    max_power: float,
+    wrap: bool = True,
+    dead_zone: float = 0.0,
+    gate_err: Optional[float] = None,
+) -> tuple[float, float]:
+    """
+    Compute updated heater power from an error signal.
+
+    Parameters
+    ----------
+    error : float
+        Error driving the power step (φ_err in rad for PS; φ_err in rad for MZI).
+    current_P : float
+        Current heater power (W).
+    lr : float
+        Learning rate (scalar).
+    power_for_2pi : float
+        Power corresponding to a 2π phase shift (W).
+    min_power, max_power : float
+        Hard clipping bounds (W).
+    wrap : bool
+        Apply modulo-P_2π phase wrap when P goes out of [0, 1.25·P_2π].
+    dead_zone : float
+        Skip update if |gate_err| < dead_zone.  Same units as gate_err.
+    gate_err : float or None
+        Signal used for the dead-zone check.  Defaults to error if None.
+        Use this when the dead-zone signal differs from the step signal
+        (e.g. MZI: gate on PSR dB, step on φ_err rad).
+
+    Returns
+    -------
+    new_P : float
+    delta_P : float
+    """
+    if abs(gate_err if gate_err is not None else error) < dead_zone:
+        return current_P, 0.0
+
+    delta_P = (error / (2 * np.pi)) * power_for_2pi * lr
+    new_P = current_P + delta_P
+
+    if wrap:
+        if new_P < 0:
+            new_P += power_for_2pi
+        elif new_P > 1.25 * power_for_2pi:
+            new_P -= power_for_2pi
+
+    return float(np.clip(new_P, min_power, max_power)), delta_P
+
+
+def _effective_lr(
+    error: float,
+    prev_err: Optional[float],
+    base_lr: float,
+    adaptive: bool,
+    **rprop_kw,
+) -> float:
+    """Return base_lr, or Rprop-adjusted LR if adaptive=True."""
+    if not adaptive:
+        return base_lr
+    return adaptive_learning_rate(abs(error), prev_err, base_lr, **rprop_kw)
+
+
+# ---------------------------------------------------------------------------
+# Rprop adaptive learning rate
+# ---------------------------------------------------------------------------
 
 def adaptive_learning_rate(
     phi_err_rms: float,
@@ -47,7 +117,7 @@ def adaptive_learning_rate(
     grow: float = 1.05,
     phi_scale: float = np.pi,
 ) -> float:
-    """Rprop-style adaptive LR with magnitude-based ceiling (used for PS only)."""
+    """Rprop-style adaptive LR with magnitude-based ceiling."""
     if prev_phi_err_rms is None:
         lr_trend = prev_lr
     elif phi_err_rms > prev_phi_err_rms:
@@ -56,14 +126,54 @@ def adaptive_learning_rate(
         lr_trend = prev_lr * grow
 
     lr_magnitude = lr_max * min(phi_err_rms / phi_scale, 1.0)
-    lr = min(lr_trend, lr_magnitude)
-    return float(np.clip(lr, lr_min, lr_max))
+    return float(np.clip(min(lr_trend, lr_magnitude), lr_min, lr_max))
+
+
+# ---------------------------------------------------------------------------
+# PS crosstalk decoupling
+# ---------------------------------------------------------------------------
+
+def load_ps_crosstalk_matrix(csv_path: str) -> tuple[np.ndarray, list[int]]:
+    """
+    Load PS thermal crosstalk matrix from CSV.
+
+    CSV format:
+        tap\\swept_ps,9,10,...,16
+        9, C_99, C_9_10, ...
+        ...
+    Rows = observed tap, columns = swept PS.
+    C[i,j] = dφ_i/dP_j  (rad/W — must match power units in the control loop).
+
+    Returns
+    -------
+    C : ndarray, shape (n, n)
+    tap_order : list[int]
+    """
+    import pandas as pd
+    df = pd.read_csv(csv_path, index_col=0)
+    tap_order = [int(c) for c in df.columns]
+    return df.values.astype(float), tap_order
+
+
+def decouple_ps_delta_power(
+    ps_phase_errors: dict[int, float],
+    crosstalk_matrix: np.ndarray,
+    tap_order: list[int],
+    learning_rate: float,
+) -> dict[int, float]:
+    """
+    Solve for decoupled PS power corrections via Δφ = C·ΔP → ΔP = lr·C⁻¹·Δφ.
+
+    Uses lstsq for numerical stability.  Absent taps treated as zero error.
+    """
+    phi_err = np.array([ps_phase_errors.get(t, 0.0) for t in tap_order])
+    delta_p, *_ = np.linalg.lstsq(crosstalk_matrix, phi_err * learning_rate, rcond=None)
+    return {t: float(dp) for t, dp in zip(tap_order, delta_p)}
 
 
 # ---------------------------------------------------------------------------
 # Main power-adjustment function
 # ---------------------------------------------------------------------------
-
 
 def calculate_power_adjustments(
     mzi_phase_errors: Dict[str, float],
@@ -78,180 +188,130 @@ def calculate_power_adjustments(
     learning_rate: float,
     min_power: float,
     max_power: float,
-    psr_increase_threshold_db: float = 0.2,
     wrap_phase: bool = False,
     **kwargs,
-) -> Tuple[Dict[str, float], Dict[str, float], Dict[str, float]]:
+) -> Tuple[Dict[str, float], Dict[str, float]]:
     """
-    Calculate power adjustments for MZIs and phase shifters.
+    Calculate new heater powers for MZIs and phase shifters.
 
-    MZI update — MATLAB kk_shaping_main.m style:
-        ΔP = (φ_err / 2π) × P_2π × slope_factor × LR
-        slope_factor = −1 if |PSR_err(n)| − |PSR_err(n−k)| > sr_diverge_threshold
-        skip update if |PSR_err| < mzi_dead_zone_db
+    φ_init flipping is handled upstream in calibration_loop.py.
 
-    PS update — Rprop adaptive LR (unchanged):
-        ΔP = (φ_err / 2π) × P_2π × adaptive_LR
-
-    Convergence rules (both):
-        (a) If PSR_err(m,n) − PSR_err(m,n−1) > psr_increase_threshold_db → add π to φ_init
-        (b) If P < 0 → P += P_2π
+    kwargs
+    ------
+    mzi_dead_zone_db : float        Dead zone threshold for MZI (PSR dB). Default 0.1.
+    ps_dead_zone_rad : float        Dead zone threshold for PS (φ rad).   Default 0.0.
+    mzi_adaptive_learning : bool    Enable Rprop LR for MZIs.  Default False.
+    ps_adaptive_learning  : bool    Enable Rprop LR for PSs.   Default False.
+    lr_min, lr_max, decay, grow, phi_scale : Rprop hyperparameters.
+    ps_crosstalk_matrix : ndarray   Crosstalk matrix C (rad/W). Optional.
+    ps_crosstalk_tap_order : list   Tap order matching C rows/cols. Optional.
     """
 
-    # --- MZI kwargs ---
-    sr_diverge_threshold = kwargs.get("sr_diverge_threshold", 5.0)
-    mzi_dead_zone_db = kwargs.get("mzi_dead_zone_db", 0.1)
-    prev2_mzi_psr_errors: Optional[Dict[str, float]] = kwargs.get(
-        "prev2_mzi_psr_errors", None
-    )
-
-    # --- PS kwargs (Rprop) ---
-    lr_min = kwargs.get("lr_min", 1e-4)
-    lr_max = kwargs.get("lr_max", 0.8)
-    decay = kwargs.get("decay", 0.7)
-    grow = kwargs.get("grow", 1.05)
-    phi_scale = kwargs.get("phi_scale", np.pi)
+    rprop_kw = {k: kwargs.get(k, d) for k, d in [
+        ("lr_min", 1e-4), ("lr_max", 0.8), ("decay", 0.7),
+        ("grow", 1.05), ("phi_scale", np.pi),
+    ]}
+    mzi_dead_zone_db      = kwargs.get("mzi_dead_zone_db", 0.1)
+    ps_dead_zone_rad      = kwargs.get("ps_dead_zone_rad", 0.0)
+    mzi_adaptive          = kwargs.get("mzi_adaptive_learning", False)
+    ps_adaptive           = kwargs.get("ps_adaptive_learning", False)
+    ps_crosstalk_matrix   = kwargs.get("ps_crosstalk_matrix", None)
+    ps_crosstalk_tap_order = kwargs.get("ps_crosstalk_tap_order", None)
 
     new_mzi_powers: Dict[str, float] = {}
-    phi_init_adjustments: Dict[str, float] = {}
+    new_ps_powers:  Dict[str, float] = {}
 
     # -----------------------------------------------------------------------
-    # MZIs
+    # MZIs — gate on PSR error (dB), step on φ_err (rad)
     # -----------------------------------------------------------------------
     for mzi_id, phi_err in mzi_phase_errors.items():
-        curr_psr_err = mzi_psr_errors.get(mzi_id, 0.0)
+        psr_err = mzi_psr_errors.get(mzi_id, 0.0)
+        prev_psr = prev_mzi_psr_errors.get(mzi_id) if prev_mzi_psr_errors else None
 
-        # Rule (a): PSR error increased → flip φ_init branch (Xu et al. paper)
-        if prev_mzi_psr_errors is not None:
-            prev_psr_err = prev_mzi_psr_errors.get(mzi_id, 0.0)
-            if curr_psr_err - prev_psr_err > psr_increase_threshold_db:
-                phi_init_adjustments[mzi_id] = np.pi
-                logger.info(
-                    f"  MZI {mzi_id}: PSR err increased "
-                    f"({prev_psr_err:.2f} → {curr_psr_err:.2f} dB), adding π to φ_init"
-                )
+        lr = _effective_lr(psr_err, prev_psr, learning_rate, mzi_adaptive, **rprop_kw)
 
-        # Dead zone — MATLAB: if |d_SR| < 0.1 dB, zero the update
-        if abs(curr_psr_err) < mzi_dead_zone_db:
-            new_mzi_powers[mzi_id] = current_mzi_powers.get(mzi_id, 0.0)
-            logger.info(
-                f"  MZI {mzi_id}: |PSR err|={abs(curr_psr_err):.3f} dB "
-                f"< dead zone ({mzi_dead_zone_db} dB), no update"
-            )
-            continue
-
-        delta_P = (phi_err / (2 * np.pi)) * power_for_mzi_2pi * learning_rate
-
-        logger.info(
-            f"  MZI {mzi_id}: φ_err={phi_err:.4f} rad, "
-            f"PSR_err={curr_psr_err:.3f} dB, ΔP={delta_P:.4f} W"
+        new_P, delta_P = _compute_new_power(
+            phi_err, current_mzi_powers.get(mzi_id, 0.0),
+            lr, power_for_mzi_2pi, min_power, max_power,
+            dead_zone=mzi_dead_zone_db, gate_err=psr_err,
         )
-
-        current_P = current_mzi_powers.get(mzi_id, 0.0)
-        new_P = current_P + delta_P
-
-        # Rule (b): negative power → wrap by P_2π
-        if new_P < 0:
-            new_P += power_for_mzi_2pi
-            logger.info(f"  MZI {mzi_id}: wrapped negative power → {new_P:.4f} W")
-
-        new_P = np.clip(new_P, min_power, max_power)
         new_mzi_powers[mzi_id] = new_P
-
-    # -----------------------------------------------------------------------
-    # Phase shifters — Rprop adaptive LR (unchanged)
-    # -----------------------------------------------------------------------
-    new_ps_powers: Dict[str, float] = {}
-    for tap_num, phi_err in ps_phase_errors.items():
-        prev_err = (
-            np.abs(prev_ps_phase_errors[tap_num])
-            if (prev_ps_phase_errors is not None and tap_num in prev_ps_phase_errors)
-            else None
+        logger.info(
+            f"  MZI {mzi_id}: φ_err={phi_err:.4f} rad, PSR_err={psr_err:.3f} dB, "
+            f"lr={lr:.4f}, ΔP={delta_P:.4f} W → P={new_P:.4f} W"
         )
 
-        if wrap_phase:
-            phi_err = np.angle(np.exp(1j * phi_err))
-            logger.info(f"  PS {tap_num}: Wrapped φ_err to {phi_err:.4f} rad")
-
-        if kwargs.get("adaptive_learning", False):
-            adaptive_lr = adaptive_learning_rate(
-                phi_err_rms=np.abs(phi_err),
-                prev_phi_err_rms=prev_err,
-                prev_lr=learning_rate,
-                lr_min=lr_min,
-                lr_max=lr_max,
-                decay=decay,
-                grow=grow,
-                phi_scale=phi_scale,
+    # -----------------------------------------------------------------------
+    # Phase shifters — crosstalk-decoupled or per-tap
+    # -----------------------------------------------------------------------
+    if ps_crosstalk_matrix is not None and ps_crosstalk_tap_order is not None:
+        decoupled = decouple_ps_delta_power(
+            ps_phase_errors, ps_crosstalk_matrix, ps_crosstalk_tap_order, learning_rate,
+        )
+        for tap_num, delta_P in decoupled.items():
+            # Convert ΔP back to an equivalent φ_err so _compute_new_power owns
+            # the wrap/clip logic (lr=1 since scaling is already baked into delta_P)
+            phi_err_equiv = delta_P * (2 * np.pi) / power_for_ps_2pi
+            new_P, _ = _compute_new_power(
+                phi_err_equiv, current_ps_powers.get(tap_num, 0.0),
+                1.0, power_for_ps_2pi, min_power, max_power, wrap=wrap_phase,
             )
+            new_ps_powers[tap_num] = new_P
+            logger.info(f"  PS {tap_num}: ΔP={delta_P:.4f} W (decoupled) → P={new_P:.4f} W")
+
+    else:
+        for tap_num, phi_err in ps_phase_errors.items():
+            if wrap_phase:
+                phi_err = float(np.angle(np.exp(1j * phi_err)))
+
+            prev_err = (
+                abs(prev_ps_phase_errors[tap_num])
+                if prev_ps_phase_errors and tap_num in prev_ps_phase_errors
+                else None
+            )
+            lr = _effective_lr(phi_err, prev_err, learning_rate, ps_adaptive, **rprop_kw)
+
+            new_P, delta_P = _compute_new_power(
+                phi_err, current_ps_powers.get(tap_num, 0.0),
+                lr, power_for_ps_2pi, min_power, max_power, wrap=wrap_phase,
+                dead_zone=ps_dead_zone_rad,
+            )
+            new_ps_powers[tap_num] = new_P
             logger.info(
-                f"  PS {tap_num}: φ_err={phi_err:.4f} rad, adaptive LR={adaptive_lr:.4f}"
+                f"  PS {tap_num}: φ_err={phi_err:.4f} rad, lr={lr:.4f}, "
+                f"ΔP={delta_P:.4f} W → P={new_P:.4f} W"
             )
-            delta_P = (phi_err / (2 * np.pi)) * power_for_ps_2pi * adaptive_lr
-        else:
-            delta_P = (phi_err / (2 * np.pi)) * power_for_ps_2pi * learning_rate
 
-        current_P = current_ps_powers.get(tap_num, 0.0)
-        new_P = current_P + delta_P
+    return new_mzi_powers, new_ps_powers
 
-        if new_P < 0:
-            new_P += power_for_ps_2pi
-            logger.info(f"  PS {tap_num}: lower phase-wrap → {new_P:.4f} W")
-        elif new_P > 1.25 * power_for_ps_2pi:
-            new_P -= power_for_ps_2pi
-            logger.info(f"  PS {tap_num}: upper phase-wrap → {new_P:.4f} W")
 
-        new_P = np.clip(new_P, min_power, max_power)
-        new_ps_powers[tap_num] = new_P
-
-    return new_mzi_powers, new_ps_powers, phi_init_adjustments
-
+# ---------------------------------------------------------------------------
+# Hardware helpers (unchanged)
+# ---------------------------------------------------------------------------
 
 def apply_voltages_to_hardware(
     chip_state: ChipState,
     config: ExperimentConfig,
     voltage_ctrl: VoltageController,
-):
-    """
-    Apply voltages to hardware based on current chip state.
-
-    This is separate from update_powers() to allow for:
-    1. Simulation mode (skip hardware updates)
-    2. Batch voltage updates (more efficient)
-    3. Hardware error handling
-
-    Args:
-        chip_state: Current chip state with applied powers
-        config: Experiment configuration containing channel mapping
-    """
-
+) -> None:
+    """Apply all MZI and PS voltages to hardware in a single batch call."""
     R = config.chip.heater_resistance_ohm
+    channels, voltages = [], []
 
-    # Collect all channels and voltages
-    channels = []
-    voltages = []
-
-    # Collect MZI voltages
     for mzi_id, mzi in chip_state.mzis.items():
         voltage = np.sqrt(mzi.applied_power_watts * R)
         channel = config.channel_mapping.get_channel(f"MZI_{mzi_id}")
         channels.append(channel)
         voltages.append(voltage)
-        logger.info(
-            f"    MZI {mzi_id} (ch {channel}): {voltage:.4f} V ({mzi.applied_power_watts:.4f} W)"
-        )
+        logger.info(f"    MZI {mzi_id} (ch {channel}): {voltage:.4f} V ({mzi.applied_power_watts:.4f} W)")
 
-    # Collect phase shifter voltages
     for tap_num, ps in chip_state.phase_shifters.items():
         voltage = np.sqrt(ps.applied_power_watts * R)
         channel = config.channel_mapping.get_channel(f"PS_{tap_num}")
         channels.append(channel)
         voltages.append(voltage)
-        logger.info(
-            f"    PS {tap_num} (ch {channel}): {voltage:.4f} V ({ps.applied_power_watts:.4f} W)"
-        )
+        logger.info(f"    PS {tap_num} (ch {channel}): {voltage:.4f} V ({ps.applied_power_watts:.4f} W)")
 
-    # Apply all voltages in a single batch call
     logger.info("\n  Applying voltages to hardware:")
     voltage_ctrl.set_voltages(
         channels=channels,
@@ -267,39 +327,19 @@ def set_mzi_voltage(
     settling_time_sec: float = 2.0,
     v_max: float = 30.0,
 ) -> None:
-    """
-    Set voltage on a specified MZI.
-
-    Parameters
-    ----------
-    mzi_id : str
-        MZI identifier (e.g., "1-1", "2-1", "4-6")
-    voltage : float
-        Voltage to apply (V)
-    exp_config : ExperimentConfig
-        Experiment configuration object
-    settling_time_sec : float
-        Time to wait for thermal settling (seconds)
-    v_max : float
-        Maximum allowed voltage (V)
-    """
-
-    # Get MZI channel from mapping
-    mzi_device_id = f"MZI_{mzi_id}"
-    mzi_channel = exp_config.channel_mapping.get_channel(mzi_device_id)
-
+    """Set voltage on a single MZI and wait for thermal settling."""
+    mzi_channel = exp_config.channel_mapping.get_channel(f"MZI_{mzi_id}")
     logger.info(f"Setting MZI {mzi_id} (channel {mzi_channel}) to {voltage:.2f} V")
 
-    # Apply voltage
     with VoltageController(
         com_port=exp_config.measurement.voltage_controller_port,
         baud_rate=exp_config.measurement.voltage_controller_baudrate,
-        zero_on_exit=False,  # Don't zero when we're done
+        zero_on_exit=False,
     ) as v_ctrl:
         v_ctrl.set_voltages([mzi_channel], [voltage], v_max=v_max)
-        logger.info(f"✓ Voltage applied")
+        logger.info("✓ Voltage applied")
 
         if settling_time_sec > 0:
             logger.info(f"Waiting {settling_time_sec} s for thermal settling...")
             time.sleep(settling_time_sec)
-            logger.info(f"✓ Settled")
+            logger.info("✓ Settled")

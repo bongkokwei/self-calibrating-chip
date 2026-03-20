@@ -29,6 +29,7 @@ try:
     from photonic_fir.hardware import (
         calculate_power_adjustments,
         apply_voltages_to_hardware,
+        load_ps_crosstalk_matrix,
     )
 
     _HARDWARE_AVAILABLE = True
@@ -103,9 +104,10 @@ def run_calibration_iteration(
     chip_state: ChipState,
     config: ExperimentConfig,
     prev_iter_data: Optional[IterationData] = None,
-    prev_prev_iter_data: Optional[IterationData] = None,
     output_dir: str = "",
     calibration_mode: str = "simultaneous",
+    crosstalk_matrix: Optional[np.ndarray] = None,       
+    crosstalk_tap_order: Optional[list] = None,          
 ) -> IterationData:
     """
     Run a single calibration iteration.
@@ -206,7 +208,6 @@ def run_calibration_iteration(
     (
         new_mzi_powers,
         new_ps_powers,
-        phi_init_adjustments,
     ) = calculate_power_adjustments(
         mzi_phase_errors=all_errors["mzi_phase_errors"],
         ps_phase_errors=all_errors["ps_phase_errors"],
@@ -224,19 +225,19 @@ def run_calibration_iteration(
         learning_rate=config.calibration.learning_rate,
         min_power=config.calibration.min_power_watts,
         max_power=config.calibration.max_power_watts,
-        psr_increase_threshold_db=config.calibration.psr_increase_threshold_db,
         wrap_phase=config.calibration.wrap_phase,
-        prev2_mzi_psr_errors=(
-            prev_prev_iter_data.mzi_psr_errors_db if prev_prev_iter_data else None
-        ),
         **config.calibration.adaptive_lr_kwargs(),
+        ps_crosstalk_matrix=crosstalk_matrix,            
+        ps_crosstalk_tap_order=crosstalk_tap_order,      
     )
 
     # 6. Update chip state (in-place)
     chip_state.update_powers(
         new_mzi_powers=new_mzi_powers,
         new_ps_powers=new_ps_powers,
-        phi_init_adjustments=phi_init_adjustments,
+        prev_mzi_psr_errors=prev_iter_data.mzi_psr_errors_db if prev_iter_data else None,
+        curr_mzi_psr_errors=all_errors["mzi_psr_errors"],
+        psr_increase_threshold_db=config.calibration.psr_increase_threshold_db,
     )
 
     # Create iteration data
@@ -371,6 +372,13 @@ def run_experiment(config_path: str):
     else:
         logger.info("\nCalibration mode: SIMULTANEOUS")
 
+    # Load PS crosstalk matrix if provided (for crosstalk compensation or isolation experiments)
+    _crosstalk_matrix, _crosstalk_tap_order = None, None
+    if config.calibration.ps_crosstalk_matrix_path:
+        _crosstalk_matrix, _crosstalk_tap_order = load_ps_crosstalk_matrix(
+            config.calibration.ps_crosstalk_matrix_path
+        )
+
     # Run calibration iterations
     logger.info("\n" + "=" * 60)
     logger.info("Starting calibration...")
@@ -442,9 +450,10 @@ def run_experiment(config_path: str):
                 chip_state=chip_state,
                 config=config,
                 prev_iter_data=prev_iter_data,
-                prev_prev_iter_data=prev_prev_iter_data,
                 output_dir=str(output_dir),
                 calibration_mode=calibration_mode,
+                crosstalk_matrix=_crosstalk_matrix,
+                crosstalk_tap_order=_crosstalk_tap_order,
             )
 
             iterations.append(iter_data)

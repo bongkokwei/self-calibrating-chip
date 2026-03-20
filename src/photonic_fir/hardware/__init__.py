@@ -21,6 +21,7 @@ try:
         calculate_power_adjustments,
         apply_voltages_to_hardware,
         set_mzi_voltage,
+        load_ps_crosstalk_matrix,
     )
 
     _HARDWARE_AVAILABLE = True
@@ -39,12 +40,14 @@ except ImportError as e:
     measure_spectrum = _missing_hardware
     calculate_power_adjustments = _missing_hardware
     apply_voltages_to_hardware = _missing_hardware
+    load_ps_crosstalk_matrix = _missing_hardware
 
 __all__ = [
     "measure_spectrum",
     "calculate_power_adjustments",
     "apply_voltages_to_hardware",
     "set_mzi_voltage",
+    "load_ps_crosstalk_matrix",
 ]
 
 

@@ -392,69 +392,52 @@ class ChipState:
         self,
         new_mzi_powers: Dict[str, float],
         new_ps_powers: Dict[int, float],
-        phi_init_adjustments: Optional[Dict[str, float]] = None,
+        prev_mzi_psr_errors: Optional[Dict[str, float]] = None,
+        curr_mzi_psr_errors: Optional[Dict[str, float]] = None,
+        psr_increase_threshold_db: float = 0.2,
     ) -> None:
         """
         Update applied powers and initial phase offsets for MZIs and phase shifters.
 
-        This method updates the chip state in-place based on the output from
-        calculate_power_adjustments(). It also recalculates the phase shifts
-        based on the new powers using the relation:
-
-            φ = (P / P_2π) × 2π
+        Updates chip state in-place. Recalculates phase shifts via φ = (P / P_2π) × 2π.
+        If PSR error worsened since the last iteration, flips φ_init by π for that MZI.
 
         Args:
             new_mzi_powers: New power settings for MZIs in watts, e.g. {"2-1": 0.35}
             new_ps_powers: New power settings for phase shifters in watts, e.g. {9: 0.42}
-            phi_init_adjustments: Initial phase corrections to apply (typically ±π),
-                                 e.g. {"2-1": π}. If None, no adjustments are made.
-
+            prev_mzi_psr_errors: PSR errors from the previous iteration (dB). Optional.
+            curr_mzi_psr_errors: PSR errors from the current iteration (dB). Optional.
+            psr_increase_threshold_db: Threshold above which φ_init is flipped (dB).
         """
+        # φ_init flip — PSR error worsened since last iteration
+        if prev_mzi_psr_errors is not None and curr_mzi_psr_errors is not None:
+            for mzi_id, curr_err in curr_mzi_psr_errors.items():
+                prev_err = prev_mzi_psr_errors.get(mzi_id, 0.0)
+                if curr_err - prev_err > psr_increase_threshold_db:
+                    self.mzis[mzi_id].phi_init_rad += np.pi
+                    self.mzis[mzi_id].phi_init_rad = float(
+                        np.angle(np.exp(1j * self.mzis[mzi_id].phi_init_rad))
+                    )
 
         # Update MZI states
         for mzi_id, new_power in new_mzi_powers.items():
             if mzi_id not in self.mzis:
                 raise ValueError(f"MZI '{mzi_id}' not found in chip state")
-
             mzi = self.mzis[mzi_id]
-
-            # Apply phi_init adjustment if provided (convergence rule a)
-            if phi_init_adjustments and mzi_id in phi_init_adjustments:
-                mzi.phi_init_rad += phi_init_adjustments[mzi_id]
-                # Wrap to [-π, π]
-                mzi.phi_init_rad = np.arctan2(
-                    np.sin(mzi.phi_init_rad), np.cos(mzi.phi_init_rad)
-                )
-
-            # Update power
             mzi.applied_power_watts = new_power
-
-            # Recalculate phase shift: φ = (P / P_2π) × 2π
-            mzi.phase_shift_rad = (new_power / mzi.p2pi_watts) * 2 * np.pi
-
-            # Wrap phase to [-π, π]
-            mzi.phase_shift_rad = np.arctan2(
-                np.sin(mzi.phase_shift_rad), np.cos(mzi.phase_shift_rad)
+            mzi.phase_shift_rad = float(
+                np.angle(np.exp(1j * (new_power / mzi.p2pi_watts) * 2 * np.pi))
             )
 
         # Update phase shifter states
         for tap_num, new_power in new_ps_powers.items():
             if tap_num not in self.phase_shifters:
                 raise ValueError(f"Phase shifter tap {tap_num} not found in chip state")
-
             ps = self.phase_shifters[tap_num]
-
-            # Update power
             ps.applied_power_watts = new_power
-
-            # Recalculate phase shift: φ = (P / P_2π) × 2π
-            ps.phase_shift_rad = (new_power / ps.p2pi_watts) * 2 * np.pi
-
-            # Wrap phase to [-π, π]
-            ps.phase_shift_rad = np.arctan2(
-                np.sin(ps.phase_shift_rad), np.cos(ps.phase_shift_rad)
+            ps.phase_shift_rad = float(
+                np.angle(np.exp(1j * (new_power / ps.p2pi_watts) * 2 * np.pi))
             )
-
     def copy(self) -> "ChipState":
         """Create a deep copy for history tracking."""
         import copy
@@ -531,6 +514,7 @@ class CalibrationConfig:
 
     # Convergence criteria
     mzi_dead_zone_db: float = 0.1  # Minimum power step to consider MZI "active"
+    ps_dead_zone_rad: float = 0.0  
     amplitude_tolerance_db: float = 0.5
     phase_tolerance_rad: float = 0.1
 
@@ -565,7 +549,8 @@ class CalibrationConfig:
     lr_decay: float = 0.7
     lr_grow: float = 1.05
     lr_phi_scale: float = float(np.pi)
-    adaptive_learning: bool = False
+    mzi_adaptive_learning: bool = False
+    ps_adaptive_learning: bool = False
 
     # ---Diaagnostic settings---
     disable_taps_ps_taps: list[int] = field(
@@ -573,9 +558,12 @@ class CalibrationConfig:
     )
     disable_taps: bool = False
 
-    # Number of FSRs to tile when performing KK recovery of impulse response
+    # --- Number of FSRs to tile ---
     num_tiles_for_kk_recovery: int = 20
     tap_detection_window_width_ps: float = 3.0
+
+    # --- Paths for loading characterisation data ---
+    ps_crosstalk_matrix_path: Optional[str] = None
 
     # Optional initial power settings
     initial_mzi_voltages: Optional[Dict[str, float]] = field(
@@ -611,7 +599,10 @@ class CalibrationConfig:
             "decay": self.lr_decay,
             "grow": self.lr_grow,
             "phi_scale": self.lr_phi_scale,
-            "adaptive_learning": self.adaptive_learning,
+            "mzi_adaptive_learning": self.mzi_adaptive_learning, 
+            "ps_adaptive_learning": self.ps_adaptive_learning,    
+            "mzi_dead_zone_db": self.mzi_dead_zone_db,
+            "ps_dead_zone_rad": self.ps_dead_zone_rad,            
         }
 
 
