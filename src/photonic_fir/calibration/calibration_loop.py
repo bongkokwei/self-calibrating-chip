@@ -106,8 +106,8 @@ def run_calibration_iteration(
     prev_iter_data: Optional[IterationData] = None,
     output_dir: str = "",
     calibration_mode: str = "simultaneous",
-    crosstalk_matrix: Optional[np.ndarray] = None,       
-    crosstalk_tap_order: Optional[list] = None,          
+    crosstalk_matrix: Optional[np.ndarray] = None,
+    crosstalk_tap_order: Optional[list] = None,
 ) -> IterationData:
     """
     Run a single calibration iteration.
@@ -227,15 +227,17 @@ def run_calibration_iteration(
         max_power=config.calibration.max_power_watts,
         wrap_phase=config.calibration.wrap_phase,
         **config.calibration.adaptive_lr_kwargs(),
-        ps_crosstalk_matrix=crosstalk_matrix,            
-        ps_crosstalk_tap_order=crosstalk_tap_order,      
+        ps_crosstalk_matrix=crosstalk_matrix,
+        ps_crosstalk_tap_order=crosstalk_tap_order,
     )
 
     # 6. Update chip state (in-place)
     chip_state.update_powers(
         new_mzi_powers=new_mzi_powers,
         new_ps_powers=new_ps_powers,
-        prev_mzi_psr_errors=prev_iter_data.mzi_psr_errors_db if prev_iter_data else None,
+        prev_mzi_psr_errors=(
+            prev_iter_data.mzi_psr_errors_db if prev_iter_data else None
+        ),
         curr_mzi_psr_errors=all_errors["mzi_psr_errors"],
         psr_increase_threshold_db=config.calibration.psr_increase_threshold_db,
     )

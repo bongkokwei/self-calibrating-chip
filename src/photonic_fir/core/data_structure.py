@@ -438,6 +438,7 @@ class ChipState:
             ps.phase_shift_rad = float(
                 np.angle(np.exp(1j * (new_power / ps.p2pi_watts) * 2 * np.pi))
             )
+
     def copy(self) -> "ChipState":
         """Create a deep copy for history tracking."""
         import copy
@@ -514,7 +515,7 @@ class CalibrationConfig:
 
     # Convergence criteria
     mzi_dead_zone_db: float = 0.1  # Minimum power step to consider MZI "active"
-    ps_dead_zone_rad: float = 0.0  
+    ps_dead_zone_rad: float = 0.0
     amplitude_tolerance_db: float = 0.5
     phase_tolerance_rad: float = 0.1
 
@@ -599,10 +600,10 @@ class CalibrationConfig:
             "decay": self.lr_decay,
             "grow": self.lr_grow,
             "phi_scale": self.lr_phi_scale,
-            "mzi_adaptive_learning": self.mzi_adaptive_learning, 
-            "ps_adaptive_learning": self.ps_adaptive_learning,    
+            "mzi_adaptive_learning": self.mzi_adaptive_learning,
+            "ps_adaptive_learning": self.ps_adaptive_learning,
             "mzi_dead_zone_db": self.mzi_dead_zone_db,
-            "ps_dead_zone_rad": self.ps_dead_zone_rad,            
+            "ps_dead_zone_rad": self.ps_dead_zone_rad,
         }
 
 

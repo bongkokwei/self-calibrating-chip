@@ -35,6 +35,7 @@ from voltage_ctrl import VoltageController
 # Shared inner helpers
 # ---------------------------------------------------------------------------
 
+
 def _compute_new_power(
     error: float,
     current_P: float,
@@ -107,6 +108,7 @@ def _effective_lr(
 # Rprop adaptive learning rate
 # ---------------------------------------------------------------------------
 
+
 def adaptive_learning_rate(
     phi_err_rms: float,
     prev_phi_err_rms: Optional[float],
@@ -133,6 +135,7 @@ def adaptive_learning_rate(
 # PS crosstalk decoupling
 # ---------------------------------------------------------------------------
 
+
 def load_ps_crosstalk_matrix(csv_path: str) -> tuple[np.ndarray, list[int]]:
     """
     Load PS thermal crosstalk matrix from CSV.
@@ -150,6 +153,7 @@ def load_ps_crosstalk_matrix(csv_path: str) -> tuple[np.ndarray, list[int]]:
     tap_order : list[int]
     """
     import pandas as pd
+
     df = pd.read_csv(csv_path, index_col=0)
     tap_order = [int(c) for c in df.columns]
     return df.values.astype(float), tap_order
@@ -174,6 +178,7 @@ def decouple_ps_delta_power(
 # ---------------------------------------------------------------------------
 # Main power-adjustment function
 # ---------------------------------------------------------------------------
+
 
 def calculate_power_adjustments(
     mzi_phase_errors: Dict[str, float],
@@ -207,19 +212,25 @@ def calculate_power_adjustments(
     ps_crosstalk_tap_order : list   Tap order matching C rows/cols. Optional.
     """
 
-    rprop_kw = {k: kwargs.get(k, d) for k, d in [
-        ("lr_min", 1e-4), ("lr_max", 0.8), ("decay", 0.7),
-        ("grow", 1.05), ("phi_scale", np.pi),
-    ]}
-    mzi_dead_zone_db      = kwargs.get("mzi_dead_zone_db", 0.1)
-    ps_dead_zone_rad      = kwargs.get("ps_dead_zone_rad", 0.0)
-    mzi_adaptive          = kwargs.get("mzi_adaptive_learning", False)
-    ps_adaptive           = kwargs.get("ps_adaptive_learning", False)
-    ps_crosstalk_matrix   = kwargs.get("ps_crosstalk_matrix", None)
+    rprop_kw = {
+        k: kwargs.get(k, d)
+        for k, d in [
+            ("lr_min", 1e-4),
+            ("lr_max", 0.8),
+            ("decay", 0.7),
+            ("grow", 1.05),
+            ("phi_scale", np.pi),
+        ]
+    }
+    mzi_dead_zone_db = kwargs.get("mzi_dead_zone_db", 0.1)
+    ps_dead_zone_rad = kwargs.get("ps_dead_zone_rad", 0.0)
+    mzi_adaptive = kwargs.get("mzi_adaptive_learning", False)
+    ps_adaptive = kwargs.get("ps_adaptive_learning", False)
+    ps_crosstalk_matrix = kwargs.get("ps_crosstalk_matrix", None)
     ps_crosstalk_tap_order = kwargs.get("ps_crosstalk_tap_order", None)
 
     new_mzi_powers: Dict[str, float] = {}
-    new_ps_powers:  Dict[str, float] = {}
+    new_ps_powers: Dict[str, float] = {}
 
     # -----------------------------------------------------------------------
     # MZIs — gate on PSR error (dB), step on φ_err (rad)
@@ -231,9 +242,14 @@ def calculate_power_adjustments(
         lr = _effective_lr(psr_err, prev_psr, learning_rate, mzi_adaptive, **rprop_kw)
 
         new_P, delta_P = _compute_new_power(
-            phi_err, current_mzi_powers.get(mzi_id, 0.0),
-            lr, power_for_mzi_2pi, min_power, max_power,
-            dead_zone=mzi_dead_zone_db, gate_err=psr_err,
+            phi_err,
+            current_mzi_powers.get(mzi_id, 0.0),
+            lr,
+            power_for_mzi_2pi,
+            min_power,
+            max_power,
+            dead_zone=mzi_dead_zone_db,
+            gate_err=psr_err,
         )
         new_mzi_powers[mzi_id] = new_P
         logger.info(
@@ -246,18 +262,28 @@ def calculate_power_adjustments(
     # -----------------------------------------------------------------------
     if ps_crosstalk_matrix is not None and ps_crosstalk_tap_order is not None:
         decoupled = decouple_ps_delta_power(
-            ps_phase_errors, ps_crosstalk_matrix, ps_crosstalk_tap_order, learning_rate,
+            ps_phase_errors,
+            ps_crosstalk_matrix,
+            ps_crosstalk_tap_order,
+            learning_rate,
         )
         for tap_num, delta_P in decoupled.items():
             # Convert ΔP back to an equivalent φ_err so _compute_new_power owns
             # the wrap/clip logic (lr=1 since scaling is already baked into delta_P)
             phi_err_equiv = delta_P * (2 * np.pi) / power_for_ps_2pi
             new_P, _ = _compute_new_power(
-                phi_err_equiv, current_ps_powers.get(tap_num, 0.0),
-                1.0, power_for_ps_2pi, min_power, max_power, wrap=wrap_phase,
+                phi_err_equiv,
+                current_ps_powers.get(tap_num, 0.0),
+                1.0,
+                power_for_ps_2pi,
+                min_power,
+                max_power,
+                wrap=wrap_phase,
             )
             new_ps_powers[tap_num] = new_P
-            logger.info(f"  PS {tap_num}: ΔP={delta_P:.4f} W (decoupled) → P={new_P:.4f} W")
+            logger.info(
+                f"  PS {tap_num}: ΔP={delta_P:.4f} W (decoupled) → P={new_P:.4f} W"
+            )
 
     else:
         for tap_num, phi_err in ps_phase_errors.items():
@@ -269,11 +295,18 @@ def calculate_power_adjustments(
                 if prev_ps_phase_errors and tap_num in prev_ps_phase_errors
                 else None
             )
-            lr = _effective_lr(phi_err, prev_err, learning_rate, ps_adaptive, **rprop_kw)
+            lr = _effective_lr(
+                phi_err, prev_err, learning_rate, ps_adaptive, **rprop_kw
+            )
 
             new_P, delta_P = _compute_new_power(
-                phi_err, current_ps_powers.get(tap_num, 0.0),
-                lr, power_for_ps_2pi, min_power, max_power, wrap=wrap_phase,
+                phi_err,
+                current_ps_powers.get(tap_num, 0.0),
+                lr,
+                power_for_ps_2pi,
+                min_power,
+                max_power,
+                wrap=wrap_phase,
                 dead_zone=ps_dead_zone_rad,
             )
             new_ps_powers[tap_num] = new_P
@@ -289,6 +322,7 @@ def calculate_power_adjustments(
 # Hardware helpers (unchanged)
 # ---------------------------------------------------------------------------
 
+
 def apply_voltages_to_hardware(
     chip_state: ChipState,
     config: ExperimentConfig,
@@ -303,14 +337,18 @@ def apply_voltages_to_hardware(
         channel = config.channel_mapping.get_channel(f"MZI_{mzi_id}")
         channels.append(channel)
         voltages.append(voltage)
-        logger.info(f"    MZI {mzi_id} (ch {channel}): {voltage:.4f} V ({mzi.applied_power_watts:.4f} W)")
+        logger.info(
+            f"    MZI {mzi_id} (ch {channel}): {voltage:.4f} V ({mzi.applied_power_watts:.4f} W)"
+        )
 
     for tap_num, ps in chip_state.phase_shifters.items():
         voltage = np.sqrt(ps.applied_power_watts * R)
         channel = config.channel_mapping.get_channel(f"PS_{tap_num}")
         channels.append(channel)
         voltages.append(voltage)
-        logger.info(f"    PS {tap_num} (ch {channel}): {voltage:.4f} V ({ps.applied_power_watts:.4f} W)")
+        logger.info(
+            f"    PS {tap_num} (ch {channel}): {voltage:.4f} V ({ps.applied_power_watts:.4f} W)"
+        )
 
     logger.info("\n  Applying voltages to hardware:")
     voltage_ctrl.set_voltages(
