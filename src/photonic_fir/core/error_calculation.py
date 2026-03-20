@@ -87,7 +87,7 @@ def calculate_phase_shifter_errors(
         phi_init = ps_phi_init.get(tap_num, 0.0)
 
         # Error = target - (measured - initial_offset)
-        phase_errors[tap_num] = np.angle(np.exp(1j * (target_phase - measured_phase)))
+        phase_errors[tap_num] = target_phase - measured_phase
 
     return phase_errors
 
