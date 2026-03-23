@@ -9,6 +9,11 @@ logger = logging.getLogger(__name__)
 
 from photonic_fir.calibration import trim_spectrum_to_fsr
 from photonic_fir.core import ExperimentConfig, ChipState
+from photonic_fir.processing.gap_method import (
+    recover_impulse_response_gap_from_df,
+    extract_taps_from_cross_correlation,
+)
+
 
 try:
     from photonic_fir.hardware import measure_spectrum
@@ -31,6 +36,7 @@ def measure_and_detect_taps(
     df: Optional[pd.DataFrame] = None,
     file_name: Optional[str] = None,
     folder_dir: Optional[str] = None,
+    use_gap_method: bool = False,
 ) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Measure the optical spectrum and recover tap coefficients.
@@ -86,23 +92,43 @@ def measure_and_detect_taps(
         il_col=config.measurement.insertion_loss_col,
     )
 
-    # 2. Recover impulse response
-    time_ps, h_time = recover_impulse_response_from_df(
-        df=df_trimmed,
-        fsr_hz=config.chip.fsr_hz,
-        freq_col=config.measurement.frequency_col,
-        insertion_loss_col=config.measurement.insertion_loss_col,
-        n_tiles=config.calibration.num_tiles_for_kk_recovery,
-    )
+    if use_gap_method:
+        time_ps, h_time = recover_impulse_response_gap_from_df(
+            df=df_trimmed,
+            fsr_hz=config.chip.fsr_hz,
+            freq_col=config.measurement.frequency_col,
+            insertion_loss_col=config.measurement.insertion_loss_col,
+        )
 
-    # 3. Detect taps
-    tap_times, tap_coeffs = detect_taps_windowed(
-        time_ps=time_ps,
-        h_time=h_time,
-        fsr_hz=config.chip.fsr_hz,
-        delay_step_s=config.chip.delay_step_s,
-        n_taps=config.chip.n_taps,
-        window_width_ps=config.calibration.tap_detection_window_width_ps,
-    )
+        tap_amps, tap_phases = extract_taps_from_cross_correlation(
+            time_ps=time_ps,
+            R=h_time,
+            delay_step_s=config.chip.delay_step_s,
+        )
+
+        tap_coeffs = tap_amps * np.exp(1j * tap_phases)
+
+        gap_offset = config.chip.n_taps - config.chip.n_signal_taps
+        tap_times = np.array([
+            (gap_offset + n) * config.chip.delay_step_s * 1e12
+            for n in range(len(tap_amps))
+        ])
+    else:
+        time_ps, h_time = recover_impulse_response_from_df(
+            df=df_trimmed,
+            fsr_hz=config.chip.fsr_hz,
+            freq_col=config.measurement.frequency_col,
+            insertion_loss_col=config.measurement.insertion_loss_col,
+            n_tiles=config.calibration.num_tiles_for_kk_recovery,
+        )
+
+        tap_times, tap_coeffs = detect_taps_windowed(
+            time_ps=time_ps,
+            h_time=h_time,
+            fsr_hz=config.chip.fsr_hz,
+            delay_step_s=config.chip.delay_step_s,
+            n_taps=config.chip.n_taps,
+            window_width_ps=config.calibration.tap_detection_window_width_ps,
+        )
 
     return df, tap_times, tap_coeffs, time_ps, h_time

@@ -566,6 +566,9 @@ class CalibrationConfig:
     # --- Paths for loading characterisation data ---
     ps_crosstalk_matrix_path: Optional[str] = None
 
+    # --- Gap method settings ---
+    use_gap_method: bool = False
+
     # Optional initial power settings
     initial_mzi_voltages: Optional[Dict[str, float]] = field(
         default_factory=lambda: {
