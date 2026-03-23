@@ -153,6 +153,7 @@ def run_calibration_iteration(
                 if config.calibration.save_spectrum
                 else None
             ),
+            use_gap_method=config.calibration.use_gap_method,
         )
 
     plot_impulse_response(
