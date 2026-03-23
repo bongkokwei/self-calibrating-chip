@@ -98,6 +98,7 @@ def measure_and_detect_taps(
             fsr_hz=config.chip.fsr_hz,
             freq_col=config.measurement.frequency_col,
             insertion_loss_col=config.measurement.insertion_loss_col,
+            n_tiles=config.calibration.num_tiles_for_kk_recovery,
         )
 
         tap_amps, tap_phases = extract_taps_from_cross_correlation(
@@ -106,13 +107,23 @@ def measure_and_detect_taps(
             delay_step_s=config.chip.delay_step_s,
         )
 
-        tap_coeffs = tap_amps * np.exp(1j * tap_phases)
-
         gap_offset = config.chip.n_taps - config.chip.n_signal_taps
-        tap_times = np.array([
-            (gap_offset + n) * config.chip.delay_step_s * 1e12
-            for n in range(len(tap_amps))
-        ])
+
+        tap_coeffs_signal = tap_amps * np.exp(1j * tap_phases)
+        tap_coeffs = np.full(config.chip.n_taps, 1e-6 + 0j, dtype=complex)
+        tap_coeffs[gap_offset : gap_offset + len(tap_coeffs_signal)] = tap_coeffs_signal
+
+        # Pad tap_times to match — dummy values for the unused/reference slots
+        tap_times_signal = np.array(
+            [
+                (gap_offset + n) * config.chip.delay_step_s * 1e12
+                for n in range(len(tap_amps))
+            ]
+        )
+        tap_times = np.array(
+            [n * config.chip.delay_step_s * 1e12 for n in range(config.chip.n_taps)]
+        )
+        tap_times[gap_offset : gap_offset + len(tap_times_signal)] = tap_times_signal
     else:
         time_ps, h_time = recover_impulse_response_from_df(
             df=df_trimmed,
