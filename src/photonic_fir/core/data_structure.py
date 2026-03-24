@@ -507,7 +507,8 @@ class CalibrationConfig:
     """Configuration for self-calibration algorithm."""
 
     # Learning parameters
-    learning_rate: float = 0.5
+    mzi_learning_rate: float = 0.5
+    ps_learning_rate: float = 0.5
     max_iterations: int = 25
     trim_n_fsr: int = (
         10  # Number of FSRs to keep when trimming spectrum for impulse response recovery

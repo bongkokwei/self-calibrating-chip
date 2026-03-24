@@ -190,7 +190,8 @@ def calculate_power_adjustments(
     current_ps_powers: Dict[int, float],
     power_for_mzi_2pi: float,
     power_for_ps_2pi: float,
-    learning_rate: float,
+    mzi_learning_rate: float,
+    ps_learning_rate: float,
     min_power: float,
     max_power: float,
     wrap_phase: bool = False,
@@ -239,7 +240,13 @@ def calculate_power_adjustments(
         psr_err = mzi_psr_errors.get(mzi_id, 0.0)
         prev_psr = prev_mzi_psr_errors.get(mzi_id) if prev_mzi_psr_errors else None
 
-        lr = _effective_lr(psr_err, prev_psr, learning_rate, mzi_adaptive, **rprop_kw)
+        lr = _effective_lr(
+            psr_err,
+            prev_psr,
+            mzi_learning_rate,
+            mzi_adaptive,
+            **rprop_kw,
+        )
 
         new_P, delta_P = _compute_new_power(
             phi_err,
@@ -265,22 +272,11 @@ def calculate_power_adjustments(
             ps_phase_errors,
             ps_crosstalk_matrix,
             ps_crosstalk_tap_order,
-            learning_rate,
+            ps_learning_rate,
         )
         for tap_num, delta_P in decoupled.items():
-            # Convert ΔP back to an equivalent φ_err so _compute_new_power owns
-            # the wrap/clip logic (lr=1 since scaling is already baked into delta_P)
-            phi_err_equiv = delta_P * (2 * np.pi) / power_for_ps_2pi
-            new_P, _ = _compute_new_power(
-                phi_err_equiv,
-                current_ps_powers.get(tap_num, 0.0),
-                1.0,
-                power_for_ps_2pi,
-                min_power,
-                max_power,
-                wrap=wrap_phase,
-            )
-            new_ps_powers[tap_num] = new_P
+            current_P = current_ps_powers.get(tap_num, 0.0)
+            new_P = current_P + delta_P
             logger.info(
                 f"  PS {tap_num}: ΔP={delta_P:.4f} W (decoupled) → P={new_P:.4f} W"
             )
@@ -296,7 +292,7 @@ def calculate_power_adjustments(
                 else None
             )
             lr = _effective_lr(
-                phi_err, prev_err, learning_rate, ps_adaptive, **rprop_kw
+                phi_err, prev_err, ps_learning_rate, ps_adaptive, **rprop_kw
             )
 
             new_P, delta_P = _compute_new_power(
