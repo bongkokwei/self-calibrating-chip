@@ -276,7 +276,16 @@ def calculate_power_adjustments(
         )
         for tap_num, delta_P in decoupled.items():
             current_P = current_ps_powers.get(tap_num, 0.0)
-            new_P = current_P + delta_P
+            new_P = current_P + delta_P  # ← apply ΔP directly
+
+            # Wrap and clip
+            if wrap_phase:
+                if new_P < 0:
+                    new_P += power_for_ps_2pi
+                elif new_P > 1.25 * power_for_ps_2pi:
+                    new_P -= power_for_ps_2pi
+
+            new_P = float(np.clip(new_P, min_power, max_power))
             new_ps_powers[tap_num] = new_P
             logger.info(
                 f"  PS {tap_num}: ΔP={delta_P:.4f} W (decoupled) → P={new_P:.4f} W"
