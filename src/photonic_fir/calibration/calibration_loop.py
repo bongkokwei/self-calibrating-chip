@@ -463,7 +463,14 @@ def run_experiment(config_path: str):
             iterations.append(iter_data)
             prev_iter_data = iter_data
 
-            plotter.update(iter_data)
+            plotter.update(
+                iter_data,
+                (
+                    config.calibration.disable_taps_ps_taps
+                    if config.calibration.disable_taps
+                    else None
+                ),
+            )
 
             # Check convergence
             if check_convergence(iter_data, config):

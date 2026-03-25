@@ -137,7 +137,11 @@ class CalibrationPlotter:
     # ------------------------------------------------------------------ #
     #  Main convergence update                                             #
     # ------------------------------------------------------------------ #
-    def update(self, iter_data: IterationData):
+    def update(
+        self,
+        iter_data: IterationData,
+        disabled_ps_taps: Optional[List[int]] = None,
+    ):
         """
         Update plots with new iteration data.
 
@@ -148,6 +152,8 @@ class CalibrationPlotter:
         ----------
         iter_data : IterationData
             Data from current calibration iteration.
+        disabled_ps_taps : Optional[List[int]]
+            List of disabled PS taps.
         """
         # ----- Store data -----
         self.iterations.append(iter_data.iteration)
@@ -193,8 +199,14 @@ class CalibrationPlotter:
         # ----- Update per-tap phase error lines -----
         tap_phase_arr = np.array(self.tap_phase_errors_history)
         ax4 = self.axes[1, 1]
+        ps_offset = self.num_taps + 1  # global tap 9 → local index 0
+        disabled_local = {t - ps_offset for t in (disabled_ps_taps or [])}
+
         for i, line in enumerate(self._lines_tap_phase):
-            line.set_data(iters, tap_phase_arr[:, i])
+            if i not in disabled_local:
+                line.set_data(iters, tap_phase_arr[:, i])
+            else:
+                line.set_data([], [])
         ax4.relim()
         ax4.autoscale_view()
 
