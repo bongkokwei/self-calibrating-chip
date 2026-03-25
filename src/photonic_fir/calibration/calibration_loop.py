@@ -280,12 +280,12 @@ def save_results(results: CalibrationResults, output_dir: str):
     """Save calibration results to output directory."""
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
+    R = results.config.chip.heater_resistance_ohm
 
-    # Save convergence summary
     summary_path = Path(output_dir) / "calibration_summary.txt"
     with open(summary_path, "w") as f:
-        f.write(f"Calibration Results\n")
-        f.write(f"==================\n\n")
+        f.write("Calibration Results\n")
+        f.write("==================\n\n")
         f.write(f"Experiment: {results.config.name}\n")
         f.write(f"Filter type: {results.config.target.filter_type}\n")
         f.write(f"Converged: {results.converged}\n")
@@ -294,14 +294,26 @@ def save_results(results: CalibrationResults, output_dir: str):
 
         if results.iterations:
             last_iter = results.iterations[-1]
-            f.write(f"\nFinal errors:\n")
+            f.write("\nFinal errors:\n")
+            f.write(f"  RMS amplitude error: {last_iter.rms_amplitude_error_db:.4f} dB\n")
+            f.write(f"  RMS phase error:     {last_iter.rms_phase_error_rad:.4f} rad\n")
+
+        # --- Chip state ---
+        f.write("\nFinal chip state:\n")
+        f.write("  MZIs:\n")
+        for mzi_id, mzi in results.final_state.mzis.items():
+            voltage = np.sqrt(mzi.applied_power_watts * R)
             f.write(
-                f"  RMS amplitude error: {last_iter.rms_amplitude_error_db:.4f} dB\n"
+                f"    MZI {mzi_id}: {voltage:.4f} V  ({mzi.applied_power_watts*1e3:.2f} mW)\n"
             )
-            f.write(f"  RMS phase error: {last_iter.rms_phase_error_rad:.4f} rad\n")
+        f.write("  Phase shifters:\n")
+        for tap_num, ps in results.final_state.phase_shifters.items():
+            voltage = np.sqrt(ps.applied_power_watts * R)
+            f.write(
+                f"    PS  {tap_num:2d}: {voltage:.4f} V  ({ps.applied_power_watts*1e3:.2f} mW)\n"
+            )
 
     logger.info(f"\nResults saved to {output_dir}")
-
 
 def run_experiment(config_path: str):
     """
