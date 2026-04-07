@@ -234,7 +234,7 @@
 
     <!-- Magnitude response (bottom-left) -->
     <div class="chart-pane">
-      <h3>Magnitude response — |H(f̂)| (dB)</h3>
+      <h3>Insertion loss — normalised to peak (dB)</h3>
       <div style="position:relative;flex:1;min-height:0;"><canvas id="mag-chart"></canvas></div>
     </div>
 
@@ -421,16 +421,19 @@ function updateConstChart(complex) {
   }
 }
 
-function toDb(mag) { return parseFloat((20 * Math.log10(mag + 1e-12)).toFixed(3)); }
+function toDb(mag) { return 20 * Math.log10(mag + 1e-12); }
+
+function normaliseDb(dbs) {
+  const peak = Math.max(...dbs);
+  return dbs.map(v => parseFloat((v - peak).toFixed(3)));
+}
 
 function updateMagChart(f, H0, Hl, fsr) {
-  const dbs0   = H0.map(h => toDb(h.mag));
-  const dbsL   = Hl.map(h => toDb(h.mag));
+  const dbs0   = normaliseDb(H0.map(h => toDb(h.mag)));
+  const dbsL   = normaliseDb(Hl.map(h => toDb(h.mag)));
   const labels = f.map(fh => parseFloat((fh * fsr).toFixed(1)));
   const hasLoss = document.getElementById('loss-model').value !== 'none' &&
                   parseFloat(document.getElementById('loss-db').value) > 0;
-  const peakDb = Math.max(...dbs0);
-  const yMin   = Math.max(peakDb - 60, -120);
 
   if (!magChart) {
     magChart = mkChart('mag-chart', {
@@ -442,7 +445,10 @@ function updateMagChart(f, H0, Hl, fsr) {
       options:{
         responsive:true, maintainAspectRatio:false, animation:false,
         plugins:{ legend:{ labels:{ color:tc, font:{family:"'JetBrains Mono'",size:10}, boxWidth:10 } } },
-        scales:{ ...commonScales('f (GHz)', '|H| (dB)'), y:{ ...commonScales().y, min:yMin } }
+        scales:{
+          ...commonScales('f (GHz)', 'Insertion loss (dB)'),
+          y:{ ...commonScales().y, min:-60, max:3 }
+        }
       }
     });
   } else {
@@ -450,7 +456,6 @@ function updateMagChart(f, H0, Hl, fsr) {
     magChart.data.datasets[0].data = dbs0;
     magChart.data.datasets[1].data = dbsL;
     magChart.data.datasets[1].borderColor = hasLoss ? '#f0a84a' : 'transparent';
-    magChart.options.scales.y.min = yMin;
     magChart.update('none');
   }
 }
