@@ -227,7 +227,7 @@
 
     <!-- Magnitude response (bottom-left) -->
     <div class="chart-pane">
-      <h3>Magnitude response — |H(f̂)|</h3>
+      <h3>Magnitude response — |H(f̂)| (dB)</h3>
       <div style="position:relative;flex:1;min-height:0;"><canvas id="mag-chart"></canvas></div>
     </div>
 
@@ -414,31 +414,36 @@ function updateConstChart(complex) {
   }
 }
 
+function toDb(mag) { return parseFloat((20 * Math.log10(mag + 1e-12)).toFixed(3)); }
+
 function updateMagChart(f, H0, Hl, fsr) {
-  const mags0 = H0.map(h => parseFloat(h.mag.toFixed(4)));
-  const magsL = Hl.map(h => parseFloat(h.mag.toFixed(4)));
+  const dbs0   = H0.map(h => toDb(h.mag));
+  const dbsL   = Hl.map(h => toDb(h.mag));
   const labels = f.map(fh => parseFloat((fh * fsr).toFixed(1)));
   const hasLoss = document.getElementById('loss-model').value !== 'none' &&
                   parseFloat(document.getElementById('loss-db').value) > 0;
+  const peakDb = Math.max(...dbs0);
+  const yMin   = Math.max(peakDb - 60, -120);
 
   if (!magChart) {
     magChart = mkChart('mag-chart', {
       type:'line',
       data:{ labels, datasets:[
-        { label:'lossless', data:mags0, borderColor:'#4af0c488', borderWidth:1, pointRadius:0, tension:0, fill:true, backgroundColor:'rgba(74,240,196,0.05)' },
-        { label:'lossy',    data:magsL, borderColor:'#f0a84a',   borderWidth:1.5, pointRadius:0, tension:0 },
+        { label:'lossless', data:dbs0, borderColor:'#4af0c488', borderWidth:1,   pointRadius:0, tension:0, fill:true, backgroundColor:'rgba(74,240,196,0.05)' },
+        { label:'lossy',    data:dbsL, borderColor:'#f0a84a',   borderWidth:1.5, pointRadius:0, tension:0 },
       ]},
       options:{
         responsive:true, maintainAspectRatio:false, animation:false,
         plugins:{ legend:{ labels:{ color:tc, font:{family:"'JetBrains Mono'",size:10}, boxWidth:10 } } },
-        scales: commonScales('f (GHz)', '|H|')
+        scales:{ ...commonScales('f (GHz)', '|H| (dB)'), y:{ ...commonScales().y, min:yMin } }
       }
     });
   } else {
     magChart.data.labels = labels;
-    magChart.data.datasets[0].data = mags0;
-    magChart.data.datasets[1].data = magsL;
+    magChart.data.datasets[0].data = dbs0;
+    magChart.data.datasets[1].data = dbsL;
     magChart.data.datasets[1].borderColor = hasLoss ? '#f0a84a' : 'transparent';
+    magChart.options.scales.y.min = yMin;
     magChart.update('none');
   }
 }
