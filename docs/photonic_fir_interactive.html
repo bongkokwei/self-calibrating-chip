@@ -181,7 +181,14 @@
       <h2>Tap coefficients</h2>
       <div class="panel-controls">
         <button class="btn" onclick="resetTaps()">reset</button>
-        <button class="btn" onclick="loadPreset()">preset ↓</button>
+        <select id="preset-select" onchange="loadPreset(this.value)" style="font-size:10px;padding:4px 8px;">
+          <option value="">preset…</option>
+          <option value="default">default</option>
+          <option value="boxcar">boxcar</option>
+          <option value="raised">raised cosine</option>
+          <option value="hilbert">hilbert</option>
+          <option value="chirp">chirp</option>
+        </select>
       </div>
     </div>
 
@@ -546,12 +553,12 @@ function resetTaps() {
   render();
 }
 
-function loadPreset() {
-  presetIdx = (presetIdx + 1) % presetNames.length;
-  const name = presetNames[presetIdx];
+function loadPreset(name) {
+  if (!name || !PRESETS[name]) return;
   taps = PRESETS[name].map(t => ({ ...t }));
   buildTapList();
   render();
+  document.getElementById('preset-select').value = '';
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
