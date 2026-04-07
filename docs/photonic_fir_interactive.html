@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photonic FIR — Interactive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0f14;
+    --bg2:       #13161e;
+    --bg3:       #1a1e2a;
+    --border:    rgba(255,255,255,0.07);
+    --border2:   rgba(255,255,255,0.13);
+    --text:      #e8e6e0;
+    --muted:     #6b7080;
+    --accent:    #4af0c4;
+    --accent2:   #f0a84a;
+    --accent3:   #c084fc;
+    --danger:    #f06060;
+    --mono:      'JetBrains Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+    --radius:    8px;
+    --tap-h:     44px;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; }
+
+  /* ── Layout ── */
+  .shell { display: grid; grid-template-columns: 340px 1fr; grid-template-rows: 56px 1fr; height: 100vh; overflow: hidden; }
+
+  header {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+  }
+  header h1 { font-family: var(--mono); font-size: 13px; font-weight: 400; letter-spacing: 0.08em; color: var(--muted); }
+  header h1 span { color: var(--accent); }
+  .header-meta { font-family: var(--mono); font-size: 11px; color: var(--muted); display: flex; gap: 20px; }
+  .header-meta b { color: var(--text); font-weight: 400; }
+
+  /* ── Left panel ── */
+  .panel {
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 14px 18px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .panel-header h2 { font-size: 11px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .panel-controls { display: flex; gap: 8px; }
+  .tap-list { flex: 1; overflow-y: auto; padding: 10px 0; }
+  .tap-list::-webkit-scrollbar { width: 3px; }
+  .tap-list::-webkit-scrollbar-track { background: transparent; }
+  .tap-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* ── Tap row ── */
+  .tap-row {
+    padding: 8px 18px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  .tap-row:hover { background: var(--bg3); }
+  .tap-row-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .tap-label {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .tap-label .idx {
+    width: 20px; height: 20px; border-radius: 4px;
+    background: var(--bg3); border: 1px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--text);
+  }
+  .tap-value {
+    font-family: var(--mono); font-size: 11px; color: var(--accent);
+    min-width: 120px; text-align: right;
+  }
+  .slider-group { display: flex; flex-direction: column; gap: 5px; }
+  .slider-row { display: flex; align-items: center; gap: 8px; }
+  .slider-row label { font-size: 10px; color: var(--muted); width: 14px; letter-spacing: 0.05em; }
+  .slider-row input[type=range] { flex: 1; height: 3px; accent-color: var(--accent); cursor: pointer; }
+  .slider-row input[type=range].phase { accent-color: var(--accent2); }
+  .slider-num { font-family: var(--mono); font-size: 10px; color: var(--muted); width: 40px; text-align: right; }
+
+  /* ── Bottom controls ── */
+  .panel-footer {
+    padding: 12px 18px;
+    border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 10px;
+    flex-shrink: 0;
+    background: var(--bg2);
+  }
+  .footer-row { display: flex; align-items: center; gap: 10px; }
+  .footer-row label { font-size: 11px; color: var(--muted); width: 80px; flex-shrink: 0; }
+  .footer-row select, .footer-row input[type=range] { flex: 1; }
+  select {
+    background: var(--bg3); color: var(--text); border: 1px solid var(--border2);
+    border-radius: var(--radius); padding: 4px 8px; font-size: 11px;
+    font-family: var(--mono); cursor: pointer; outline: none;
+  }
+  .footer-row input[type=range] { accent-color: var(--accent3); height: 3px; }
+  .slider-num2 { font-family: var(--mono); font-size: 10px; color: var(--muted); width: 42px; text-align: right; }
+
+  /* ── Buttons ── */
+  .btn {
+    background: transparent; color: var(--muted); border: 1px solid var(--border2);
+    border-radius: var(--radius); padding: 4px 10px; font-size: 10px; font-family: var(--mono);
+    cursor: pointer; letter-spacing: 0.06em; transition: color 0.15s, border-color 0.15s;
+  }
+  .btn:hover { color: var(--text); border-color: var(--accent); }
+  .btn.danger:hover { color: var(--danger); border-color: var(--danger); }
+  .btn-add {
+    width: calc(100% - 36px); margin: 8px 18px;
+    background: var(--bg3); color: var(--muted);
+    border: 1px dashed var(--border2); border-radius: var(--radius);
+    padding: 7px; font-size: 11px; font-family: var(--mono);
+    cursor: pointer; text-align: center; letter-spacing: 0.06em;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .btn-add:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ── Right: charts ── */
+  .charts {
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    overflow: hidden;
+  }
+  .chart-pane {
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    padding: 14px 18px 10px;
+    overflow: hidden;
+    position: relative;
+  }
+  .chart-pane.wide { grid-column: 1 / -1; }
+  .chart-pane h3 {
+    font-size: 10px; font-weight: 400; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 10px; flex-shrink: 0;
+  }
+  .chart-pane canvas { flex: 1; min-height: 0; }
+
+  /* ── Tap magnitude stems (top-left pane) ── */
+  #stems-container { flex: 1; overflow: hidden; position: relative; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Header -->
+  <header>
+    <h1><span>PHOTONIC</span> FIR — Interactive</h1>
+    <div class="header-meta">
+      <span>taps <b id="hdr-taps">5</b></span>
+      <span>FSR <b id="hdr-fsr">160</b> GHz</span>
+      <span>peak |H| <b id="hdr-peak">—</b></span>
+    </div>
+  </header>
+
+  <!-- Left panel: tap controls -->
+  <aside class="panel">
+    <div class="panel-header">
+      <h2>Tap coefficients</h2>
+      <div class="panel-controls">
+        <button class="btn" onclick="resetTaps()">reset</button>
+        <button class="btn" onclick="loadPreset()">preset ↓</button>
+      </div>
+    </div>
+
+    <div class="tap-list" id="tap-list"></div>
+    <button class="btn-add" onclick="addTap()">+ add tap</button>
+
+    <div class="panel-footer">
+      <div class="footer-row">
+        <label>Loss model</label>
+        <select id="loss-model" onchange="render()">
+          <option value="none">none</option>
+          <option value="propagation">propagation</option>
+          <option value="uniform">uniform</option>
+          <option value="coupler">coupler</option>
+        </select>
+      </div>
+      <div class="footer-row">
+        <label>Loss (dB/tap)</label>
+        <input type="range" id="loss-db" min="0" max="5" step="0.05" value="0" oninput="render()">
+        <span class="slider-num2" id="loss-db-val">0.00</span>
+      </div>
+      <div class="footer-row">
+        <label>FSR (GHz)</label>
+        <input type="range" id="fsr" min="10" max="500" step="5" value="160" oninput="render()">
+        <span class="slider-num2" id="fsr-val">160</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Right: four chart panes -->
+  <div class="charts">
+    <!-- Tap coefficient constellation (top-left) -->
+    <div class="chart-pane">
+      <h3>Tap weights — amplitude &amp; phase</h3>
+      <div style="position:relative;flex:1;min-height:0;"><canvas id="tap-chart"></canvas></div>
+    </div>
+
+    <!-- Polar / constellation (top-right) -->
+    <div class="chart-pane">
+      <h3>Constellation (complex plane)</h3>
+      <div style="position:relative;flex:1;min-height:0;"><canvas id="const-chart"></canvas></div>
+    </div>
+
+    <!-- Magnitude response (bottom-left) -->
+    <div class="chart-pane">
+      <h3>Magnitude response — |H(f̂)|</h3>
+      <div style="position:relative;flex:1;min-height:0;"><canvas id="mag-chart"></canvas></div>
+    </div>
+
+    <!-- Phase response (bottom-right) -->
+    <div class="chart-pane">
+      <h3>Phase response — ∠H(f̂) (deg)</h3>
+      <div style="position:relative;flex:1;min-height:0;"><canvas id="phase-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let taps = [
+  { amp: 1.00, phase: 0   },
+  { amp: 0.70, phase: 45  },
+  { amp: 1.00, phase: 180 },
+  { amp: 0.70, phase: -45 },
+  { amp: 0.25, phase: 0   },
+];
+
+const PRESETS = {
+  default:   [{ amp:1, phase:0 },{ amp:.7, phase:45 },{ amp:1, phase:180 },{ amp:.7, phase:-45 },{ amp:.25, phase:0 }],
+  boxcar:    Array.from({length:8}, () => ({ amp:1, phase:0 })),
+  raised:    [{ amp:.25,phase:0 },{ amp:.5,phase:0 },{ amp:1,phase:0 },{ amp:.5,phase:0 },{ amp:.25,phase:0 }],
+  hilbert:   Array.from({length:9}, (_,k) => {
+    const n = k - 4;
+    if (n === 0) return { amp:0, phase:0 };
+    const v = n % 2 === 0 ? 0 : 2/(Math.PI*n);
+    return { amp: Math.abs(v), phase: v < 0 ? 180 : 0 };
+  }),
+  chirp:     Array.from({length:8}, (_,k) => ({ amp:1, phase: k*k*15 })),
+};
+
+let presetNames = Object.keys(PRESETS);
+let presetIdx = 0;
+
+// ── Chart instances ────────────────────────────────────────────────────────
+let tapChart, constChart, magChart, phaseChart;
+
+// ── Maths ──────────────────────────────────────────────────────────────────
+function getTapComplex() {
+  return taps.map(t => {
+    const ph = t.phase * Math.PI / 180;
+    return { re: t.amp * Math.cos(ph), im: t.amp * Math.sin(ph) };
+  });
+}
+
+function applyLoss(complex) {
+  const model = document.getElementById('loss-model').value;
+  const lossDb = parseFloat(document.getElementById('loss-db').value);
+  if (model === 'none' || lossDb === 0) return complex;
+  const alpha = lossDb / 8.6859;
+  return complex.map((h, k) => {
+    let s = 1;
+    if (model === 'propagation') s = Math.exp(-alpha * k);
+    else if (model === 'uniform') s = Math.exp(-alpha);
+    else if (model === 'coupler') s = Math.exp(-alpha * k / 2);
+    return { re: h.re * s, im: h.im * s };
+  });
+}
+
+function freqResponse(complex, N = 1024) {
+  const f = Array.from({length: N}, (_, i) => -0.5 + i / N);
+  const H = f.map(fh => {
+    let re = 0, im = 0;
+    complex.forEach((h, k) => {
+      const ang = -2 * Math.PI * fh * k;
+      re += h.re * Math.cos(ang) - h.im * Math.sin(ang);
+      im += h.re * Math.sin(ang) + h.im * Math.cos(ang);
+    });
+    return { re, im, mag: Math.sqrt(re*re + im*im) };
+  });
+  return { f, H };
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function render() {
+  const lossDb = parseFloat(document.getElementById('loss-db').value);
+  const fsr    = parseInt(document.getElementById('fsr').value);
+  document.getElementById('loss-db-val').textContent = lossDb.toFixed(2);
+  document.getElementById('fsr-val').textContent = fsr;
+  document.getElementById('hdr-taps').textContent = taps.length;
+  document.getElementById('hdr-fsr').textContent = fsr;
+
+  const raw     = getTapComplex();
+  const lossy   = applyLoss(raw);
+  const { f, H: Hl } = freqResponse(lossy, 1024);
+  const { H: H0 }    = freqResponse(raw,   1024);
+
+  const peakIdx = Hl.reduce((mi, h, i) => h.mag > Hl[mi].mag ? i : mi, 0);
+  document.getElementById('hdr-peak').textContent = Hl[peakIdx].mag.toFixed(3);
+
+  // frequency axis label (physical GHz)
+  const fGHz = f.map(fh => (fh * fsr).toFixed(1));
+
+  updateTapChart(lossy);
+  updateConstChart(lossy);
+  updateMagChart(f, H0, Hl, fsr);
+  updatePhaseChart(f, Hl, fsr);
+}
+
+// ── Chart helpers ──────────────────────────────────────────────────────────
+const G = '#1a1e2a';
+const gc = 'rgba(255,255,255,0.05)';
+const tc = '#6b7080';
+const commonScales = (xl, yl) => ({
+  x: { grid:{color:gc}, ticks:{color:tc, maxTicksLimit:7, font:{family:"'JetBrains Mono'",size:10}},
+       title:{display:!!xl, text:xl, color:tc, font:{size:10}} },
+  y: { grid:{color:gc}, ticks:{color:tc, maxTicksLimit:6, font:{family:"'JetBrains Mono'",size:10}},
+       title:{display:!!yl, text:yl, color:tc, font:{size:10}} }
+});
+
+function mkChart(id, cfg) {
+  const ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx, cfg);
+}
+
+function updateTapChart(complex) {
+  const labels = complex.map((_, i) => `h${i}`);
+  const mags   = complex.map(h => Math.sqrt(h.re*h.re + h.im*h.im));
+  const phases = complex.map(h => Math.atan2(h.im, h.re) * 180 / Math.PI);
+
+  if (!tapChart) {
+    tapChart = mkChart('tap-chart', {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label:'|h_k|', data: mags,   backgroundColor:'#4af0c433', borderColor:'#4af0c4', borderWidth:1.5, yAxisID:'y' },
+          { label:'∠h_k',  data: phases, backgroundColor:'#f0a84a22', borderColor:'#f0a84a', borderWidth:1.5, type:'line', pointRadius:4, pointBackgroundColor:'#f0a84a', yAxisID:'y2' },
+        ]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false, animation:false,
+        plugins:{ legend:{ labels:{ color:tc, font:{family:"'JetBrains Mono'",size:10}, boxWidth:10 } } },
+        scales: {
+          x: commonScales().x,
+          y: { ...commonScales(null,'|h_k|').y, position:'left' },
+          y2:{ ...commonScales(null,'phase (°)').y, position:'right', grid:{display:false},
+               min:-180, max:180 }
+        }
+      }
+    });
+  } else {
+    tapChart.data.labels = labels;
+    tapChart.data.datasets[0].data = mags;
+    tapChart.data.datasets[1].data = phases;
+    tapChart.update('none');
+  }
+}
+
+function updateConstChart(complex) {
+  const pts = complex.map((h,i) => ({ x: parseFloat(h.re.toFixed(4)), y: parseFloat(h.im.toFixed(4)), label:`h${i}` }));
+  const maxR = Math.max(1, ...complex.map(h => Math.sqrt(h.re*h.re+h.im*h.im))) * 1.25;
+
+  if (!constChart) {
+    constChart = mkChart('const-chart', {
+      type:'scatter',
+      data:{ datasets:[
+        { data:pts, backgroundColor:'#4af0c4cc', borderColor:'#4af0c4', pointRadius:6, pointHoverRadius:8 },
+        { data:[{x:0,y:0}], backgroundColor:'transparent', borderColor:'rgba(255,255,255,0.1)',
+          pointStyle:'crossRot', pointRadius:6, borderWidth:1 },
+      ]},
+      options:{
+        responsive:true, maintainAspectRatio:false, animation:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{ callbacks:{ label: ctx => {
+            const d = ctx.raw; return `h${ctx.dataIndex}: ${d.x.toFixed(3)} + ${d.y.toFixed(3)}j`;
+          }}}
+        },
+        scales:{
+          x:{ ...commonScales('Re','Im').x, min:-maxR, max:maxR },
+          y:{ ...commonScales('Re','Im').y, min:-maxR, max:maxR }
+        }
+      }
+    });
+  } else {
+    constChart.data.datasets[0].data = pts;
+    constChart.options.scales.x.min = -maxR; constChart.options.scales.x.max = maxR;
+    constChart.options.scales.y.min = -maxR; constChart.options.scales.y.max = maxR;
+    constChart.update('none');
+  }
+}
+
+function updateMagChart(f, H0, Hl, fsr) {
+  const mags0 = H0.map(h => parseFloat(h.mag.toFixed(4)));
+  const magsL = Hl.map(h => parseFloat(h.mag.toFixed(4)));
+  const labels = f.map(fh => parseFloat((fh * fsr).toFixed(1)));
+  const hasLoss = document.getElementById('loss-model').value !== 'none' &&
+                  parseFloat(document.getElementById('loss-db').value) > 0;
+
+  if (!magChart) {
+    magChart = mkChart('mag-chart', {
+      type:'line',
+      data:{ labels, datasets:[
+        { label:'lossless', data:mags0, borderColor:'#4af0c488', borderWidth:1, pointRadius:0, tension:0, fill:true, backgroundColor:'rgba(74,240,196,0.05)' },
+        { label:'lossy',    data:magsL, borderColor:'#f0a84a',   borderWidth:1.5, pointRadius:0, tension:0 },
+      ]},
+      options:{
+        responsive:true, maintainAspectRatio:false, animation:false,
+        plugins:{ legend:{ labels:{ color:tc, font:{family:"'JetBrains Mono'",size:10}, boxWidth:10 } } },
+        scales: commonScales('f (GHz)', '|H|')
+      }
+    });
+  } else {
+    magChart.data.labels = labels;
+    magChart.data.datasets[0].data = mags0;
+    magChart.data.datasets[1].data = magsL;
+    magChart.data.datasets[1].borderColor = hasLoss ? '#f0a84a' : 'transparent';
+    magChart.update('none');
+  }
+}
+
+function updatePhaseChart(f, Hl, fsr) {
+  const phases = Hl.map(h => parseFloat((Math.atan2(h.im, h.re) * 180 / Math.PI).toFixed(2)));
+  const labels  = f.map(fh => parseFloat((fh * fsr).toFixed(1)));
+
+  if (!phaseChart) {
+    phaseChart = mkChart('phase-chart', {
+      type:'line',
+      data:{ labels, datasets:[{
+        data:phases, borderColor:'#c084fc', borderWidth:1.5, pointRadius:0, tension:0
+      }]},
+      options:{
+        responsive:true, maintainAspectRatio:false, animation:false,
+        plugins:{ legend:{ display:false } },
+        scales:{ ...commonScales('f (GHz)', '∠H (°)'), y:{ ...commonScales().y, min:-180, max:180 } }
+      }
+    });
+  } else {
+    phaseChart.data.labels = labels;
+    phaseChart.data.datasets[0].data = phases;
+    phaseChart.update('none');
+  }
+}
+
+// ── Tap UI ─────────────────────────────────────────────────────────────────
+function buildTapList() {
+  const list = document.getElementById('tap-list');
+  list.innerHTML = '';
+  taps.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'tap-row';
+    row.innerHTML = `
+      <div class="tap-row-header">
+        <div class="tap-label">
+          <span class="idx">${i}</span>
+          h<sub>${i}</sub>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="tap-value" id="tv-${i}">—</span>
+          ${taps.length > 1 ? `<button class="btn danger" onclick="removeTap(${i})" title="Remove">✕</button>` : ''}
+        </div>
+      </div>
+      <div class="slider-group">
+        <div class="slider-row">
+          <label>A</label>
+          <input type="range" min="0" max="1" step="0.01" value="${t.amp}"
+                 oninput="updateTap(${i},'amp',this.value)">
+          <span class="slider-num" id="sa-${i}">${t.amp.toFixed(2)}</span>
+        </div>
+        <div class="slider-row">
+          <label style="color:var(--accent2)">φ</label>
+          <input type="range" class="phase" min="-180" max="180" step="1" value="${t.phase}"
+                 oninput="updateTap(${i},'phase',this.value)">
+          <span class="slider-num" id="sp-${i}">${t.phase > 0 ? '+' : ''}${t.phase}°</span>
+        </div>
+      </div>`;
+    list.appendChild(row);
+  });
+  updateTapValues();
+}
+
+function updateTapValues() {
+  taps.forEach((t, i) => {
+    const ph = t.phase * Math.PI / 180;
+    const re = t.amp * Math.cos(ph);
+    const im = t.amp * Math.sin(ph);
+    const el = document.getElementById(`tv-${i}`);
+    if (el) el.textContent = `${re >= 0 ? '+' : ''}${re.toFixed(3)}${im >= 0 ? '+' : ''}${im.toFixed(3)}j`;
+  });
+}
+
+function updateTap(i, field, val) {
+  taps[i][field] = parseFloat(val);
+  const saEl = document.getElementById(`sa-${i}`);
+  const spEl = document.getElementById(`sp-${i}`);
+  if (saEl) saEl.textContent = taps[i].amp.toFixed(2);
+  if (spEl) spEl.textContent = (taps[i].phase > 0 ? '+' : '') + taps[i].phase + '°';
+  updateTapValues();
+  render();
+}
+
+function addTap() {
+  taps.push({ amp: 0.5, phase: 0 });
+  buildTapList();
+  render();
+}
+
+function removeTap(i) {
+  taps.splice(i, 1);
+  buildTapList();
+  render();
+}
+
+function resetTaps() {
+  taps = PRESETS.default.map(t => ({ ...t }));
+  buildTapList();
+  render();
+}
+
+function loadPreset() {
+  presetIdx = (presetIdx + 1) % presetNames.length;
+  const name = presetNames[presetIdx];
+  taps = PRESETS[name].map(t => ({ ...t }));
+  buildTapList();
+  render();
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+buildTapList();
+render();
+</script>
+</body>
+</html>
