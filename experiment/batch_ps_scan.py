@@ -692,7 +692,7 @@ def main():
     # CONFIGURATION — edit these parameters
     # ============================================================
 
-    CONFIG_PATH = "measurements/calibration_config.yaml"  # Reuse same config file
+    CONFIG_PATH = "config/calibration_config.yaml"  # Reuse same config file
 
     # Voltage scan parameters
     V_MIN = 0.0  # V

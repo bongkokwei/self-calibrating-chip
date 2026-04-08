@@ -1,0 +1,407 @@
+name: fir_calibration
+description: ''
+timestamp: null
+chip:
+  n_taps: 16
+  n_signal_taps: 8
+  reference_tap_idx: 0
+  signal_tap_start: 9
+  fsr_hz: 161750000000.0
+  delay_step_s: 6.18e-12
+  waveguide_loss_db_per_cm: 0.15
+  group_index: 1.71
+  dispersion_ps_per_nm_per_km: 0.0
+  p2pi_watts_mzi: 0.76
+  p2pi_watts_ps: 0.76 # 0.56
+  p2pi_tolerance: 0.05
+  heater_resistance_ohm: 600.0
+  heater_resistance_tolerance: 30.0
+  coupling_loss_db: 0.2
+  base_insertion_loss_db: 3.0
+  thermal_time_constant_s: 0.001
+channel_mapping:
+  mzi_channels:
+    1-1: 4
+    2-1: 18
+    2-2: 2
+    3-1: 17
+    3-2: 19
+    3-3: 3
+    3-4: 1
+    4-1: 23
+    4-2: 22
+    4-3: 21
+    4-4: 20
+    4-5: 5
+    4-6: 6
+    4-7: 7
+    4-8: 8
+  ps_channels:
+    1: 24
+    2: 25
+    3: 26
+    4: 27
+    5: 28
+    6: 29
+    7: 30
+    8: 31
+    9: 16
+    10: 15
+    11: 14
+    12: 13
+    13: 12
+    14: 11
+    15: 10
+    16: 9
+  reference_channel: null
+  unused_channels: {}
+target:
+  filter_type: custom
+  phase_step_rad:  0.0
+  custom_amplitudes: [0.125, 0.25, 0.5, 1.0, 1.0, 0.5, 0.25, 0.125]
+  custom_phases_rad: [0.78540, 0.78539, 0.78539, 0.78539, 0.78539, 0.78539, 0.78539, 0.78539]
+measurement:
+  center_wavelength_nm: 1550.0
+  wavelength_span_nm: 20.0
+  n_points: 1000
+  chip_temperature_c: 30.0
+  temperature_tolerance_c: 0.1
+  ova_address: 130.194.137.122
+  voltage_controller_port: COM3
+  voltage_controller_baudrate: 9600
+  voltage_controller_v_max: 30.0
+  edfa_port: COM6
+  edfa_baudrate: 57600
+  edfa_output_power_dbm: 10.0
+  integration_time_s: 0.1
+  num_averages: 5
+  settling_time_sec: 2.0
+  wavelength_col: wl_axis
+  frequency_col: f_axis
+  insertion_loss_col: IL
+  add_noise_floor_db: -120.0
+  check_minimum_phase: true
+  reference_tap_margin_db: 3.0
+  use_db_scale: true
+  prominence_factor_db: 0.3
+  height_threshold_db: -60.0
+  prominence_factor_linear: 0.1
+  height_threshold_linear: 0.05
+  min_distance_ps: null
+  min_distance_factor: 0.8
+  expected_n_taps: null
+calibration:
+  mzi_learning_rate: 0.5
+  ps_learning_rate: 0.5
+  max_iterations: 25
+  trim_n_fsr: 3
+  mzi_dead_zone_db: 0.5
+  ps_dead_zone_rad: 0.05
+  amplitude_tolerance_db: 0.5
+  phase_tolerance_rad: 0.1
+  use_two_step_init: false
+  init_power_sweep_watts: 0.05
+  max_power_step_watts: 0.1
+  min_power_watts: 0.0
+  max_power_watts: 1.5
+  phase_wrap_threshold_rad: 1.5707963267948966
+  sequential_mode: true
+  psr_increase_threshold_db: 0.2
+  wrap_phase: true
+  lr_min: 0.0001
+  lr_max: 1.0
+  lr_decay: 0.7
+  lr_grow: 1.05
+  lr_phi_scale: 3.141592653589793
+  mzi_adaptive_learning: false
+  ps_adaptive_learning: false
+  disable_taps_ps_taps: [9, 10, 11, 12, 13, 14, 15, 16]
+  disable_taps: false
+  save_spectrum: false
+  save_impulse_response: true
+  num_tiles_for_kk_recovery: 1024
+  tap_detection_window_width_ps: 5
+  ps_crosstalk_matrix_path: measurements/v2pi_batch_ps_scan_results_run_013/ps_crosstalk_csv/ps_crosstalk_matrix.csv
+  use_gap_method: false
+  initial_mzi_voltages: 
+    1-1: 13.0000
+    2-1: 6.7500
+    2-2: 0 #20.2732
+    3-1: 5.8000
+    3-2: 13.0000 
+    3-3: 0 #9.6155 
+    3-4: 0 #10.6745
+    4-1: 19.8000
+    4-2: 9.0000
+    4-3: 10.0000
+    4-4: 11.0000
+    4-5: 0 #15.3803
+    4-6: 0 #13.4181
+    4-7: 0 #10.1326
+    4-8: 0 #12.7438
+  initial_mzi_powers: null
+  initial_ps_powers: null
+signal_mzi_tree:
+  chip:
+    n_taps: 16
+    n_signal_taps: 8
+    reference_tap_idx: 0
+    signal_tap_start: 9
+    fsr_hz: 161750000000.0
+    delay_step_s: 6.18e-12
+    waveguide_loss_db_per_cm: 0.15
+    group_index: 1.71
+    dispersion_ps_per_nm_per_km: 0.0
+    p2pi_watts_mzi: 0.76
+    p2pi_watts_ps: 0.56
+    p2pi_tolerance: 0.05
+    heater_resistance_ohm: 600.0
+    heater_resistance_tolerance: 30.0
+    coupling_loss_db: 0.2
+    base_insertion_loss_db: 3.0
+    thermal_time_constant_s: 0.001
+  mzi_ids:
+  - 2-2
+  - 3-3
+  - 3-4
+  - 4-5
+  - 4-6
+  - 4-7
+  - 4-8
+  tree:
+    2-2:
+      stage: 2
+      position: 1
+      lower_taps:
+      - 8
+      - 12
+      upper_taps:
+      - 12
+      - 16
+    3-3:
+      stage: 3
+      position: 2
+      lower_taps:
+      - 8
+      - 10
+      upper_taps:
+      - 10
+      - 12
+    3-4:
+      stage: 3
+      position: 3
+      lower_taps:
+      - 12
+      - 14
+      upper_taps:
+      - 14
+      - 16
+    4-5:
+      stage: 4
+      position: 4
+      lower_taps:
+      - 8
+      - 9
+      upper_taps:
+      - 9
+      - 10
+    4-6:
+      stage: 4
+      position: 5
+      lower_taps:
+      - 10
+      - 11
+      upper_taps:
+      - 11
+      - 12
+    4-7:
+      stage: 4
+      position: 6
+      lower_taps:
+      - 12
+      - 13
+      upper_taps:
+      - 13
+      - 14
+    4-8:
+      stage: 4
+      position: 7
+      lower_taps:
+      - 14
+      - 15
+      upper_taps:
+      - 15
+      - 16
+full_mzi_tree:
+  chip:
+    n_taps: 16
+    n_signal_taps: 8
+    reference_tap_idx: 0
+    signal_tap_start: 9
+    fsr_hz: 160000000000.0
+    delay_step_s: 6.25e-12
+    waveguide_loss_db_per_cm: 0.15
+    group_index: 1.71
+    dispersion_ps_per_nm_per_km: 0.0
+    p2pi_watts_mzi: 0.76
+    p2pi_watts_ps: 0.56
+    p2pi_tolerance: 0.05
+    heater_resistance_ohm: 600.0
+    heater_resistance_tolerance: 30.0
+    coupling_loss_db: 0.2
+    base_insertion_loss_db: 3.0
+    thermal_time_constant_s: 0.001
+  mzi_ids:
+  - 1-1
+  - 2-1
+  - 2-2
+  - 3-1
+  - 3-2
+  - 3-3
+  - 3-4
+  - 4-1
+  - 4-2
+  - 4-3
+  - 4-4
+  - 4-5
+  - 4-6
+  - 4-7
+  - 4-8
+  tree:
+    1-1:
+      stage: 1
+      position: 0
+      lower_taps:
+      - 0
+      - 8
+      upper_taps:
+      - 8
+      - 16
+    2-1:
+      stage: 2
+      position: 0
+      lower_taps:
+      - 0
+      - 4
+      upper_taps:
+      - 4
+      - 8
+    2-2:
+      stage: 2
+      position: 1
+      lower_taps:
+      - 8
+      - 12
+      upper_taps:
+      - 12
+      - 16
+    3-1:
+      stage: 3
+      position: 0
+      lower_taps:
+      - 0
+      - 2
+      upper_taps:
+      - 2
+      - 4
+    3-2:
+      stage: 3
+      position: 1
+      lower_taps:
+      - 4
+      - 6
+      upper_taps:
+      - 6
+      - 8
+    3-3:
+      stage: 3
+      position: 2
+      lower_taps:
+      - 8
+      - 10
+      upper_taps:
+      - 10
+      - 12
+    3-4:
+      stage: 3
+      position: 3
+      lower_taps:
+      - 12
+      - 14
+      upper_taps:
+      - 14
+      - 16
+    4-1:
+      stage: 4
+      position: 0
+      lower_taps:
+      - 0
+      - 1
+      upper_taps:
+      - 1
+      - 2
+    4-2:
+      stage: 4
+      position: 1
+      lower_taps:
+      - 2
+      - 3
+      upper_taps:
+      - 3
+      - 4
+    4-3:
+      stage: 4
+      position: 2
+      lower_taps:
+      - 4
+      - 5
+      upper_taps:
+      - 5
+      - 6
+    4-4:
+      stage: 4
+      position: 3
+      lower_taps:
+      - 6
+      - 7
+      upper_taps:
+      - 7
+      - 8
+    4-5:
+      stage: 4
+      position: 4
+      lower_taps:
+      - 8
+      - 9
+      upper_taps:
+      - 9
+      - 10
+    4-6:
+      stage: 4
+      position: 5
+      lower_taps:
+      - 10
+      - 11
+      upper_taps:
+      - 11
+      - 12
+    4-7:
+      stage: 4
+      position: 6
+      lower_taps:
+      - 12
+      - 13
+      upper_taps:
+      - 13
+      - 14
+    4-8:
+      stage: 4
+      position: 7
+      lower_taps:
+      - 14
+      - 15
+      upper_taps:
+      - 15
+      - 16
+output_dir: ./measurements/
+save_iterations: true

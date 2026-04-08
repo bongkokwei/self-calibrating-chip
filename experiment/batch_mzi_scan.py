@@ -454,7 +454,7 @@ def main():
     # ============================================================
 
     # Experiment configuration file
-    CONFIG_PATH = "measurements/batch_mzi_scan_config.yaml"
+    CONFIG_PATH = "config/calibration_config.yaml"
 
     # Voltage scan parameters
     V_MIN = 0.0  # Minimum voltage (V)

@@ -503,7 +503,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("measurements/calibration_config.yaml"),
+        default=Path("config/calibration_config.yaml"),
         help="Path to experiment configuration YAML",
     )
     parser.add_argument(
