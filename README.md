@@ -1,75 +1,49 @@
-# Photonic FIR Chip Simulation
+# Self-Calibrating Photonic FIR Filter
 
-A realistic Python simulation of a 16-tap programmable photonic finite impulse response (FIR) chip based on the research by Xu et al. (2022) published in *Nature Photonics*.
+Python implementation of the self-calibration pipeline for a 16-tap Si₃N₄ programmable photonic FIR filter (LioniX TriPleX platform, ~160 GHz FSR), based on [Xu et al. 2022](https://doi.org/10.1038/s41566-022-01020-z).
 
-## Overview
+## Prerequisites
 
-This simulation models a self-calibrating programmable photonic integrated circuit (PIC) with the following features:
+- Luna OVA connected and reachable at the IP in `config/calibration_config.yaml`
+- Voltage controller on the configured COM port (default `COM3`)
+- EDFA controller on the configured COM port (default `COM6`)
+- TEC temperature stabilisation active
 
-- **16-tap FIR filter architecture** with binary tree power distribution
-- **8 signal processing taps** (taps 9-16) plus 1 reference tap and 7 unused taps
-- **Realistic optical components**: Mach-Zehnder Interferometers (MZIs), phase shifters, directional couplers, and delay lines
-- **Physical parameters**: waveguide losses, coupling losses, thermal effects
-- **160 GHz free spectral range** with 6.25 ps delay steps
+Install dependencies:
 
-## Key Components
-
-- `MZI`: Tunable Mach-Zehnder Interferometer with phase control
-- `PhaseShifter`: Thermo-optic phase shifter
-- `DirectionalCoupler`: 3 dB optical coupler (50:50 splitter)
-- `DelayLine`: Spiral waveguide with progressive delays
-- `PhotonicFIRChip`: Complete 16-tap programmable filter
-
-## Quick Start
-
-```python
-from photonic_fir_chip import PhotonicFIRChip
-import numpy as np
-
-# Create chip instance
-chip = PhotonicFIRChip()
-
-# Set MZI phases for equal power distribution (π/2 for 50:50 split)
-chip.set_mzi_phases(np.ones(7) * np.pi / 2)
-
-# Set tap phases for signal processing
-phases = np.linspace(0, 2*np.pi, 8)
-chip.set_signal_tap_phases(phases)
-
-# Compute frequency response
-frequencies = np.linspace(-80e9, 80e9, 1000)
-H = chip.compute_frequency_response(frequencies, port='signal')
+```bash
+pip install -r requirements.txt
 ```
 
-## Main Features
+## Running Calibration
 
-**Analysis capabilities:**
-- Frequency response (amplitude and phase)
-- Impulse response
-- Tap coefficient calculation
-- Insertion loss spectrum measurements
+Edit `config/calibration_config.yaml` to set your target filter response, then run:
 
-**Applications:**
-- Optical signal processing
-- Programmable photonic filters
-- Telecommunications
-- Microwave photonics
+```bash
+python experiment/run_calibration.py
+# or with a custom config:
+python experiment/run_calibration.py path/to/config.yaml
+```
 
-## Example Output
+The script runs in **sequential mode** by default: amplitude calibration (MZI power splitting ratios) converges first, then phase calibration (PS tap phases via Kramers-Kronig recovery) activates. Results and plots are saved to `measurements/`.
 
-The `main()` function demonstrates:
-1. Creating sinc filters with various phase steps
-2. Plotting comprehensive frequency/time domain responses
-3. Visualising tap coefficients and insertion loss spectra
+### Key config flags
 
-Run with: `python photonic_fir_chip.py`
+| Flag | Description |
+|---|---|
+| `calibration.sequential_mode` | `true` = amplitude-first then phase (recommended) |
+| `calibration.use_gap_method` | `true` = use gap method instead of KK phase recovery |
+| `calibration.ps_crosstalk_matrix_path` | Path to PS thermal crosstalk matrix CSV |
+
+## Characterisation Scripts
+
+| Script | Purpose |
+|---|---|
+| `experiment/batch_mzi_scan.py` | Characterise V₂π and φ_init for all MZIs |
+| `experiment/batch_ps_scan.py` | Characterise V₂π and φ_init for all phase shifters |
+| `experiment/run_ps_batch_scan.py` | Batch PS crosstalk analysis across all signal taps |
+| `experiment/easy_voltage_control.py` | Manual voltage control via CLI |
 
 ## Reference
 
-Based on: Xu, X., Ren, G., Feleppa, T., Liu, X., Boes, A., Mitchell, A., & Lowery, A.J. (2022). Self-calibrating programmable photonic integrated circuits. *Nature Photonics*, 16, 595-602.
-
-## Requirements
-
-- NumPy
-- Matplotlib
-- SciPy
+Xu et al. (2022). Self-calibrating programmable photonic integrated circuits. *Nature Photonics*, 16, 595–602.
