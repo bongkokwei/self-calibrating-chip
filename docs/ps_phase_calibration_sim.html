@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PS Phase Calibration Simulator</title>
+<style>
+  body { font-family: sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; background: #fff; color: #111; }
+  h1 { font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 1.5rem; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 13px; color: #555; }
+  .ctrl label { min-width: 110px; }
+  .ctrl input[type=range] { flex: 1; }
+  .ctrl span { min-width: 42px; text-align: right; font-size: 13px; font-weight: 500; color: #111; }
+  .metric-row { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin: 14px 0; }
+  .metric { background: #f5f5f3; border-radius: 8px; padding: 10px 12px; }
+  .metric .label { font-size: 11px; color: #666; margin-bottom: 4px; }
+  .metric .value { font-size: 20px; font-weight: 500; color: #111; }
+  .ps-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; margin: 14px 0; }
+  .ps-card { background: #fff; border: 0.5px solid #ddd; border-radius: 8px; padding: 8px 10px; font-size: 12px; }
+  .ps-card .ps-label { color: #666; margin-bottom: 4px; }
+  .ps-bar-bg { background: #e0e0e0; border-radius: 2px; height: 6px; margin: 4px 0; overflow: hidden; }
+  .ps-bar { height: 6px; border-radius: 2px; transition: width 0.3s; }
+  .section-label { font-size: 12px; font-weight: 500; color: #666; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+  button.run-btn { background: transparent; border: 0.5px solid #bbb; border-radius: 8px; padding: 7px 18px; font-size: 13px; cursor: pointer; color: #111; }
+  button.run-btn:hover { background: #f5f5f3; }
+  .converged-badge { display: inline-block; background: #eaf3de; color: #3b6d11; border-radius: 8px; font-size: 11px; padding: 2px 8px; margin-left: 8px; }
+  .chart-wrap { position: relative; width: 100%; margin-bottom: 14px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; font-size: 11px; color: #555; }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-swatch { width: 18px; height: 3px; border-radius: 2px; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1a1a1a; color: #eee; }
+    .metric { background: #2a2a2a; }
+    .metric .label { color: #aaa; }
+    .metric .value { color: #eee; }
+    .ps-card { background: #222; border-color: #444; }
+    .ps-card .ps-label { color: #aaa; }
+    .ps-bar-bg { background: #444; }
+    button.run-btn { border-color: #555; color: #eee; }
+    button.run-btn:hover { background: #2a2a2a; }
+    .subtitle, .section-label, .legend, .ctrl { color: #aaa; }
+    .ctrl span { color: #eee; }
+  }
+</style>
+</head>
+<body>
+
+<h1>PS Phase Calibration Simulator</h1>
+<p class="subtitle">8 phase shifters with random hidden initial phases. Update rule: &Delta;P = wrapToPi(&phi;<sub>err</sub>) / 2&pi; &times; P<sub>2&pi;</sub>, P<sub>new</sub> = P<sub>old</sub> + &alpha;&middot;&Delta;P</p>
+
+<div class="ctrl">
+  <label>Learning rate &alpha;</label>
+  <input type="range" id="lr" min="0.1" max="1.0" step="0.05" value="0.5">
+  <span id="lr-out">0.50</span>
+</div>
+<div class="ctrl">
+  <label>P<sub>2&pi;</sub> (W)</label>
+  <input type="range" id="p2pi" min="0.2" max="1.5" step="0.05" value="0.75">
+  <span id="p2pi-out">0.75</span>
+</div>
+<div class="ctrl">
+  <label>Noise &sigma; (rad)</label>
+  <input type="range" id="noise" min="0" max="0.3" step="0.01" value="0.05">
+  <span id="noise-out">0.05</span>
+</div>
+<div class="ctrl">
+  <label>Max iterations</label>
+  <input type="range" id="maxiter" min="5" max="60" step="1" value="25">
+  <span id="maxiter-out">25</span>
+</div>
+
+<div style="display:flex; align-items:center; gap:12px; margin: 4px 0 14px;">
+  <button class="run-btn" onclick="runSim()">Re-run simulation</button>
+  <span id="conv-badge" style="display:none" class="converged-badge">Converged</span>
+</div>
+
+<div class="metric-row">
+  <div class="metric"><div class="label">Convergence iter.</div><div class="value" id="m-iter">—</div></div>
+  <div class="metric"><div class="label">Max |&phi;<sub>err</sub>| (rad)</div><div class="value" id="m-maxerr">—</div></div>
+  <div class="metric"><div class="label">RMS &phi;<sub>err</sub> (rad)</div><div class="value" id="m-rmserr">—</div></div>
+  <div class="metric"><div class="label">Wrap events</div><div class="value" id="m-wraps">—</div></div>
+</div>
+
+<div class="section-label">Phase error convergence</div>
+<div id="legend-err" class="legend"></div>
+<div class="chart-wrap" style="height:240px;">
+  <canvas id="errChart" role="img" aria-label="Phase error convergence over calibration iterations for 8 phase shifters"></canvas>
+</div>
+
+<div class="section-label">Final per-PS state</div>
+<div class="ps-grid" id="ps-grid"></div>
+
+<div class="section-label" style="margin-top:14px;">Applied heater power</div>
+<div id="legend-pwr" class="legend"></div>
+<div class="chart-wrap" style="height:200px;">
+  <canvas id="powerChart" role="img" aria-label="Applied heater power per PS over iterations"></canvas>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const N = 8;
+let errChart, powerChart;
+
+function wrapToPi(x) {
+  return x - 2*Math.PI * Math.round(x / (2*Math.PI));
+}
+
+function randn() {
+  let u=0, v=0;
+  while(!u) u=Math.random();
+  while(!v) v=Math.random();
+  return Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v);
+}
+
+function sl(id, outId, dp) {
+  document.getElementById(id).addEventListener('input', () => {
+    document.getElementById(outId).textContent = parseFloat(document.getElementById(id).value).toFixed(dp);
+  });
+}
+sl('lr','lr-out',2); sl('p2pi','p2pi-out',2); sl('noise','noise-out',2); sl('maxiter','maxiter-out',0);
+
+const COLORS = ['#3266ad','#c45c2e','#2e9e75','#8e44ad','#c0a010','#185fa5','#d4537e','#3b6d11'];
+
+function buildLegend(containerId) {
+  document.getElementById(containerId).innerHTML = Array.from({length:N}, (_,i) =>
+    `<span class="legend-item"><span class="legend-swatch" style="background:${COLORS[i]}"></span>PS ${i+1}</span>`
+  ).join('');
+}
+
+function runSim() {
+  const lr = parseFloat(document.getElementById('lr').value);
+  const P2pi = parseFloat(document.getElementById('p2pi').value);
+  const sigma = parseFloat(document.getElementById('noise').value);
+  const maxIter = parseInt(document.getElementById('maxiter').value);
+  const convThresh = 0.05;
+
+  const phi_target = Array.from({length:N}, () => (Math.random()*2-1)*Math.PI);
+  const phi_init_hidden = Array.from({length:N}, () => (Math.random()*2-1)*Math.PI);
+
+  let P_ps = Array(N).fill(0);
+  const history_err = Array.from({length:N}, ()=>[]);
+  const history_P = Array.from({length:N}, ()=>[]);
+  let wrapCount = 0;
+  let convIter = null;
+
+  for(let it=0; it<maxIter; it++) {
+    const phi_measured = P_ps.map((p,i) => {
+      const phase_from_power = (p / P2pi) * 2*Math.PI;
+      return wrapToPi(phi_init_hidden[i] + phase_from_power + sigma*randn());
+    });
+
+    const phi_err = phi_measured.map((m,i) => wrapToPi(phi_target[i] - m));
+    const delta_P = phi_err.map(e => (wrapToPi(e) / (2*Math.PI)) * P2pi);
+
+    const rms = Math.sqrt(phi_err.reduce((s,e)=>s+e*e,0)/N);
+    if(convIter===null && rms < convThresh) convIter = it+1;
+
+    for(let i=0;i<N;i++) {
+      history_err[i].push(Math.abs(phi_err[i]));
+      P_ps[i] += lr * delta_P[i];
+      if(P_ps[i] < 0) { P_ps[i] += P2pi; wrapCount++; }
+      else if(P_ps[i] > 1.25*P2pi) { P_ps[i] -= P2pi; wrapCount++; }
+      history_P[i].push(P_ps[i]);
+    }
+  }
+
+  const finalErr = history_err.map(h => h[h.length-1]);
+  const maxErr = Math.max(...finalErr);
+  const rmsErr = Math.sqrt(finalErr.reduce((s,e)=>s+e*e,0)/N);
+  const labels = Array.from({length:maxIter},(_,i)=>i+1);
+
+  document.getElementById('m-iter').textContent = convIter ? convIter : '>'+maxIter;
+  document.getElementById('m-maxerr').textContent = maxErr.toFixed(3);
+  document.getElementById('m-rmserr').textContent = rmsErr.toFixed(3);
+  document.getElementById('m-wraps').textContent = wrapCount;
+  document.getElementById('conv-badge').style.display = convIter ? 'inline-block' : 'none';
+
+  const psGrid = document.getElementById('ps-grid');
+  psGrid.innerHTML = '';
+  for(let i=0;i<N;i++) {
+    const err = finalErr[i];
+    const pct = Math.min(100, (P_ps[i]/P2pi)*100);
+    const errColor = err < 0.1 ? '#2e9e75' : err < 0.3 ? '#c0a010' : '#c45c2e';
+    psGrid.innerHTML += `<div class="ps-card">
+      <div class="ps-label">PS ${i+1}</div>
+      <div style="font-size:11px;color:#888">&phi;<sub>target</sub>: ${phi_target[i].toFixed(2)} rad</div>
+      <div class="ps-bar-bg"><div class="ps-bar" style="width:${pct.toFixed(1)}%;background:${COLORS[i]}"></div></div>
+      <div style="font-size:11px;display:flex;justify-content:space-between">
+        <span style="color:#888">P=${P_ps[i].toFixed(3)}W</span>
+        <span style="color:${errColor}">|err|=${err.toFixed(3)}</span>
+      </div>
+    </div>`;
+  }
+
+  if(errChart) errChart.destroy();
+  errChart = new Chart(document.getElementById('errChart'), {
+    type: 'line',
+    data: { labels, datasets: Array.from({length:N}, (_,i) => ({
+      label: `PS ${i+1}`, data: history_err[i],
+      borderColor: COLORS[i], borderWidth: 1.5, pointRadius: 0, tension: 0.2
+    }))},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { title: { display:true, text:'Iteration', font:{size:11} }, ticks:{font:{size:10}} },
+        y: { title: { display:true, text:'|φ error| (rad)', font:{size:11} }, min:0, ticks:{font:{size:10}} }
+      }
+    }
+  });
+
+  if(powerChart) powerChart.destroy();
+  powerChart = new Chart(document.getElementById('powerChart'), {
+    type: 'line',
+    data: { labels, datasets: Array.from({length:N}, (_,i) => ({
+      label: `PS ${i+1}`, data: history_P[i],
+      borderColor: COLORS[i], borderWidth: 1.5, pointRadius: 0, tension: 0.2
+    }))},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { title:{display:true,text:'Iteration',font:{size:11}}, ticks:{font:{size:10}} },
+        y: { title:{display:true,text:'Applied power (W)',font:{size:11}}, ticks:{font:{size:10}} }
+      }
+    }
+  });
+}
+
+buildLegend('legend-err');
+buildLegend('legend-pwr');
+runSim();
+</script>
+</body>
+</html>

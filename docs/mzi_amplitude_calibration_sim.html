@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MZI Amplitude Calibration Simulator</title>
+<style>
+  body { font-family: sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; background: #fff; color: #111; }
+  h1 { font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 1.5rem; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 13px; color: #555; }
+  .ctrl label { min-width: 120px; }
+  .ctrl input[type=range] { flex: 1; }
+  .ctrl span { min-width: 48px; text-align: right; font-size: 13px; font-weight: 500; color: #111; }
+  .metric-row { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin: 14px 0; }
+  .metric { background: #f5f5f3; border-radius: 8px; padding: 10px 12px; }
+  .metric .label { font-size: 11px; color: #666; margin-bottom: 4px; }
+  .metric .value { font-size: 20px; font-weight: 500; color: #111; }
+  .tree-wrap { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 14px 0; }
+  .stage-col { display: flex; flex-direction: column; gap: 6px; }
+  .stage-title { font-size: 10px; font-weight: 500; color: #666; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+  .mzi-card { background: #fff; border: 0.5px solid #ddd; border-radius: 8px; padding: 7px 9px; font-size: 11px; }
+  .mzi-id { font-weight: 500; margin-bottom: 3px; }
+  .mzi-bar-bg { background: #e0e0e0; border-radius: 2px; height: 5px; margin: 3px 0; overflow: hidden; }
+  .mzi-bar { height: 5px; border-radius: 2px; }
+  .section-label { font-size: 12px; font-weight: 500; color: #666; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; font-size: 11px; color: #555; }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-swatch { width: 18px; height: 3px; border-radius: 2px; }
+  button.run-btn { background: transparent; border: 0.5px solid #bbb; border-radius: 8px; padding: 7px 18px; font-size: 13px; cursor: pointer; color: #111; }
+  button.run-btn:hover { background: #f5f5f3; }
+  .converged-badge { display: inline-block; background: #eaf3de; color: #3b6d11; border-radius: 8px; font-size: 11px; padding: 2px 8px; margin-left: 8px; }
+  .chart-wrap { position: relative; width: 100%; margin-bottom: 14px; }
+  .note { font-size: 11px; color: #888; margin-top: 1.5rem; border-top: 0.5px solid #eee; padding-top: 0.75rem; }
+
+  @media (prefers-color-scheme: dark) {
+    body { background: #1a1a1a; color: #eee; }
+    .metric { background: #2a2a2a; }
+    .metric .label { color: #aaa; }
+    .metric .value { color: #eee; }
+    .mzi-card { background: #222; border-color: #444; }
+    .mzi-bar-bg { background: #444; }
+    .stage-title, .section-label, .legend, .ctrl, .subtitle { color: #aaa; }
+    .ctrl span { color: #eee; }
+    button.run-btn { border-color: #555; color: #eee; }
+    button.run-btn:hover { background: #2a2a2a; }
+    .converged-badge { background: #1e3a0f; color: #7ec850; }
+    .note { color: #666; border-color: #333; }
+  }
+</style>
+</head>
+<body>
+
+<h1>MZI amplitude calibration simulator</h1>
+<p class="subtitle">
+  7 MZIs in a 3-stage binary coupling tree, with random hidden initial phases. The controller has no knowledge of &phi;<sub>init</sub>.<br>
+  Update rule: &Delta;P = wrapToPi(&phi;<sub>err</sub>) / 2&pi; &times; P<sub>2&pi;</sub> &nbsp;&middot;&nbsp; &alpha; &nbsp;|&nbsp; P<sub>new</sub> = P<sub>old</sub> + &alpha;&middot;&Delta;P
+</p>
+
+<div class="ctrl">
+  <label>Learning rate &alpha;</label>
+  <input type="range" id="lr" min="0.05" max="1.0" step="0.05" value="0.5">
+  <span id="lr-out">0.50</span>
+</div>
+<div class="ctrl">
+  <label>P<sub>2&pi;</sub> (W)</label>
+  <input type="range" id="p2pi" min="0.2" max="1.5" step="0.05" value="0.75">
+  <span id="p2pi-out">0.75</span>
+</div>
+<div class="ctrl">
+  <label>Noise &sigma; (rad)</label>
+  <input type="range" id="noise" min="0" max="0.3" step="0.01" value="0.05">
+  <span id="noise-out">0.05</span>
+</div>
+<div class="ctrl">
+  <label>Max iterations</label>
+  <input type="range" id="maxiter" min="5" max="60" step="1" value="25">
+  <span id="maxiter-out">25</span>
+</div>
+
+<div style="display:flex; align-items:center; gap:12px; margin: 4px 0 14px;">
+  <button class="run-btn" onclick="runSim()">Re-run simulation</button>
+  <span id="conv-badge" style="display:none" class="converged-badge">Converged</span>
+</div>
+
+<div class="metric-row">
+  <div class="metric"><div class="label">Convergence iter.</div><div class="value" id="m-iter">—</div></div>
+  <div class="metric"><div class="label">Max |PSR err| (dB)</div><div class="value" id="m-maxerr">—</div></div>
+  <div class="metric"><div class="label">RMS PSR err (dB)</div><div class="value" id="m-rmserr">—</div></div>
+  <div class="metric"><div class="label">Wrap events</div><div class="value" id="m-wraps">—</div></div>
+</div>
+
+<div class="section-label">Binary tree — final state</div>
+<div class="tree-wrap" id="tree-display"></div>
+
+<div class="section-label">PSR error convergence (dB)</div>
+<div id="legend-err" class="legend"></div>
+<div class="chart-wrap" style="height:240px;">
+  <canvas id="errChart" role="img" aria-label="PSR error convergence over calibration iterations for 7 MZIs"></canvas>
+</div>
+
+<div class="section-label">Applied heater power (W)</div>
+<div id="legend-pwr" class="legend"></div>
+<div class="chart-wrap" style="height:200px;">
+  <canvas id="powerChart" role="img" aria-label="Applied heater power per MZI over iterations"></canvas>
+</div>
+
+<p class="note">
+  Forward model: unit optical power propagated through binary tree using sin&sup2;(&phi;/2) / cos&sup2;(&phi;/2) splitting per MZI.
+  MZI errors are coupled — stage-1 PSR error affects apparent PSR of downstream stage-2 and stage-3 MZIs.
+  Noise &sigma; is i.i.d. Gaussian on MZI phase per iteration. Convergence threshold: RMS PSR error &lt; 0.5 dB.
+</p>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+let errChart, powerChart;
+
+const MZIs = [
+  { id:'2-1',  stage:1, lower:[0,4], upper:[4,8] },
+  { id:'3-3',  stage:2, lower:[0,2], upper:[2,4] },
+  { id:'3-4',  stage:2, lower:[4,6], upper:[6,8] },
+  { id:'4-5',  stage:3, lower:[0,1], upper:[1,2] },
+  { id:'4-6',  stage:3, lower:[2,3], upper:[3,4] },
+  { id:'4-7',  stage:3, lower:[4,5], upper:[5,6] },
+  { id:'4-8',  stage:3, lower:[6,7], upper:[7,8] },
+];
+const N_MZI = MZIs.length;
+const N_TAP = 8;
+const COLORS = ['#3266ad','#c45c2e','#2e9e75','#8e44ad','#c0a010','#d4537e','#185fa5'];
+
+function wrapToPi(x) { return x - 2*Math.PI*Math.round(x/(2*Math.PI)); }
+
+function randn() {
+  let u=0, v=0;
+  while(!u) u=Math.random(); while(!v) v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+
+function forwardModel(phi_mzi, phi_init_hidden) {
+  let tap_power = new Array(N_TAP).fill(1.0);
+  for(let i=0; i<N_MZI; i++) {
+    const mzi = MZIs[i];
+    const phi_total = wrapToPi(phi_init_hidden[i] + phi_mzi[i]);
+    const split_lower = Math.sin(phi_total/2)**2;
+    const split_upper = Math.cos(phi_total/2)**2;
+    const lo = mzi.lower, hi = mzi.upper;
+    const total_lower = tap_power.slice(lo[0],lo[1]).reduce((a,b)=>a+b,0);
+    const total_upper = tap_power.slice(hi[0],hi[1]).reduce((a,b)=>a+b,0);
+    const total = total_lower + total_upper;
+    const n_lo = lo[1]-lo[0], n_hi = hi[1]-hi[0];
+    for(let t=lo[0];t<lo[1];t++) tap_power[t] = (total*split_lower)/n_lo;
+    for(let t=hi[0];t<hi[1];t++) tap_power[t] = (total*split_upper)/n_hi;
+  }
+  return tap_power;
+}
+
+function tapPowerToPSR(tap_power) {
+  return MZIs.map(mzi => {
+    const plo = tap_power.slice(mzi.lower[0],mzi.lower[1]).reduce((a,b)=>a+b,0);
+    const pup = tap_power.slice(mzi.upper[0],mzi.upper[1]).reduce((a,b)=>a+b,0);
+    return 10*Math.log10((pup+1e-12)/(plo+1e-12));
+  });
+}
+
+function psrToPhase(psr_db) {
+  const ratio = Math.pow(10, psr_db/10);
+  return 2*Math.atan(Math.sqrt(ratio+1e-9));
+}
+
+function phaseToPSR(phi) {
+  const s = Math.sin(phi/2)**2;
+  const c = Math.cos(phi/2)**2;
+  return 10*Math.log10((s+1e-12)/(c+1e-12));
+}
+
+function sl(id, outId, dp) {
+  document.getElementById(id).addEventListener('input', () => {
+    document.getElementById(outId).textContent = parseFloat(document.getElementById(id).value).toFixed(dp);
+  });
+}
+sl('lr','lr-out',2); sl('p2pi','p2pi-out',2); sl('noise','noise-out',2); sl('maxiter','maxiter-out',0);
+
+function buildLegend(id) {
+  document.getElementById(id).innerHTML = MZIs.map((m,i) =>
+    `<span class="legend-item"><span class="legend-swatch" style="background:${COLORS[i]}"></span>${m.id}</span>`
+  ).join('');
+}
+
+function runSim() {
+  const lr      = parseFloat(document.getElementById('lr').value);
+  const P2pi    = parseFloat(document.getElementById('p2pi').value);
+  const sigma   = parseFloat(document.getElementById('noise').value);
+  const maxIter = parseInt(document.getElementById('maxiter').value);
+  const convThresh = 0.5;
+
+  const phi_target      = Array.from({length:N_MZI}, () => Math.random()*Math.PI*0.8 + 0.1);
+  const phi_init_hidden = Array.from({length:N_MZI}, () => (Math.random()*2-1)*Math.PI);
+  const psr_target      = phi_target.map(p => phaseToPSR(p));
+
+  let P_mzi = new Array(N_MZI).fill(0);
+  const history_err = Array.from({length:N_MZI}, ()=>[]);
+  const history_P   = Array.from({length:N_MZI}, ()=>[]);
+  let wrapCount = 0, convIter = null;
+
+  for(let it=0; it<maxIter; it++) {
+    const phi_mzi = P_mzi.map(p => (p/P2pi)*2*Math.PI);
+    const phi_mzi_noisy = phi_mzi.map(p => p + sigma*randn());
+    const tap_power = forwardModel(phi_mzi_noisy, phi_init_hidden);
+    const psr_measured = tapPowerToPSR(tap_power);
+    const psr_err = psr_measured.map((m,i) => psr_target[i] - m);
+
+    const phi_err = psr_err.map((_, i) => {
+      const phi_m = psrToPhase(psr_measured[i]);
+      const phi_t = psrToPhase(psr_target[i]);
+      return wrapToPi(phi_t - phi_m);
+    });
+
+    const rms_psr = Math.sqrt(psr_err.reduce((s,e)=>s+e*e,0)/N_MZI);
+    if(convIter===null && rms_psr < convThresh) convIter = it+1;
+
+    for(let i=0;i<N_MZI;i++) {
+      history_err[i].push(Math.abs(psr_err[i]));
+      const delta_P = (phi_err[i]/(2*Math.PI))*P2pi;
+      P_mzi[i] += lr*delta_P;
+      if(P_mzi[i]<0){ P_mzi[i]+=P2pi; wrapCount++; }
+      else if(P_mzi[i]>1.25*P2pi){ P_mzi[i]-=P2pi; wrapCount++; }
+      history_P[i].push(P_mzi[i]);
+    }
+  }
+
+  const finalErr = history_err.map(h=>h[h.length-1]);
+  const maxErr   = Math.max(...finalErr);
+  const rmsErr   = Math.sqrt(finalErr.reduce((s,e)=>s+e*e,0)/N_MZI);
+  const labels   = Array.from({length:maxIter},(_,i)=>i+1);
+
+  document.getElementById('m-iter').textContent  = convIter ? convIter : '>'+maxIter;
+  document.getElementById('m-maxerr').textContent = maxErr.toFixed(2);
+  document.getElementById('m-rmserr').textContent = rmsErr.toFixed(2);
+  document.getElementById('m-wraps').textContent  = wrapCount;
+  document.getElementById('conv-badge').style.display = convIter ? 'inline-block' : 'none';
+
+  const stages = [[MZIs[0]], [MZIs[1],MZIs[2]], [MZIs[3],MZIs[4],MZIs[5],MZIs[6]]];
+  const stageNames = ['Stage 1','Stage 2','Stage 3'];
+  document.getElementById('tree-display').innerHTML = stages.map((grp,si) => `
+    <div class="stage-col">
+      <div class="stage-title">${stageNames[si]}</div>
+      ${grp.map(mzi => {
+        const i = MZIs.indexOf(mzi);
+        const err = finalErr[i];
+        const errColor = err<1 ? '#2e9e75' : err<3 ? '#c0a010' : '#c45c2e';
+        const pct = Math.min(100,(P_mzi[i]/P2pi)*100);
+        return `<div class="mzi-card">
+          <div class="mzi-id" style="color:${COLORS[i]}">${mzi.id}</div>
+          <div style="font-size:10px;color:#888">taps [${mzi.lower[0]+9}&ndash;${mzi.lower[1]+8}] vs [${mzi.upper[0]+9}&ndash;${mzi.upper[1]+8}]</div>
+          <div class="mzi-bar-bg"><div class="mzi-bar" style="width:${pct.toFixed(1)}%;background:${COLORS[i]}"></div></div>
+          <div style="font-size:10px;display:flex;justify-content:space-between">
+            <span style="color:#888">P=${P_mzi[i].toFixed(3)}W</span>
+            <span style="color:${errColor}">|err|=${err.toFixed(2)}dB</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `).join('');
+
+  if(errChart) errChart.destroy();
+  errChart = new Chart(document.getElementById('errChart'), {
+    type: 'line',
+    data: { labels, datasets: MZIs.map((m,i) => ({
+      label: m.id, data: history_err[i],
+      borderColor: COLORS[i], borderWidth: 1.5, pointRadius: 0, tension: 0.2
+    }))},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { title: { display:true, text:'Iteration', font:{size:11} }, ticks:{font:{size:10}} },
+        y: { title: { display:true, text:'|PSR error| (dB)', font:{size:11} }, min:0, ticks:{font:{size:10}} }
+      }
+    }
+  });
+
+  if(powerChart) powerChart.destroy();
+  powerChart = new Chart(document.getElementById('powerChart'), {
+    type: 'line',
+    data: { labels, datasets: MZIs.map((m,i) => ({
+      label: m.id, data: history_P[i],
+      borderColor: COLORS[i], borderWidth: 1.5, pointRadius: 0, tension: 0.2
+    }))},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { title:{display:true, text:'Iteration', font:{size:11}}, ticks:{font:{size:10}} },
+        y: { title:{display:true, text:'Applied power (W)', font:{size:11}}, ticks:{font:{size:10}} }
+      }
+    }
+  });
+}
+
+buildLegend('legend-err');
+buildLegend('legend-pwr');
+runSim();
+</script>
+</body>
+</html>
