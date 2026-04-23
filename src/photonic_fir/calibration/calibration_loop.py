@@ -295,7 +295,9 @@ def save_results(results: CalibrationResults, output_dir: str):
         if results.iterations:
             last_iter = results.iterations[-1]
             f.write("\nFinal errors:\n")
-            f.write(f"  RMS amplitude error: {last_iter.rms_amplitude_error_db:.4f} dB\n")
+            f.write(
+                f"  RMS amplitude error: {last_iter.rms_amplitude_error_db:.4f} dB\n"
+            )
             f.write(f"  RMS phase error:     {last_iter.rms_phase_error_rad:.4f} rad\n")
 
         # --- Chip state ---
@@ -314,6 +316,7 @@ def save_results(results: CalibrationResults, output_dir: str):
             )
 
     logger.info(f"\nResults saved to {output_dir}")
+
 
 def run_experiment(config_path: str):
     """
@@ -356,6 +359,12 @@ def run_experiment(config_path: str):
             voltage = config.calibration.initial_mzi_voltages[mzi_id]
             resistance_ohms = config.chip.heater_resistance_ohm
             mzi.applied_power_watts = voltage**2 / resistance_ohms
+
+    # Copy initial PS power settings from calibration to chip state
+    if config.calibration.initial_ps_powers:
+        for tap_num, ps in chip_state.phase_shifters.items():
+            if tap_num in config.calibration.initial_ps_powers:
+                ps.applied_power_watts = config.calibration.initial_ps_powers[tap_num]
 
     # Save configuration
     save_config(config, str(output_dir))
