@@ -197,16 +197,25 @@ class CalibrationPlotter:
         ax3.autoscale_view()
 
         # ----- Update per-tap phase error lines -----
+        # tap_phase_arr = np.array(self.tap_phase_errors_history)
+        # ax4 = self.axes[1, 1]
+        # ps_offset = self.num_taps + 1  # global tap 9 → local index 0
+        # disabled_local = {t - ps_offset for t in (disabled_ps_taps or [])}
+
+        # for i, line in enumerate(self._lines_tap_phase):
+        #     if i not in disabled_local:
+        #         line.set_data(iters, tap_phase_arr[:, i])
+        #     else:
+        #         line.set_data([], [])
+        # ax4.relim()
+        # ax4.autoscale_view()
+
         tap_phase_arr = np.array(self.tap_phase_errors_history)
         ax4 = self.axes[1, 1]
-        ps_offset = self.num_taps + 1  # global tap 9 → local index 0
-        disabled_local = {t - ps_offset for t in (disabled_ps_taps or [])}
 
         for i, line in enumerate(self._lines_tap_phase):
-            if i not in disabled_local:
-                line.set_data(iters, tap_phase_arr[:, i])
-            else:
-                line.set_data([], [])
+            line.set_data(iters, tap_phase_arr[:, i])
+
         ax4.relim()
         ax4.autoscale_view()
 
