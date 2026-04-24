@@ -320,7 +320,9 @@ def calculate_power_adjustments(
                     np.sign(phi_err) * ps_probe_threshold_rad
                 )
                 probe_target = chip_state.phase_shifters[tap_num].target_probe_rad
-                probe_err = phi_measured - probe_target - phi_init
+                probe_err = float(
+                    np.angle(np.exp(1j * (phi_measured - probe_target - phi_init)))
+                )
                 new_P, delta_P = _compute_new_power(
                     probe_err,
                     current_ps_powers.get(tap_num, 0.0),
