@@ -234,6 +234,7 @@ def calculate_power_adjustments(
     probe_mode = kwargs.get("probe_mode", False)
     ps_probe_threshold_rad = kwargs.get("ps_probe_threshold_rad", np.pi / 2)
     ps_phi_init = kwargs.get("ps_phi_init", {})
+    ps_measured_phases = kwargs.get("ps_measured_phases", None)
 
     new_mzi_powers: Dict[str, float] = {}
     new_ps_powers: Dict[str, float] = {}
@@ -304,10 +305,13 @@ def calculate_power_adjustments(
             # --- Probe branch ---
             if probe_mode and abs(phi_err) > ps_probe_threshold_rad:
                 phi_init = ps_phi_init.get(tap_num, 0.0)
+                phi_measured = (
+                    float(np.angle(ps_measured_phases[tap_num - 1]))
+                    if ps_measured_phases is not None
+                    else 0.0
+                )
                 probe_target = phi_init + np.sign(phi_err) * ps_probe_threshold_rad
-                probe_err = probe_target - (
-                    phi_err - phi_err
-                )  # effectively steers to probe_target
+                probe_err = phi_measured - probe_target
                 new_P, delta_P = _compute_new_power(
                     probe_err,
                     current_ps_powers.get(tap_num, 0.0),
