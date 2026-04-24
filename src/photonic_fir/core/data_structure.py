@@ -560,6 +560,10 @@ class CalibrationConfig:
     )
     disable_taps: bool = False
 
+    # --- Probe mode settings ---
+    probe_mode: bool = False
+    ps_probe_threshold_rad: float = float(np.pi / 2)
+
     # --- Number of FSRs to tile ---
     num_tiles_for_kk_recovery: int = 20
     tap_detection_window_width_ps: float = 3.0
@@ -597,7 +601,7 @@ class CalibrationConfig:
     save_spectrum: bool = True
     save_impulse_response: bool = True
 
-    def adaptive_lr_kwargs(self) -> dict:
+    def calibration_config_kwargs(self) -> dict:
         return {
             "lr_min": self.lr_min,
             "lr_max": self.lr_max,
@@ -608,6 +612,8 @@ class CalibrationConfig:
             "ps_adaptive_learning": self.ps_adaptive_learning,
             "mzi_dead_zone_db": self.mzi_dead_zone_db,
             "ps_dead_zone_rad": self.ps_dead_zone_rad,
+            "probe_mode": self.probe_mode,
+            "ps_probe_threshold_rad": self.ps_probe_threshold_rad,
         }
 
 

@@ -92,7 +92,7 @@ measurement:
   expected_n_taps: null
 calibration:
   mzi_learning_rate: 0.5
-  ps_learning_rate: 0.5
+  ps_learning_rate: 0.8
   max_iterations: 25
   trim_n_fsr: 3
   mzi_dead_zone_db: 0.5
@@ -115,14 +115,16 @@ calibration:
   lr_phi_scale: 3.141592653589793
   mzi_adaptive_learning: false
   ps_adaptive_learning: false
-  disable_taps_ps_taps: [9, 10, 11, 12, 14, 15, 16]
-  disable_taps: true
+  disable_taps_ps_taps: [9, 10, 11, 12, 13, 14, 15, 16]
+  disable_taps: false
   save_spectrum: false
   save_impulse_response: false
   num_tiles_for_kk_recovery: 1024
   tap_detection_window_width_ps: 5
-  ps_crosstalk_matrix_path: null # measurements/v2pi_batch_ps_scan_results_run_013/ps_crosstalk_csv/ps_crosstalk_matrix.csv
+  ps_crosstalk_matrix_path: null
   use_gap_method: false
+  probe_mode: true
+  ps_probe_threshold_rad: 1.5707963267948966  # pi/2
   initial_mzi_voltages: 
     1-1: 13.0000
     2-1: 6.7500
@@ -149,14 +151,14 @@ calibration:
     6: 0.00
     7: 0.00
     8: 0.00
-    9: 0.4
-    10: 0.4
-    11: 0.4
-    12: 0.4
-    13: 0.4
-    14: 0.4
-    15: 0.4
-    16: 0.4
+    9: 0.00
+    10: 0.00
+    11: 0.00
+    12: 0.00
+    13: 0.00
+    14: 0.00
+    15: 0.00
+    16: 0.00
 signal_mzi_tree:
   chip:
     n_taps: 16

@@ -227,8 +227,13 @@ def calculate_power_adjustments(
     ps_dead_zone_rad = kwargs.get("ps_dead_zone_rad", 0.0)
     mzi_adaptive = kwargs.get("mzi_adaptive_learning", False)
     ps_adaptive = kwargs.get("ps_adaptive_learning", False)
+
     ps_crosstalk_matrix = kwargs.get("ps_crosstalk_matrix", None)
     ps_crosstalk_tap_order = kwargs.get("ps_crosstalk_tap_order", None)
+
+    probe_mode = kwargs.get("probe_mode", False)
+    ps_probe_threshold_rad = kwargs.get("ps_probe_threshold_rad", np.pi / 2)
+    ps_phi_init = kwargs.get("ps_phi_init", {})
 
     new_mzi_powers: Dict[str, float] = {}
     new_ps_powers: Dict[str, float] = {}
@@ -295,6 +300,31 @@ def calculate_power_adjustments(
         for tap_num, phi_err in ps_phase_errors.items():
             if wrap_phase:
                 phi_err = float(np.angle(np.exp(1j * phi_err)))
+
+            # --- Probe branch ---
+            if probe_mode and abs(phi_err) > ps_probe_threshold_rad:
+                phi_init = ps_phi_init.get(tap_num, 0.0)
+                probe_target = phi_init + np.sign(phi_err) * ps_probe_threshold_rad
+                probe_err = probe_target - (
+                    phi_err - phi_err
+                )  # effectively steers to probe_target
+                new_P, delta_P = _compute_new_power(
+                    probe_err,
+                    current_ps_powers.get(tap_num, 0.0),
+                    ps_learning_rate,
+                    power_for_ps_2pi,
+                    min_power,
+                    max_power,
+                    wrap=wrap_phase,
+                    dead_zone=ps_dead_zone_rad,
+                )
+                new_ps_powers[tap_num] = new_P
+                logger.warning(
+                    f"  PS {tap_num}: PROBE MODE triggered |φ_err|={abs(phi_err):.4f} > "
+                    f"{ps_probe_threshold_rad:.4f} rad → probe_target={probe_target:+.4f} rad, "
+                    f"ΔP={delta_P:.4f} W → P={new_P:.4f} W"
+                )
+                continue  # skip normal update
 
             prev_err = (
                 abs(prev_ps_phase_errors[tap_num])

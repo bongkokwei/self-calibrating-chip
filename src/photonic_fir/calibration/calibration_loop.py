@@ -156,6 +156,15 @@ def run_calibration_iteration(
             use_gap_method=config.calibration.use_gap_method,
         )
 
+    # Snapshot PS phi_init from first measurement (PS at zero power, MZIs settled)
+    if iteration == 0:
+        for tap_num in config.chip.signal_tap_numbers:
+            phi_measured = np.angle(tap_coeffs[tap_num - 1])
+            chip_state.phase_shifters[tap_num].phi_init_rad = phi_measured
+            logger.info(
+                f"  [iter 0] PS tap {tap_num}: φ_init snapshotted = {phi_measured:+.4f} rad"
+            )
+
     plot_impulse_response(
         time_ps=time_ps,
         h_time=h_time,
@@ -228,7 +237,8 @@ def run_calibration_iteration(
         min_power=config.calibration.min_power_watts,
         max_power=config.calibration.max_power_watts,
         wrap_phase=config.calibration.wrap_phase,
-        **config.calibration.adaptive_lr_kwargs(),
+        **config.calibration.calibration_config_kwargs(),
+        ps_phi_init=chip_state.get_ps_init_phase(),
         ps_crosstalk_matrix=crosstalk_matrix,
         ps_crosstalk_tap_order=crosstalk_tap_order,
     )
