@@ -157,13 +157,16 @@ def run_calibration_iteration(
         )
 
     # Snapshot PS phi_init from first measurement (PS at zero power, MZIs settled)
-    if iteration == 0:
-        for tap_num in config.chip.signal_tap_numbers:
-            phi_measured = np.angle(tap_coeffs[tap_num - 1])
+
+    for tap_num in config.chip.signal_tap_numbers:
+        phi_measured = np.angle(tap_coeffs[tap_num - 1])
+        if iteration == 0:
             chip_state.phase_shifters[tap_num].phi_init_rad = phi_measured
             logger.info(
                 f"  [iter 0] PS tap {tap_num}: φ_init snapshotted = {phi_measured:+.4f} rad"
             )
+        else:
+            chip_state.phase_shifters[tap_num].phi_measured_rad = phi_measured
 
     plot_impulse_response(
         time_ps=time_ps,
@@ -241,7 +244,7 @@ def run_calibration_iteration(
         ps_phi_init=chip_state.get_ps_init_phase(),
         ps_crosstalk_matrix=crosstalk_matrix,
         ps_crosstalk_tap_order=crosstalk_tap_order,
-        ps_measured_phases=tap_coeffs,
+        ps_measured_phases=chip_state.get_ps_measured_phase(),
     )
 
     # 6. Update chip state (in-place)

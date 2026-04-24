@@ -299,10 +299,12 @@ class PhaseShifterState:
 
     # Characterisation (measured or estimated)
     phi_init_rad: float = 0.0
+    phi_measured_rad: float = 0.0
     p2pi_watts: float = 0.56
 
     # Target value (for calibration)
     target_phase_rad: Optional[float] = None
+    target_probe_rad: Optional[float] = None  # For probe mode
 
     def __post_init__(self):
         """Wrap phase to [-π, π]."""
@@ -369,6 +371,12 @@ class ChipState:
     def get_ps_init_phase(self) -> Dict[int, float]:
         """Get dictionary of phase shifter initial phase offsets."""
         return {tap_num: ps.phi_init_rad for tap_num, ps in self.phase_shifters.items()}
+
+    def get_ps_measured_phase(self) -> Dict[int, float]:
+        """Get dictionary of phase shifter measured phases."""
+        return {
+            tap_num: ps.phi_measured_rad for tap_num, ps in self.phase_shifters.items()
+        }
 
     def get_all_applied_powers(self) -> Dict[str, float]:
         """Get dictionary of all applied powers for monitoring."""

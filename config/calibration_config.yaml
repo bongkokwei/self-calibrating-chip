@@ -92,7 +92,7 @@ measurement:
   expected_n_taps: null
 calibration:
   mzi_learning_rate: 0.5
-  ps_learning_rate: 0.8
+  ps_learning_rate: 0.5
   max_iterations: 25
   trim_n_fsr: 3
   mzi_dead_zone_db: 0.5
@@ -124,7 +124,7 @@ calibration:
   ps_crosstalk_matrix_path: null
   use_gap_method: false
   probe_mode: true
-  ps_probe_threshold_rad: 1.5707963267948966  # pi/2
+  ps_probe_threshold_rad: 0.785398163  # pi/4
   initial_mzi_voltages: 
     1-1: 13.0000
     2-1: 6.7500
