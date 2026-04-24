@@ -222,6 +222,7 @@ def run_calibration_iteration(
         new_mzi_powers,
         new_ps_powers,
     ) = calculate_power_adjustments(
+        chip_state=chip_state,
         mzi_phase_errors=all_errors["mzi_phase_errors"],
         ps_phase_errors=all_errors["ps_phase_errors"],
         mzi_psr_errors=all_errors["mzi_psr_errors"],

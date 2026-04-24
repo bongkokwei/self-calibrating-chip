@@ -181,6 +181,7 @@ def decouple_ps_delta_power(
 
 
 def calculate_power_adjustments(
+    chip_state: ChipState,
     mzi_phase_errors: Dict[str, float],
     ps_phase_errors: Dict[int, float],
     mzi_psr_errors: Dict[str, float],
@@ -310,8 +311,16 @@ def calculate_power_adjustments(
                     if ps_measured_phases is not None
                     else 0.0
                 )
-                probe_target = phi_init + np.sign(phi_err) * ps_probe_threshold_rad
-                probe_err = phi_measured - probe_target
+
+                # Accumulate probe target
+                if chip_state.phase_shifters[tap_num].target_probe_rad is None:
+                    chip_state.phase_shifters[tap_num].target_probe_rad = 0.0
+
+                chip_state.phase_shifters[tap_num].target_probe_rad += (
+                    np.sign(phi_err) * ps_probe_threshold_rad
+                )
+                probe_target = chip_state.phase_shifters[tap_num].target_probe_rad
+                probe_err = phi_measured - probe_target - phi_init
                 new_P, delta_P = _compute_new_power(
                     probe_err,
                     current_ps_powers.get(tap_num, 0.0),
