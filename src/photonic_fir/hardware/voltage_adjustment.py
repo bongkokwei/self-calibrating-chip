@@ -4,7 +4,7 @@ voltage_adjustment.py
 
 Power-adjustment helpers for the MZI and PS calibration loops.
 
-Both actuators share the same update skeleton via _compute_new_power:
+Both actuators share the same update skeleton via compute_new_power:
 
     ΔP = (error / 2π) × P_2π × lr
     P_new = clip(P + ΔP,  wrap by P_2π)
@@ -28,78 +28,9 @@ from ..core.data_structure import (
     ChipState,
     ExperimentConfig,
 )
+from .power_math import compute_new_power, wrap_and_clip_power
+from .probe_mode import apply_probe_correction
 from voltage_ctrl import VoltageController
-
-
-# ---------------------------------------------------------------------------
-# Shared inner helpers
-# ---------------------------------------------------------------------------
-
-
-def _wrap_and_clip_power(
-    new_P: float,
-    power_for_2pi: float,
-    min_power: float,
-    max_power: float,
-    wrap: bool = True,
-) -> float:
-    """Apply modulo-P_2π phase wrap (if enabled) then hard-clip to [min_power, max_power]."""
-    if wrap:
-        if new_P < 0:
-            new_P += power_for_2pi
-        elif new_P > 1.25 * power_for_2pi:
-            new_P -= power_for_2pi
-
-    return float(np.clip(new_P, min_power, max_power))
-
-
-def _compute_new_power(
-    error: float,
-    current_P: float,
-    lr: float,
-    power_for_2pi: float,
-    min_power: float,
-    max_power: float,
-    wrap: bool = True,
-    dead_zone: float = 0.0,
-    gate_err: Optional[float] = None,
-) -> tuple[float, float]:
-    """
-    Compute updated heater power from an error signal.
-
-    Parameters
-    ----------
-    error : float
-        Error driving the power step (φ_err in rad for PS; φ_err in rad for MZI).
-    current_P : float
-        Current heater power (W).
-    lr : float
-        Learning rate (scalar).
-    power_for_2pi : float
-        Power corresponding to a 2π phase shift (W).
-    min_power, max_power : float
-        Hard clipping bounds (W).
-    wrap : bool
-        Apply modulo-P_2π phase wrap when P goes out of [0, 1.25·P_2π].
-    dead_zone : float
-        Skip update if |gate_err| < dead_zone.  Same units as gate_err.
-    gate_err : float or None
-        Signal used for the dead-zone check.  Defaults to error if None.
-        Use this when the dead-zone signal differs from the step signal
-        (e.g. MZI: gate on PSR dB, step on φ_err rad).
-
-    Returns
-    -------
-    new_P : float
-    delta_P : float
-    """
-    if abs(gate_err if gate_err is not None else error) < dead_zone:
-        return current_P, 0.0
-
-    delta_P = (error / (2 * np.pi)) * power_for_2pi * lr
-    new_P = current_P + delta_P
-
-    return _wrap_and_clip_power(new_P, power_for_2pi, min_power, max_power, wrap), delta_P
 
 
 def _effective_lr(
@@ -187,65 +118,6 @@ def decouple_ps_delta_power(
 
 
 # ---------------------------------------------------------------------------
-# PS probe-mode correction
-# ---------------------------------------------------------------------------
-
-
-def _apply_probe_correction(
-    chip_state: ChipState,
-    tap_num: int,
-    phi_err: float,
-    current_P: float,
-    ps_phi_init: Dict[int, float],
-    ps_measured_phases: Optional[Dict[int, float]],
-    ps_probe_threshold_rad: float,
-    ps_learning_rate: float,
-    power_for_ps_2pi: float,
-    min_power: float,
-    max_power: float,
-    wrap_phase: bool,
-    ps_dead_zone_rad: float,
-) -> float:
-    """
-    Probe-mode PS correction, used once |phi_err| exceeds ps_probe_threshold_rad.
-
-    Rather than stepping on the raw (ambiguous, possibly multi-cycle) phase
-    error, accumulate a probe target in units of ps_probe_threshold_rad and
-    drive toward that instead.
-    """
-    phi_init = ps_phi_init.get(tap_num, 0.0)
-    phi_measured = (
-        ps_measured_phases[tap_num] if ps_measured_phases is not None else 0.0
-    )
-
-    if chip_state.phase_shifters[tap_num].target_probe_rad is None:
-        chip_state.phase_shifters[tap_num].target_probe_rad = 0.0
-
-    chip_state.phase_shifters[tap_num].target_probe_rad += (
-        np.sign(phi_err) * ps_probe_threshold_rad
-    )
-    probe_target = chip_state.phase_shifters[tap_num].target_probe_rad
-    probe_err = float(np.angle(np.exp(1j * (phi_measured - probe_target - phi_init))))
-
-    new_P, delta_P = _compute_new_power(
-        probe_err,
-        current_P,
-        ps_learning_rate,
-        power_for_ps_2pi,
-        min_power,
-        max_power,
-        wrap=wrap_phase,
-        dead_zone=ps_dead_zone_rad,
-    )
-    logger.warning(
-        f"  PS {tap_num}: PROBE MODE triggered |φ_err|={abs(phi_err):.4f} > "
-        f"{ps_probe_threshold_rad:.4f} rad → probe_target={probe_target:+.4f} rad, "
-        f"ΔP={delta_P:.4f} W → P={new_P:.4f} W"
-    )
-    return new_P
-
-
-# ---------------------------------------------------------------------------
 # Main power-adjustment function
 # ---------------------------------------------------------------------------
 
@@ -317,7 +189,7 @@ def calculate_power_adjustments(
             **rprop_kw,
         )
 
-        new_P, delta_P = _compute_new_power(
+        new_P, delta_P = compute_new_power(
             phi_err,
             current_mzi_powers.get(mzi_id, 0.0),
             lr,
@@ -347,7 +219,7 @@ def calculate_power_adjustments(
             current_P = current_ps_powers.get(tap_num, 0.0)
             new_P = current_P + delta_P  # ← apply ΔP directly
 
-            new_P = _wrap_and_clip_power(
+            new_P = wrap_and_clip_power(
                 new_P, power_for_ps_2pi, min_power, max_power, wrap_phase
             )
             new_ps_powers[tap_num] = new_P
@@ -362,7 +234,7 @@ def calculate_power_adjustments(
 
             # --- Probe branch ---
             if probe_mode and abs(phi_err) > ps_probe_threshold_rad:
-                new_ps_powers[tap_num] = _apply_probe_correction(
+                new_ps_powers[tap_num] = apply_probe_correction(
                     chip_state,
                     tap_num,
                     phi_err,
@@ -388,7 +260,7 @@ def calculate_power_adjustments(
                 phi_err, prev_err, ps_learning_rate, ps_adaptive, **rprop_kw
             )
 
-            new_P, delta_P = _compute_new_power(
+            new_P, delta_P = compute_new_power(
                 phi_err,
                 current_ps_powers.get(tap_num, 0.0),
                 lr,
