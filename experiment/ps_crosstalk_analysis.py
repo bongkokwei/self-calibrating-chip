@@ -77,7 +77,6 @@ To load:
 """
 
 import argparse
-import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -86,6 +85,7 @@ import pandas as pd
 
 from photonic_fir import ExperimentConfig, load_config
 from photonic_fir.calibration import measure_and_detect_taps
+from photonic_fir.utils.file_utils import extract_voltage_from_filename
 
 
 # ---------------------------------------------------------------------------
@@ -96,16 +96,6 @@ from photonic_fir.calibration import measure_and_detect_taps
 def _signal_tap_cols(n_signal_taps: int = 8, first_tap: int = 9) -> list[str]:
     """Column names for signal tap phases."""
     return [f"tap_{t}" for t in range(first_tap, first_tap + n_signal_taps)]
-
-
-def extract_voltage_from_filename(filename: str) -> float | None:
-    """
-    Parse voltage from a filename that contains a pattern like '3.162v' or '0.000v'.
-
-    Returns None if no match is found.
-    """
-    match = re.search(r"(\d+\.?\d*)v", filename, re.IGNORECASE)
-    return float(match.group(1)) if match else None
 
 
 # ---------------------------------------------------------------------------

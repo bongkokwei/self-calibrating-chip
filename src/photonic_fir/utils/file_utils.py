@@ -4,8 +4,9 @@ Utility functions for photonic FIR filter experiments.
 General-purpose helper functions that don't fit into specific modules.
 """
 
+import re
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 
 def get_next_run_dir(base_dir: str = "measurements", prefix: str = "run") -> str:
@@ -90,6 +91,49 @@ def ensure_dir(path: str) -> Path:
     path_obj = Path(path)
     path_obj.mkdir(parents=True, exist_ok=True)
     return path_obj
+
+
+def generate_mzi_ids(n_stages: int = 4) -> list[str]:
+    """
+    Generate all MZI IDs for a binary tree structure.
+
+    For a tree with n_stages, stage k has 2^(k-1) MZIs.
+
+    Parameters
+    ----------
+    n_stages : int
+        Number of stages in the MZI tree (default: 4 for 16-tap filter).
+
+    Returns
+    -------
+    list[str]
+        List of MZI IDs in format "stage-position" (e.g., "1-1", "2-1", "2-2").
+    """
+    return [
+        f"{stage}-{pos}"
+        for stage in range(1, n_stages + 1)
+        for pos in range(1, 2 ** (stage - 1) + 1)
+    ]
+
+
+def extract_voltage_from_filename(filename: Union[str, Path]) -> Optional[float]:
+    """
+    Extract voltage value from a filename.
+
+    Expected format: contains a pattern like "1.23v" or "0.50v".
+
+    Parameters
+    ----------
+    filename : str | Path
+        Filename or path to the measurement file.
+
+    Returns
+    -------
+    float | None
+        Extracted voltage value, or None if not found.
+    """
+    match = re.search(r"(\d+\.?\d*)v", Path(filename).name, re.IGNORECASE)
+    return float(match.group(1)) if match else None
 
 
 # Add more general utilities as needed

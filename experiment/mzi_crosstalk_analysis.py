@@ -19,23 +19,7 @@ from photonic_fir import (
 )
 
 from photonic_fir.calibration import measure_and_detect_taps
-
-
-def generate_mzi_ids(n_stages: int = 4) -> list[str]:
-    """Generate all MZI IDs for a binary tree structure."""
-    return [
-        f"{stage}-{pos}"
-        for stage in range(1, n_stages + 1)
-        for pos in range(1, 2 ** (stage - 1) + 1)
-    ]
-
-
-def extract_voltage_from_filename(filename: str) -> float | None:
-    """Extract voltage value from filename (e.g., '1.23v' -> 1.23)."""
-    import re
-
-    match = re.search(r"(\d+\.?\d*)v", filename, re.IGNORECASE)
-    return float(match.group(1)) if match else None
+from photonic_fir.utils.file_utils import extract_voltage_from_filename, generate_mzi_ids
 
 
 def analyse_mzi_crosstalk(
