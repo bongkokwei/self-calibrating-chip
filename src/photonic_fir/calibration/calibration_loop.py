@@ -44,6 +44,17 @@ from .measurement_pipeline import measure_and_detect_taps
 from voltage_ctrl import VoltageController
 
 
+def _open_voltage_controller(
+    config: ExperimentConfig, zero_on_exit: bool = True
+) -> VoltageController:
+    """Construct a VoltageController from the experiment's measurement config."""
+    return VoltageController(
+        com_port=config.measurement.voltage_controller_port,
+        baud_rate=config.measurement.voltage_controller_baudrate,
+        zero_on_exit=zero_on_exit,
+    )
+
+
 def compute_target_taps(config: ExperimentConfig) -> np.ndarray:
     """
     Compute and pad target tap coefficients for use with the full MZI tree.
@@ -75,11 +86,7 @@ def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
     """Measure and populate φ_init values in chip_state."""
 
     # Initialize hardware
-    with VoltageController(
-        com_port=config.measurement.voltage_controller_port,
-        baud_rate=config.measurement.voltage_controller_baudrate,
-        zero_on_exit=True,
-    ) as voltage_ctrl:
+    with _open_voltage_controller(config) as voltage_ctrl:
         # Measure and populate φ_init
         characterise_mzi_phi_init(
             chip_state=chip_state,
@@ -130,11 +137,7 @@ def run_calibration_iteration(
     """
     logger.info(f"\nIteration {iteration}:")
 
-    with VoltageController(
-        com_port=config.measurement.voltage_controller_port,
-        baud_rate=config.measurement.voltage_controller_baudrate,
-        zero_on_exit=True,
-    ) as voltage_ctrl:
+    with _open_voltage_controller(config) as voltage_ctrl:
 
         logger.info("\nApplying initial voltages to hardware...")
         apply_voltages_to_hardware(chip_state, config, voltage_ctrl)
@@ -512,11 +515,7 @@ def run_experiment(config_path: str):
                 break
     except Exception as e:
         logger.info(f"\nError during calibration at iteration {i + 1}: {e}")
-        with VoltageController(
-            com_port=config.measurement.voltage_controller_port,
-            baud_rate=config.measurement.voltage_controller_baudrate,
-            zero_on_exit=True,
-        ) as voltage_ctrl:
+        with _open_voltage_controller(config) as voltage_ctrl:
             voltage_ctrl.set_voltages(
                 channels=np.arange(1, 33),
                 voltages=[0.0] * 32,
