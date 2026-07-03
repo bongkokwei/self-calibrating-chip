@@ -178,6 +178,8 @@ def run_calibration_iteration(
             if config.calibration.save_impulse_response
             else None
         ),
+        fsr_hz=config.chip.fsr_hz,
+        n_taps=config.chip.n_taps,
     )
 
     # 4. Calculate errors (only for signal processing taps)
