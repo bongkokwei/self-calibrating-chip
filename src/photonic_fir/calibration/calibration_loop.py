@@ -333,6 +333,45 @@ def save_results(results: CalibrationResults, output_dir: str):
     logger.info(f"\nResults saved to {output_dir}")
 
 
+class SequentialModeController:
+    """
+    State machine for sequential_mode calibration.
+
+    Runs amplitude-only corrections until the amplitude error has stayed
+    below tolerance for `stability_window` consecutive iterations, then
+    switches to phase-only. Falls back to amplitude_only if amplitude
+    degrades significantly during phase_only (PS corrections can
+    cross-couple and disturb amplitude after the switch).
+    """
+
+    def __init__(self, stability_window: int, fallback_multiplier: float = 2.0):
+        self.stability_window = stability_window
+        self.fallback_multiplier = fallback_multiplier
+        self.stable_count = 0
+        self.phase_mode_active = False
+
+    def next_mode(self, amp_rms: float, amp_tol: float) -> str:
+        """Update state from the latest amplitude RMS error and return the mode to use."""
+        if amp_rms < amp_tol:
+            self.stable_count += 1
+        else:
+            self.stable_count = 0
+
+        if self.stable_count >= self.stability_window:
+            self.phase_mode_active = True
+
+        if self.phase_mode_active and amp_rms > self.fallback_multiplier * amp_tol:
+            logger.warning(
+                f"  Sequential mode: amplitude degraded "
+                f"({amp_rms:.2f} dB > {self.fallback_multiplier * amp_tol:.2f} dB), "
+                f"falling back to amplitude_only"
+            )
+            self.phase_mode_active = False
+            self.stable_count = 0
+
+        return "phase_only" if self.phase_mode_active else "amplitude_only"
+
+
 def run_experiment(config_path: str):
     """
     Main experiment function.
@@ -402,11 +441,11 @@ def run_experiment(config_path: str):
     )
 
     # Log calibration mode
+    stability_window = getattr(config.calibration, "amplitude_stability_window", 3)
     if config.calibration.sequential_mode:
-        _stability_window = getattr(config.calibration, "amplitude_stability_window", 3)
         logger.info(
             "\nCalibration mode: SEQUENTIAL "
-            f"(amplitude first, switch to phase after {_stability_window} consecutive "
+            f"(amplitude first, switch to phase after {stability_window} consecutive "
             f"iterations with amp RMS < {config.calibration.amplitude_tolerance_db:.2f} dB)"
         )
     else:
@@ -429,10 +468,7 @@ def run_experiment(config_path: str):
     prev_iter_data = None
     prev_prev_iter_data = None
 
-    _amp_stable_count = 0  # consecutive iters below amp threshold
-    _stability_window = getattr(config.calibration, "amplitude_stability_window", 3)
-    _FALLBACK_MULTIPLIER = 2.0  # re-engage amp_only if amp exceeds tol * this
-    _phase_mode_active = False  # latched True once stability window satisfied
+    mode_controller = SequentialModeController(stability_window=stability_window)
 
     try:
 
@@ -444,36 +480,11 @@ def run_experiment(config_path: str):
                     amp_rms = prev_iter_data.rms_amplitude_error_db
                     amp_tol = config.calibration.amplitude_tolerance_db
 
-                    # Track consecutive iterations below threshold
-                    if amp_rms < amp_tol:
-                        _amp_stable_count += 1
-                    else:
-                        _amp_stable_count = 0
-
-                    # Latch into phase_only once stability window is satisfied
-                    if _amp_stable_count >= _stability_window:
-                        _phase_mode_active = True
-
-                    # Fallback: if amplitude degrades significantly during phase_only,
-                    # return to amplitude_only to re-stabilise before continuing.
-                    # This handles PS→MZI cross-coupling that can disturb amplitude
-                    # after the loop switches to phase corrections.
-                    if _phase_mode_active and amp_rms > _FALLBACK_MULTIPLIER * amp_tol:
-                        logger.warning(
-                            f"  Sequential mode: amplitude degraded "
-                            f"({amp_rms:.2f} dB > {_FALLBACK_MULTIPLIER * amp_tol:.2f} dB), "
-                            f"falling back to amplitude_only"
-                        )
-                        _phase_mode_active = False
-                        _amp_stable_count = 0
-
-                    calibration_mode = (
-                        "phase_only" if _phase_mode_active else "amplitude_only"
-                    )
+                    calibration_mode = mode_controller.next_mode(amp_rms, amp_tol)
                     logger.info(
                         f"  Sequential mode: {calibration_mode} "
                         f"(amp RMS = {amp_rms:.2f} dB, "
-                        f"stable count = {_amp_stable_count}/{_stability_window}, "
+                        f"stable count = {mode_controller.stable_count}/{mode_controller.stability_window}, "
                         f"tol = {amp_tol:.2f} dB)"
                     )
                 else:
