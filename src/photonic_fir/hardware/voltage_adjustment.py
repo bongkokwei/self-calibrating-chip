@@ -307,7 +307,7 @@ def calculate_power_adjustments(
             if probe_mode and abs(phi_err) > ps_probe_threshold_rad:
                 phi_init = ps_phi_init.get(tap_num, 0.0)
                 phi_measured = (
-                    float(np.angle(ps_measured_phases[tap_num]))
+                    ps_measured_phases[tap_num]
                     if ps_measured_phases is not None
                     else 0.0
                 )
