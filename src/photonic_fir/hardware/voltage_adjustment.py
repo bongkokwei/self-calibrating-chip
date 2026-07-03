@@ -24,6 +24,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from ..core.data_structure import (
+    CalibrationConfig,
     ChipState,
     ExperimentConfig,
 )
@@ -260,51 +261,43 @@ def calculate_power_adjustments(
     current_ps_powers: Dict[int, float],
     power_for_mzi_2pi: float,
     power_for_ps_2pi: float,
-    mzi_learning_rate: float,
-    ps_learning_rate: float,
-    min_power: float,
-    max_power: float,
-    wrap_phase: bool = False,
-    **kwargs,
+    calibration_config: CalibrationConfig,
+    ps_phi_init: Optional[Dict[int, float]] = None,
+    ps_crosstalk_matrix: Optional[np.ndarray] = None,
+    ps_crosstalk_tap_order: Optional[list] = None,
+    ps_measured_phases: Optional[Dict[int, float]] = None,
 ) -> Tuple[Dict[str, float], Dict[str, float]]:
     """
     Calculate new heater powers for MZIs and phase shifters.
 
     φ_init flipping is handled upstream in calibration_loop.py.
 
-    kwargs
-    ------
-    mzi_dead_zone_db : float        Dead zone threshold for MZI (PSR dB). Default 0.1.
-    ps_dead_zone_rad : float        Dead zone threshold for PS (φ rad).   Default 0.0.
-    mzi_adaptive_learning : bool    Enable Rprop LR for MZIs.  Default False.
-    ps_adaptive_learning  : bool    Enable Rprop LR for PSs.   Default False.
-    lr_min, lr_max, decay, grow, phi_scale : Rprop hyperparameters.
-    ps_crosstalk_matrix : ndarray   Crosstalk matrix C (rad/W). Optional.
-    ps_crosstalk_tap_order : list   Tap order matching C rows/cols. Optional.
+    All algorithm hyperparameters (learning rates, dead zones, Rprop
+    settings, probe mode) are read from calibration_config — see
+    CalibrationConfig for defaults and docs.
     """
+    ps_phi_init = ps_phi_init or {}
+
+    mzi_learning_rate = calibration_config.mzi_learning_rate
+    ps_learning_rate = calibration_config.ps_learning_rate
+    min_power = calibration_config.min_power_watts
+    max_power = calibration_config.max_power_watts
+    wrap_phase = calibration_config.wrap_phase
 
     rprop_kw = {
-        k: kwargs.get(k, d)
-        for k, d in [
-            ("lr_min", 1e-4),
-            ("lr_max", 0.8),
-            ("decay", 0.7),
-            ("grow", 1.05),
-            ("phi_scale", np.pi),
-        ]
+        "lr_min": calibration_config.lr_min,
+        "lr_max": calibration_config.lr_max,
+        "decay": calibration_config.lr_decay,
+        "grow": calibration_config.lr_grow,
+        "phi_scale": calibration_config.lr_phi_scale,
     }
-    mzi_dead_zone_db = kwargs.get("mzi_dead_zone_db", 0.1)
-    ps_dead_zone_rad = kwargs.get("ps_dead_zone_rad", 0.0)
-    mzi_adaptive = kwargs.get("mzi_adaptive_learning", False)
-    ps_adaptive = kwargs.get("ps_adaptive_learning", False)
+    mzi_dead_zone_db = calibration_config.mzi_dead_zone_db
+    ps_dead_zone_rad = calibration_config.ps_dead_zone_rad
+    mzi_adaptive = calibration_config.mzi_adaptive_learning
+    ps_adaptive = calibration_config.ps_adaptive_learning
 
-    ps_crosstalk_matrix = kwargs.get("ps_crosstalk_matrix", None)
-    ps_crosstalk_tap_order = kwargs.get("ps_crosstalk_tap_order", None)
-
-    probe_mode = kwargs.get("probe_mode", False)
-    ps_probe_threshold_rad = kwargs.get("ps_probe_threshold_rad", np.pi / 2)
-    ps_phi_init = kwargs.get("ps_phi_init", {})
-    ps_measured_phases = kwargs.get("ps_measured_phases", None)
+    probe_mode = calibration_config.probe_mode
+    ps_probe_threshold_rad = calibration_config.ps_probe_threshold_rad
 
     new_mzi_powers: Dict[str, float] = {}
     new_ps_powers: Dict[str, float] = {}

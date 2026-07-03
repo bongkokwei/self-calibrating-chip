@@ -609,21 +609,6 @@ class CalibrationConfig:
     save_spectrum: bool = True
     save_impulse_response: bool = True
 
-    def calibration_config_kwargs(self) -> dict:
-        return {
-            "lr_min": self.lr_min,
-            "lr_max": self.lr_max,
-            "decay": self.lr_decay,
-            "grow": self.lr_grow,
-            "phi_scale": self.lr_phi_scale,
-            "mzi_adaptive_learning": self.mzi_adaptive_learning,
-            "ps_adaptive_learning": self.ps_adaptive_learning,
-            "mzi_dead_zone_db": self.mzi_dead_zone_db,
-            "ps_dead_zone_rad": self.ps_dead_zone_rad,
-            "probe_mode": self.probe_mode,
-            "ps_probe_threshold_rad": self.ps_probe_threshold_rad,
-        }
-
 
 @dataclass
 class TargetFilter:
