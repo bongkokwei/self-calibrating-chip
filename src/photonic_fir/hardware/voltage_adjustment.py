@@ -36,6 +36,23 @@ from voltage_ctrl import VoltageController
 # ---------------------------------------------------------------------------
 
 
+def _wrap_and_clip_power(
+    new_P: float,
+    power_for_2pi: float,
+    min_power: float,
+    max_power: float,
+    wrap: bool = True,
+) -> float:
+    """Apply modulo-P_2π phase wrap (if enabled) then hard-clip to [min_power, max_power]."""
+    if wrap:
+        if new_P < 0:
+            new_P += power_for_2pi
+        elif new_P > 1.25 * power_for_2pi:
+            new_P -= power_for_2pi
+
+    return float(np.clip(new_P, min_power, max_power))
+
+
 def _compute_new_power(
     error: float,
     current_P: float,
@@ -82,13 +99,7 @@ def _compute_new_power(
     delta_P = (error / (2 * np.pi)) * power_for_2pi * lr
     new_P = current_P + delta_P
 
-    if wrap:
-        if new_P < 0:
-            new_P += power_for_2pi
-        elif new_P > 1.25 * power_for_2pi:
-            new_P -= power_for_2pi
-
-    return float(np.clip(new_P, min_power, max_power)), delta_P
+    return _wrap_and_clip_power(new_P, power_for_2pi, min_power, max_power, wrap), delta_P
 
 
 def _effective_lr(
@@ -285,14 +296,9 @@ def calculate_power_adjustments(
             current_P = current_ps_powers.get(tap_num, 0.0)
             new_P = current_P + delta_P  # ← apply ΔP directly
 
-            # Wrap and clip
-            if wrap_phase:
-                if new_P < 0:
-                    new_P += power_for_ps_2pi
-                elif new_P > 1.25 * power_for_ps_2pi:
-                    new_P -= power_for_ps_2pi
-
-            new_P = float(np.clip(new_P, min_power, max_power))
+            new_P = _wrap_and_clip_power(
+                new_P, power_for_ps_2pi, min_power, max_power, wrap_phase
+            )
             new_ps_powers[tap_num] = new_P
             logger.info(
                 f"  PS {tap_num}: ΔP={delta_P:.4f} W (decoupled) → P={new_P:.4f} W"
