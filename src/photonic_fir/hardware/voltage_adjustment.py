@@ -20,7 +20,6 @@ Differences:
 from typing import Dict, Optional, Tuple
 import numpy as np
 import logging
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -415,26 +414,3 @@ def apply_voltages_to_hardware(
     )
 
 
-def set_mzi_voltage(
-    mzi_id: str,
-    voltage: float,
-    exp_config: ExperimentConfig,
-    settling_time_sec: float = 2.0,
-    v_max: float = 30.0,
-) -> None:
-    """Set voltage on a single MZI and wait for thermal settling."""
-    mzi_channel = exp_config.channel_mapping.get_channel(f"MZI_{mzi_id}")
-    logger.info(f"Setting MZI {mzi_id} (channel {mzi_channel}) to {voltage:.2f} V")
-
-    with VoltageController(
-        com_port=exp_config.measurement.voltage_controller_port,
-        baud_rate=exp_config.measurement.voltage_controller_baudrate,
-        zero_on_exit=False,
-    ) as v_ctrl:
-        v_ctrl.set_voltages([mzi_channel], [voltage], v_max=v_max)
-        logger.info("✓ Voltage applied")
-
-        if settling_time_sec > 0:
-            logger.info(f"Waiting {settling_time_sec} s for thermal settling...")
-            time.sleep(settling_time_sec)
-            logger.info("✓ Settled")

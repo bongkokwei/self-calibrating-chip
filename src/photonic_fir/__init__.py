@@ -82,7 +82,6 @@ try:
     from .hardware.voltage_adjustment import (
         calculate_power_adjustments,
         apply_voltages_to_hardware,
-        set_mzi_voltage,
     )
 
     _HARDWARE_AVAILABLE = True
@@ -150,7 +149,6 @@ if _HARDWARE_AVAILABLE:
             "measure_spectrum_with_config",
             "calculate_power_adjustments",
             "apply_voltages_to_hardware",
-            "set_mzi_voltage",
         ]
     )
 

@@ -112,19 +112,6 @@ def calculate_rms_errors(
     return rms_amp, rms_phase
 
 
-def wrap_phase_error(phase_error: float) -> float:
-    """
-    Wrap phase error to [-π, π] range.
-
-    Args:
-        phase_error: Phase error in radians
-
-    Returns:
-        Wrapped phase error in [-π, π]
-    """
-    return np.arctan2(np.sin(phase_error), np.cos(phase_error))
-
-
 def _log_dict(label: str, d: dict, fmt: str = ".6f") -> None:
     logger.info(f"{label}:")
     for k, v in sorted(d.items()):
