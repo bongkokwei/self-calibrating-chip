@@ -21,6 +21,8 @@ try:
         calculate_power_adjustments,
         apply_voltages_to_hardware,
         load_ps_crosstalk_matrix,
+        voltage_range_uniform_v_squared,
+        zero_all_heaters,
     )
 
     _HARDWARE_AVAILABLE = True
@@ -40,12 +42,16 @@ except ImportError as e:
     calculate_power_adjustments = _missing_hardware
     apply_voltages_to_hardware = _missing_hardware
     load_ps_crosstalk_matrix = _missing_hardware
+    voltage_range_uniform_v_squared = _missing_hardware
+    zero_all_heaters = _missing_hardware
 
 __all__ = [
     "measure_spectrum",
     "calculate_power_adjustments",
     "apply_voltages_to_hardware",
     "load_ps_crosstalk_matrix",
+    "voltage_range_uniform_v_squared",
+    "zero_all_heaters",
 ]
 
 

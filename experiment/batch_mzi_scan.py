@@ -51,6 +51,10 @@ from photonic_fir.utils.mzi_plotting import (
 )
 
 from photonic_fir.calibration import measure_and_detect_taps
+from photonic_fir.hardware.voltage_adjustment import (
+    voltage_range_uniform_v_squared,
+    zero_all_heaters,
+)
 
 
 @dataclass
@@ -78,12 +82,7 @@ class V2piScanConfig:
 
     def get_voltage_range(self) -> np.ndarray:
         """Generate voltage array from parameters."""
-        voltage_squared = np.linspace(
-            self.v_min**2,
-            self.v_max**2,
-            self.n_points,
-        )
-        return np.sqrt(voltage_squared)
+        return voltage_range_uniform_v_squared(self.v_min, self.v_max, self.n_points)
 
     def get_all_mzi_ids(self) -> List[str]:
         """Generate all MZI IDs based on stage configuration."""
@@ -549,16 +548,7 @@ def main():
     # ZERO ALL HEATERS AT END OF BATCH, redundant safety
     # ============================================================
 
-    with VoltageController(
-        com_port=exp_config.measurement.voltage_controller_port,
-        baud_rate=exp_config.measurement.voltage_controller_baudrate,
-        zero_on_exit=True,
-    ) as v_ctrl:
-        v_ctrl.set_voltages(
-            channels=np.arange(1, 32 + 1),
-            voltages=[0.0] * 32,
-            v_max=30.0,
-        )
+    zero_all_heaters(exp_config)
 
     print(f"\n{'='*70}")
     print(f"BATCH SCAN COMPLETE!")

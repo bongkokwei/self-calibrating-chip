@@ -414,3 +414,35 @@ def apply_voltages_to_hardware(
     )
 
 
+def voltage_range_uniform_v_squared(
+    v_min: float, v_max: float, n_points: int
+) -> np.ndarray:
+    """
+    Generate a voltage array with uniform spacing in V².
+
+    Heater power (and thus phase shift) is proportional to V² for
+    resistive heaters, so uniform V² spacing gives uniform power/phase
+    steps across the sweep.
+    """
+    v_squared = np.linspace(v_min**2, v_max**2, n_points)
+    return np.sqrt(v_squared)
+
+
+def zero_all_heaters(
+    exp_config: ExperimentConfig,
+    n_channels: int = 32,
+    v_max: float = 30.0,
+) -> None:
+    """Zero all heater channels — redundant safety measure at the end of a batch run."""
+    with VoltageController(
+        com_port=exp_config.measurement.voltage_controller_port,
+        baud_rate=exp_config.measurement.voltage_controller_baudrate,
+        zero_on_exit=True,
+    ) as v_ctrl:
+        v_ctrl.set_voltages(
+            channels=np.arange(1, n_channels + 1).tolist(),
+            voltages=[0.0] * n_channels,
+            v_max=v_max,
+        )
+
+
