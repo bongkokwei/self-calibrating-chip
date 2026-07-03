@@ -60,7 +60,6 @@ from .processing.impulse_response import (
 )
 
 from .processing.tap_recovery_robust import (
-    detect_taps_noise_tolerant,
     detect_taps_windowed,
     detect_taps,
 )
@@ -129,7 +128,6 @@ __all__ = [
     "recover_impulse_response_from_df",
     "detect_taps",
     "kramers_kronig_phase_recovery",
-    "detect_taps_noise_tolerant",
     # Plotting utilities
     "plot_insertion_loss",
     "plot_impulse_response",
