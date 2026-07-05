@@ -568,6 +568,13 @@ class CalibrationConfig:
     )
     disable_taps: bool = False
 
+    # --- Differential phase referencing ---
+    # If set, the measured phase of this tap is subtracted from every signal
+    # tap's measured phase before computing phase errors. Use this when a
+    # tap's phase shifter isn't actively driven (e.g. held at 0 V) and instead
+    # serves as a live phase reference for the rest of the signal taps.
+    phase_reference_tap: Optional[int] = None
+
     # --- Probe mode settings ---
     probe_mode: bool = False
     ps_probe_threshold_rad: float = float(np.pi / 2)

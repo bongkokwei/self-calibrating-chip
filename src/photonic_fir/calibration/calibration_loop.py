@@ -194,6 +194,7 @@ def run_calibration_iteration(
         mzi_tree=mzi_tree,
         mzi_phi_init=chip_state.get_mzi_init_phase(),
         ps_phi_init=chip_state.get_ps_init_phase(),
+        phase_reference_tap=config.calibration.phase_reference_tap,
     )
 
     # --- Sequential mode: suppress the inactive correction loop ---
