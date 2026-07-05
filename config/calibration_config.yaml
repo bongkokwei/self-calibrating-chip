@@ -115,8 +115,9 @@ calibration:
   lr_phi_scale: 3.141592653589793
   mzi_adaptive_learning: false
   ps_adaptive_learning: false
-  disable_taps_ps_taps: [9, 10, 11, 12, 13, 14, 15, 16]
-  disable_taps: false
+  disable_taps_ps_taps: [9]
+  disable_taps: true
+  phase_reference_tap: 9
   save_spectrum: false
   save_impulse_response: false
   num_tiles_for_kk_recovery: 1024
