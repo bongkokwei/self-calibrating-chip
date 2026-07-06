@@ -1,7 +1,8 @@
-"""
-Scripts for simulating the photonic FIR chips
-"""
+from .fir_response import FIRFrequencyResponse
+from .compare_spectrum import compare_to_measured, load_measured_spectrum
 
-from .photonic_fir_chip import PhotonicFIRChip
-from .calibration_simulator import CalibrationSimulator
-from .power_splitting_ratio import PowerSplittingCalculator
+__all__ = [
+    "FIRFrequencyResponse",
+    "compare_to_measured",
+    "load_measured_spectrum",
+]
