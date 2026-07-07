@@ -22,12 +22,14 @@ def wrap_and_clip_power(
 ) -> float:
     """Apply modulo-P_2π phase wrap (if enabled) then hard-clip to [min_power, max_power].
 
-    Wrap margins are symmetric (±25% of P_2π) so a converged power sitting
-    near either boundary (e.g. P≈0) doesn't get pushed across it and trigger
-    a spurious full-P_2π jump.
+    The wrap margins are intentionally asymmetric: min_power is a hard
+    physical floor (applied heater power can't be negative), so any dip
+    below 0 must wrap immediately to preserve the true phase instead of
+    being clipped away. max_power has real headroom above 1.25*P_2π, so
+    the upper wrap can wait until then.
     """
     if wrap:
-        if new_P < -0.25 * power_for_2pi:
+        if new_P < 0:
             new_P += power_for_2pi
         elif new_P > 1.25 * power_for_2pi:
             new_P -= power_for_2pi
