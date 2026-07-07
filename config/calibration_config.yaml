@@ -56,10 +56,10 @@ channel_mapping:
   reference_channel: null
   unused_channels: {}
 target:
-  filter_type: custom
+  filter_type: sinc
   phase_step_rad:  0.0
   custom_amplitudes: [0.125, 0.25, 0.5, 1.0, 1.0, 0.5, 0.25, 0.125]
-  custom_phases_rad: [0.78540, 0.78539, 0.78539, 0.78539, 0.78539, 0.78539, 0.78539, 0.78539]
+  custom_phases_rad: [0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00]
 measurement:
   center_wavelength_nm: 1550.0
   wavelength_span_nm: 20.0
@@ -74,7 +74,7 @@ measurement:
   edfa_baudrate: 57600
   edfa_output_power_dbm: 10.0
   integration_time_s: 0.1
-  num_averages: 5
+  num_averages: 1
   settling_time_sec: 2.0
   wavelength_col: wl_axis
   frequency_col: f_axis
@@ -93,7 +93,7 @@ measurement:
 calibration:
   mzi_learning_rate: 0.5
   ps_learning_rate: 0.5
-  max_iterations: 25
+  max_iterations: 50
   trim_n_fsr: 3
   mzi_dead_zone_db: 0.5
   ps_dead_zone_rad: 0.05
