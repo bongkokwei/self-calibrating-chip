@@ -45,8 +45,12 @@ def apply_probe_correction(
     Rather than stepping on the raw (ambiguous, possibly multi-cycle) phase
     error, accumulate a probe target in units of ps_probe_threshold_rad and
     drive toward that instead.
+
+    ps_measured_phases must be in the same phase-reference frame as the
+    phi_err that triggered probe mode (e.g. already corrected for
+    CalibrationConfig.phase_reference_tap if that's set) — otherwise the
+    probe correction chases a different zero point than the one that fired it.
     """
-    phi_init = ps_phi_init.get(tap_num, 0.0)
     phi_measured = (
         ps_measured_phases[tap_num] if ps_measured_phases is not None else 0.0
     )
@@ -58,7 +62,9 @@ def apply_probe_correction(
         np.sign(phi_err) * ps_probe_threshold_rad
     )
     probe_target = chip_state.phase_shifters[tap_num].target_probe_rad
-    probe_err = float(np.angle(np.exp(1j * (phi_measured - probe_target - phi_init))))
+    # target - measured, matching the convention used everywhere else in the
+    # calibration loop (e.g. calculate_phase_shifter_errors).
+    probe_err = float(np.angle(np.exp(1j * (probe_target - phi_measured))))
 
     new_P, delta_P = compute_new_power(
         probe_err,
