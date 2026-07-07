@@ -56,7 +56,6 @@ from .error_calculation import (
     calculate_phase_shifter_errors,
     calculate_rms_errors,
     calculate_all_errors,
-    wrap_phase_error,
 )
 
 __all__ = [
@@ -88,7 +87,6 @@ __all__ = [
     "calculate_phase_shifter_errors",
     "calculate_rms_errors",
     "calculate_all_errors",
-    "wrap_phase_error",
     # Config utilities
     "load_config",
     "save_config",

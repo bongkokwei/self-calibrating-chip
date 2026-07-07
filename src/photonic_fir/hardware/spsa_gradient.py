@@ -5,6 +5,8 @@ import logging
 import time
 from typing import Dict, Callable, Tuple
 
+from .power_math import wrap_and_clip_power
+
 logger = logging.getLogger(__name__)
 
 
@@ -156,13 +158,9 @@ def apply_ps_corrections_with_spsa_gradients(
         current_P = current_ps_powers.get(tap, 0.0)
         new_P = current_P + delta_P
 
-        if wrap_phase:
-            if new_P < 0:
-                new_P += power_for_2pi
-            elif new_P > 1.25 * power_for_2pi:
-                new_P -= power_for_2pi
-
-        new_ps_powers[tap] = float(np.clip(new_P, min_power, max_power))
+        new_ps_powers[tap] = wrap_and_clip_power(
+            new_P, power_for_2pi, min_power, max_power, wrap_phase
+        )
         logger.info(
             f"  PS {tap}: φ_err={phi_err_wrapped:.4f} rad, "
             f"g_hat={g_hat:.4f} rad/W, ΔP={delta_P:.4f} W → P={new_ps_powers[tap]:.4f} W"

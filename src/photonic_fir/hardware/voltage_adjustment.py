@@ -4,7 +4,7 @@ voltage_adjustment.py
 
 Power-adjustment helpers for the MZI and PS calibration loops.
 
-Both actuators share the same update skeleton via _compute_new_power:
+Both actuators share the same update skeleton via compute_new_power:
 
     ΔP = (error / 2π) × P_2π × lr
     P_new = clip(P + ΔP,  wrap by P_2π)
@@ -20,75 +20,17 @@ Differences:
 from typing import Dict, Optional, Tuple
 import numpy as np
 import logging
-import time
 
 logger = logging.getLogger(__name__)
 
 from ..core.data_structure import (
+    CalibrationConfig,
     ChipState,
     ExperimentConfig,
 )
+from .power_math import compute_new_power, wrap_and_clip_power
+from .probe_mode import apply_probe_correction
 from voltage_ctrl import VoltageController
-
-
-# ---------------------------------------------------------------------------
-# Shared inner helpers
-# ---------------------------------------------------------------------------
-
-
-def _compute_new_power(
-    error: float,
-    current_P: float,
-    lr: float,
-    power_for_2pi: float,
-    min_power: float,
-    max_power: float,
-    wrap: bool = True,
-    dead_zone: float = 0.0,
-    gate_err: Optional[float] = None,
-) -> tuple[float, float]:
-    """
-    Compute updated heater power from an error signal.
-
-    Parameters
-    ----------
-    error : float
-        Error driving the power step (φ_err in rad for PS; φ_err in rad for MZI).
-    current_P : float
-        Current heater power (W).
-    lr : float
-        Learning rate (scalar).
-    power_for_2pi : float
-        Power corresponding to a 2π phase shift (W).
-    min_power, max_power : float
-        Hard clipping bounds (W).
-    wrap : bool
-        Apply modulo-P_2π phase wrap when P goes out of [0, 1.25·P_2π].
-    dead_zone : float
-        Skip update if |gate_err| < dead_zone.  Same units as gate_err.
-    gate_err : float or None
-        Signal used for the dead-zone check.  Defaults to error if None.
-        Use this when the dead-zone signal differs from the step signal
-        (e.g. MZI: gate on PSR dB, step on φ_err rad).
-
-    Returns
-    -------
-    new_P : float
-    delta_P : float
-    """
-    if abs(gate_err if gate_err is not None else error) < dead_zone:
-        return current_P, 0.0
-
-    delta_P = (error / (2 * np.pi)) * power_for_2pi * lr
-    new_P = current_P + delta_P
-
-    if wrap:
-        if new_P < 0:
-            new_P += power_for_2pi
-        elif new_P > 1.25 * power_for_2pi:
-            new_P -= power_for_2pi
-
-    return float(np.clip(new_P, min_power, max_power)), delta_P
 
 
 def _effective_lr(
@@ -191,51 +133,43 @@ def calculate_power_adjustments(
     current_ps_powers: Dict[int, float],
     power_for_mzi_2pi: float,
     power_for_ps_2pi: float,
-    mzi_learning_rate: float,
-    ps_learning_rate: float,
-    min_power: float,
-    max_power: float,
-    wrap_phase: bool = False,
-    **kwargs,
+    calibration_config: CalibrationConfig,
+    ps_phi_init: Optional[Dict[int, float]] = None,
+    ps_crosstalk_matrix: Optional[np.ndarray] = None,
+    ps_crosstalk_tap_order: Optional[list] = None,
+    ps_measured_phases: Optional[Dict[int, float]] = None,
 ) -> Tuple[Dict[str, float], Dict[str, float]]:
     """
     Calculate new heater powers for MZIs and phase shifters.
 
     φ_init flipping is handled upstream in calibration_loop.py.
 
-    kwargs
-    ------
-    mzi_dead_zone_db : float        Dead zone threshold for MZI (PSR dB). Default 0.1.
-    ps_dead_zone_rad : float        Dead zone threshold for PS (φ rad).   Default 0.0.
-    mzi_adaptive_learning : bool    Enable Rprop LR for MZIs.  Default False.
-    ps_adaptive_learning  : bool    Enable Rprop LR for PSs.   Default False.
-    lr_min, lr_max, decay, grow, phi_scale : Rprop hyperparameters.
-    ps_crosstalk_matrix : ndarray   Crosstalk matrix C (rad/W). Optional.
-    ps_crosstalk_tap_order : list   Tap order matching C rows/cols. Optional.
+    All algorithm hyperparameters (learning rates, dead zones, Rprop
+    settings, probe mode) are read from calibration_config — see
+    CalibrationConfig for defaults and docs.
     """
+    ps_phi_init = ps_phi_init or {}
+
+    mzi_learning_rate = calibration_config.mzi_learning_rate
+    ps_learning_rate = calibration_config.ps_learning_rate
+    min_power = calibration_config.min_power_watts
+    max_power = calibration_config.max_power_watts
+    wrap_phase = calibration_config.wrap_phase
 
     rprop_kw = {
-        k: kwargs.get(k, d)
-        for k, d in [
-            ("lr_min", 1e-4),
-            ("lr_max", 0.8),
-            ("decay", 0.7),
-            ("grow", 1.05),
-            ("phi_scale", np.pi),
-        ]
+        "lr_min": calibration_config.lr_min,
+        "lr_max": calibration_config.lr_max,
+        "decay": calibration_config.lr_decay,
+        "grow": calibration_config.lr_grow,
+        "phi_scale": calibration_config.lr_phi_scale,
     }
-    mzi_dead_zone_db = kwargs.get("mzi_dead_zone_db", 0.1)
-    ps_dead_zone_rad = kwargs.get("ps_dead_zone_rad", 0.0)
-    mzi_adaptive = kwargs.get("mzi_adaptive_learning", False)
-    ps_adaptive = kwargs.get("ps_adaptive_learning", False)
+    mzi_dead_zone_db = calibration_config.mzi_dead_zone_db
+    ps_dead_zone_rad = calibration_config.ps_dead_zone_rad
+    mzi_adaptive = calibration_config.mzi_adaptive_learning
+    ps_adaptive = calibration_config.ps_adaptive_learning
 
-    ps_crosstalk_matrix = kwargs.get("ps_crosstalk_matrix", None)
-    ps_crosstalk_tap_order = kwargs.get("ps_crosstalk_tap_order", None)
-
-    probe_mode = kwargs.get("probe_mode", False)
-    ps_probe_threshold_rad = kwargs.get("ps_probe_threshold_rad", np.pi / 2)
-    ps_phi_init = kwargs.get("ps_phi_init", {})
-    ps_measured_phases = kwargs.get("ps_measured_phases", None)
+    probe_mode = calibration_config.probe_mode
+    ps_probe_threshold_rad = calibration_config.ps_probe_threshold_rad
 
     new_mzi_powers: Dict[str, float] = {}
     new_ps_powers: Dict[str, float] = {}
@@ -255,7 +189,7 @@ def calculate_power_adjustments(
             **rprop_kw,
         )
 
-        new_P, delta_P = _compute_new_power(
+        new_P, delta_P = compute_new_power(
             phi_err,
             current_mzi_powers.get(mzi_id, 0.0),
             lr,
@@ -285,14 +219,9 @@ def calculate_power_adjustments(
             current_P = current_ps_powers.get(tap_num, 0.0)
             new_P = current_P + delta_P  # ← apply ΔP directly
 
-            # Wrap and clip
-            if wrap_phase:
-                if new_P < 0:
-                    new_P += power_for_ps_2pi
-                elif new_P > 1.25 * power_for_ps_2pi:
-                    new_P -= power_for_ps_2pi
-
-            new_P = float(np.clip(new_P, min_power, max_power))
+            new_P = wrap_and_clip_power(
+                new_P, power_for_ps_2pi, min_power, max_power, wrap_phase
+            )
             new_ps_powers[tap_num] = new_P
             logger.info(
                 f"  PS {tap_num}: ΔP={delta_P:.4f} W (decoupled) → P={new_P:.4f} W"
@@ -305,39 +234,20 @@ def calculate_power_adjustments(
 
             # --- Probe branch ---
             if probe_mode and abs(phi_err) > ps_probe_threshold_rad:
-                phi_init = ps_phi_init.get(tap_num, 0.0)
-                phi_measured = (
-                    float(np.angle(ps_measured_phases[tap_num]))
-                    if ps_measured_phases is not None
-                    else 0.0
-                )
-
-                # Accumulate probe target
-                if chip_state.phase_shifters[tap_num].target_probe_rad is None:
-                    chip_state.phase_shifters[tap_num].target_probe_rad = 0.0
-
-                chip_state.phase_shifters[tap_num].target_probe_rad += (
-                    np.sign(phi_err) * ps_probe_threshold_rad
-                )
-                probe_target = chip_state.phase_shifters[tap_num].target_probe_rad
-                probe_err = float(
-                    np.angle(np.exp(1j * (phi_measured - probe_target - phi_init)))
-                )
-                new_P, delta_P = _compute_new_power(
-                    probe_err,
+                new_ps_powers[tap_num] = apply_probe_correction(
+                    chip_state,
+                    tap_num,
+                    phi_err,
                     current_ps_powers.get(tap_num, 0.0),
+                    ps_phi_init,
+                    ps_measured_phases,
+                    ps_probe_threshold_rad,
                     ps_learning_rate,
                     power_for_ps_2pi,
                     min_power,
                     max_power,
-                    wrap=wrap_phase,
-                    dead_zone=ps_dead_zone_rad,
-                )
-                new_ps_powers[tap_num] = new_P
-                logger.warning(
-                    f"  PS {tap_num}: PROBE MODE triggered |φ_err|={abs(phi_err):.4f} > "
-                    f"{ps_probe_threshold_rad:.4f} rad → probe_target={probe_target:+.4f} rad, "
-                    f"ΔP={delta_P:.4f} W → P={new_P:.4f} W"
+                    wrap_phase,
+                    ps_dead_zone_rad,
                 )
                 continue  # skip normal update
 
@@ -350,7 +260,7 @@ def calculate_power_adjustments(
                 phi_err, prev_err, ps_learning_rate, ps_adaptive, **rprop_kw
             )
 
-            new_P, delta_P = _compute_new_power(
+            new_P, delta_P = compute_new_power(
                 phi_err,
                 current_ps_powers.get(tap_num, 0.0),
                 lr,
@@ -409,26 +319,35 @@ def apply_voltages_to_hardware(
     )
 
 
-def set_mzi_voltage(
-    mzi_id: str,
-    voltage: float,
+def voltage_range_uniform_v_squared(
+    v_min: float, v_max: float, n_points: int
+) -> np.ndarray:
+    """
+    Generate a voltage array with uniform spacing in V².
+
+    Heater power (and thus phase shift) is proportional to V² for
+    resistive heaters, so uniform V² spacing gives uniform power/phase
+    steps across the sweep.
+    """
+    v_squared = np.linspace(v_min**2, v_max**2, n_points)
+    return np.sqrt(v_squared)
+
+
+def zero_all_heaters(
     exp_config: ExperimentConfig,
-    settling_time_sec: float = 2.0,
+    n_channels: int = 32,
     v_max: float = 30.0,
 ) -> None:
-    """Set voltage on a single MZI and wait for thermal settling."""
-    mzi_channel = exp_config.channel_mapping.get_channel(f"MZI_{mzi_id}")
-    logger.info(f"Setting MZI {mzi_id} (channel {mzi_channel}) to {voltage:.2f} V")
-
+    """Zero all heater channels — redundant safety measure at the end of a batch run."""
     with VoltageController(
         com_port=exp_config.measurement.voltage_controller_port,
         baud_rate=exp_config.measurement.voltage_controller_baudrate,
-        zero_on_exit=False,
+        zero_on_exit=True,
     ) as v_ctrl:
-        v_ctrl.set_voltages([mzi_channel], [voltage], v_max=v_max)
-        logger.info("✓ Voltage applied")
+        v_ctrl.set_voltages(
+            channels=np.arange(1, n_channels + 1).tolist(),
+            voltages=[0.0] * n_channels,
+            v_max=v_max,
+        )
 
-        if settling_time_sec > 0:
-            logger.info(f"Waiting {settling_time_sec} s for thermal settling...")
-            time.sleep(settling_time_sec)
-            logger.info("✓ Settled")
+

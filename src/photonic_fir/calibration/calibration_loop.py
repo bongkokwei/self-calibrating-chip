@@ -44,6 +44,17 @@ from .measurement_pipeline import measure_and_detect_taps
 from voltage_ctrl import VoltageController
 
 
+def _open_voltage_controller(
+    config: ExperimentConfig, zero_on_exit: bool = True
+) -> VoltageController:
+    """Construct a VoltageController from the experiment's measurement config."""
+    return VoltageController(
+        com_port=config.measurement.voltage_controller_port,
+        baud_rate=config.measurement.voltage_controller_baudrate,
+        zero_on_exit=zero_on_exit,
+    )
+
+
 def compute_target_taps(config: ExperimentConfig) -> np.ndarray:
     """
     Compute and pad target tap coefficients for use with the full MZI tree.
@@ -75,11 +86,7 @@ def phi_init_measurement(config: ExperimentConfig, chip_state: ChipState):
     """Measure and populate φ_init values in chip_state."""
 
     # Initialize hardware
-    with VoltageController(
-        com_port=config.measurement.voltage_controller_port,
-        baud_rate=config.measurement.voltage_controller_baudrate,
-        zero_on_exit=True,
-    ) as voltage_ctrl:
+    with _open_voltage_controller(config) as voltage_ctrl:
         # Measure and populate φ_init
         characterise_mzi_phi_init(
             chip_state=chip_state,
@@ -130,11 +137,7 @@ def run_calibration_iteration(
     """
     logger.info(f"\nIteration {iteration}:")
 
-    with VoltageController(
-        com_port=config.measurement.voltage_controller_port,
-        baud_rate=config.measurement.voltage_controller_baudrate,
-        zero_on_exit=True,
-    ) as voltage_ctrl:
+    with _open_voltage_controller(config) as voltage_ctrl:
 
         logger.info("\nApplying initial voltages to hardware...")
         apply_voltages_to_hardware(chip_state, config, voltage_ctrl)
@@ -178,6 +181,8 @@ def run_calibration_iteration(
             if config.calibration.save_impulse_response
             else None
         ),
+        fsr_hz=config.chip.fsr_hz,
+        n_taps=config.chip.n_taps,
     )
 
     # 4. Calculate errors (only for signal processing taps)
@@ -189,6 +194,7 @@ def run_calibration_iteration(
         mzi_tree=mzi_tree,
         mzi_phi_init=chip_state.get_mzi_init_phase(),
         ps_phi_init=chip_state.get_ps_init_phase(),
+        phase_reference_tap=config.calibration.phase_reference_tap,
     )
 
     # --- Sequential mode: suppress the inactive correction loop ---
@@ -236,12 +242,7 @@ def run_calibration_iteration(
         current_ps_powers=chip_state.get_ps_applied_powers(),
         power_for_mzi_2pi=config.chip.p2pi_watts_mzi,
         power_for_ps_2pi=config.chip.p2pi_watts_ps,
-        mzi_learning_rate=config.calibration.mzi_learning_rate,
-        ps_learning_rate=config.calibration.ps_learning_rate,
-        min_power=config.calibration.min_power_watts,
-        max_power=config.calibration.max_power_watts,
-        wrap_phase=config.calibration.wrap_phase,
-        **config.calibration.calibration_config_kwargs(),
+        calibration_config=config.calibration,
         ps_phi_init=chip_state.get_ps_init_phase(),
         ps_crosstalk_matrix=crosstalk_matrix,
         ps_crosstalk_tap_order=crosstalk_tap_order,
@@ -333,6 +334,45 @@ def save_results(results: CalibrationResults, output_dir: str):
     logger.info(f"\nResults saved to {output_dir}")
 
 
+class SequentialModeController:
+    """
+    State machine for sequential_mode calibration.
+
+    Runs amplitude-only corrections until the amplitude error has stayed
+    below tolerance for `stability_window` consecutive iterations, then
+    switches to phase-only. Falls back to amplitude_only if amplitude
+    degrades significantly during phase_only (PS corrections can
+    cross-couple and disturb amplitude after the switch).
+    """
+
+    def __init__(self, stability_window: int, fallback_multiplier: float = 2.0):
+        self.stability_window = stability_window
+        self.fallback_multiplier = fallback_multiplier
+        self.stable_count = 0
+        self.phase_mode_active = False
+
+    def next_mode(self, amp_rms: float, amp_tol: float) -> str:
+        """Update state from the latest amplitude RMS error and return the mode to use."""
+        if amp_rms < amp_tol:
+            self.stable_count += 1
+        else:
+            self.stable_count = 0
+
+        if self.stable_count >= self.stability_window:
+            self.phase_mode_active = True
+
+        if self.phase_mode_active and amp_rms > self.fallback_multiplier * amp_tol:
+            logger.warning(
+                f"  Sequential mode: amplitude degraded "
+                f"({amp_rms:.2f} dB > {self.fallback_multiplier * amp_tol:.2f} dB), "
+                f"falling back to amplitude_only"
+            )
+            self.phase_mode_active = False
+            self.stable_count = 0
+
+        return "phase_only" if self.phase_mode_active else "amplitude_only"
+
+
 def run_experiment(config_path: str):
     """
     Main experiment function.
@@ -402,11 +442,11 @@ def run_experiment(config_path: str):
     )
 
     # Log calibration mode
+    stability_window = getattr(config.calibration, "amplitude_stability_window", 3)
     if config.calibration.sequential_mode:
-        _stability_window = getattr(config.calibration, "amplitude_stability_window", 3)
         logger.info(
             "\nCalibration mode: SEQUENTIAL "
-            f"(amplitude first, switch to phase after {_stability_window} consecutive "
+            f"(amplitude first, switch to phase after {stability_window} consecutive "
             f"iterations with amp RMS < {config.calibration.amplitude_tolerance_db:.2f} dB)"
         )
     else:
@@ -429,10 +469,7 @@ def run_experiment(config_path: str):
     prev_iter_data = None
     prev_prev_iter_data = None
 
-    _amp_stable_count = 0  # consecutive iters below amp threshold
-    _stability_window = getattr(config.calibration, "amplitude_stability_window", 3)
-    _FALLBACK_MULTIPLIER = 2.0  # re-engage amp_only if amp exceeds tol * this
-    _phase_mode_active = False  # latched True once stability window satisfied
+    mode_controller = SequentialModeController(stability_window=stability_window)
 
     try:
 
@@ -444,36 +481,11 @@ def run_experiment(config_path: str):
                     amp_rms = prev_iter_data.rms_amplitude_error_db
                     amp_tol = config.calibration.amplitude_tolerance_db
 
-                    # Track consecutive iterations below threshold
-                    if amp_rms < amp_tol:
-                        _amp_stable_count += 1
-                    else:
-                        _amp_stable_count = 0
-
-                    # Latch into phase_only once stability window is satisfied
-                    if _amp_stable_count >= _stability_window:
-                        _phase_mode_active = True
-
-                    # Fallback: if amplitude degrades significantly during phase_only,
-                    # return to amplitude_only to re-stabilise before continuing.
-                    # This handles PS→MZI cross-coupling that can disturb amplitude
-                    # after the loop switches to phase corrections.
-                    if _phase_mode_active and amp_rms > _FALLBACK_MULTIPLIER * amp_tol:
-                        logger.warning(
-                            f"  Sequential mode: amplitude degraded "
-                            f"({amp_rms:.2f} dB > {_FALLBACK_MULTIPLIER * amp_tol:.2f} dB), "
-                            f"falling back to amplitude_only"
-                        )
-                        _phase_mode_active = False
-                        _amp_stable_count = 0
-
-                    calibration_mode = (
-                        "phase_only" if _phase_mode_active else "amplitude_only"
-                    )
+                    calibration_mode = mode_controller.next_mode(amp_rms, amp_tol)
                     logger.info(
                         f"  Sequential mode: {calibration_mode} "
                         f"(amp RMS = {amp_rms:.2f} dB, "
-                        f"stable count = {_amp_stable_count}/{_stability_window}, "
+                        f"stable count = {mode_controller.stable_count}/{mode_controller.stability_window}, "
                         f"tol = {amp_tol:.2f} dB)"
                     )
                 else:
@@ -515,11 +527,7 @@ def run_experiment(config_path: str):
                 break
     except Exception as e:
         logger.info(f"\nError during calibration at iteration {i + 1}: {e}")
-        with VoltageController(
-            com_port=config.measurement.voltage_controller_port,
-            baud_rate=config.measurement.voltage_controller_baudrate,
-            zero_on_exit=True,
-        ) as voltage_ctrl:
+        with _open_voltage_controller(config) as voltage_ctrl:
             voltage_ctrl.set_voltages(
                 channels=np.arange(1, 33),
                 voltages=[0.0] * 32,

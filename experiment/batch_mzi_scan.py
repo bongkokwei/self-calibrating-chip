@@ -22,14 +22,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import yaml
-import time
 from pathlib import Path
 from datetime import datetime
 from typing import List, Tuple, Dict
 from dataclasses import dataclass, asdict
-
-from voltage_ctrl import VoltageController
-from luna_ova import LunaOVA
 
 from photonic_fir import (
     ExperimentConfig,
@@ -50,7 +46,11 @@ from photonic_fir.utils.mzi_plotting import (
     plot_mzi_characterisation,
 )
 
-from photonic_fir.calibration import measure_and_detect_taps
+from photonic_fir.hardware.voltage_adjustment import (
+    voltage_range_uniform_v_squared,
+    zero_all_heaters,
+)
+from scan_common import sweep_device_voltage, run_batch_characterisation
 
 
 @dataclass
@@ -78,12 +78,7 @@ class V2piScanConfig:
 
     def get_voltage_range(self) -> np.ndarray:
         """Generate voltage array from parameters."""
-        voltage_squared = np.linspace(
-            self.v_min**2,
-            self.v_max**2,
-            self.n_points,
-        )
-        return np.sqrt(voltage_squared)
+        return voltage_range_uniform_v_squared(self.v_min, self.v_max, self.n_points)
 
     def get_all_mzi_ids(self) -> List[str]:
         """Generate all MZI IDs based on stage configuration."""
@@ -132,25 +127,8 @@ def perform_voltage_sweep(
         List of measurement DataFrames for each voltage
     """
 
-    # Create output directory
-    output_path = Path(scan_config.output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    # Get voltage range
-    voltage_range = scan_config.get_voltage_range()
-    n_voltages = len(voltage_range)
-
-    # Get MZI channel from chip configuration
-    mzi_device_id = f"MZI_{scan_config.mzi_id}"
-    mzi_channel = exp_config.channel_mapping.get_channel(mzi_device_id)
-
-    # Build MZI tree structure for PSR calculations
+    mzi_channel = exp_config.channel_mapping.get_channel(f"MZI_{scan_config.mzi_id}")
     mzi_tree = exp_config.full_mzi_tree.tree
-
-    # Storage for results
-    power_splitting_ratios = np.zeros(n_voltages)
-    mzi_phases = np.zeros(n_voltages)
-    dataframes = []
 
     print(f"\n{'='*70}")
     print(f"V_2π Voltage Sweep for MZI {scan_config.mzi_id}")
@@ -158,82 +136,36 @@ def perform_voltage_sweep(
     print(f"MZI ID: {scan_config.mzi_id}")
     print(f"Channel: {mzi_channel}")
     print(f"Voltage range: {scan_config.v_min:.2f} - {scan_config.v_max:.2f} V")
-    print(f"Number of points: {n_voltages}")
+    print(f"Number of points: {scan_config.n_points}")
     print(f"Settling time: {scan_config.settling_time_sec} s")
-    print(f"Output directory: {output_path}")
+    print(f"Output directory: {scan_config.output_dir}")
     print(f"{'='*70}\n")
 
-    # Measure DUT length for delay calculations
-    with LunaOVA(ip=exp_config.measurement.ova_address) as ova:
-        ova.set_dut_length()
-
-    # Scan through voltages
-    for i, voltage in enumerate(voltage_range):
-        print(f"[{i+1}/{n_voltages}] Voltage: {voltage:.3f} V")
-
-        # Initialise voltage controller, exit after measurement to ensure heaters are zeroed
-        with VoltageController(
-            com_port=exp_config.measurement.voltage_controller_port,
-            baud_rate=exp_config.measurement.voltage_controller_baudrate,
-            zero_on_exit=True,
-        ) as v_ctrl:
-            # a. Set voltage
-            init_mzi_channels = list(exp_config.calibration.initial_mzi_voltages.keys())
-
-            init_psu_channels = [
-                exp_config.channel_mapping.get_channel(f"MZI_{mzi_id}")
-                for mzi_id in init_mzi_channels
-            ]
-            init_mzi_voltages = list(
-                exp_config.calibration.initial_mzi_voltages.values()
-            )
-            v_ctrl.set_voltages(
-                init_psu_channels + [mzi_channel],
-                init_mzi_voltages + [voltage],
-                v_max=scan_config.v_max,
-            )
-
-            # b. Wait for thermal settling
-            time.sleep(scan_config.settling_time_sec)
-
-            # c. Measure spectrum
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-            if scan_config.save_raw_data:
-                file_name = (
-                    f"v2pi_scan_mzi_{scan_config.mzi_id}_{voltage:.3f}v_{timestamp}"
-                )
-                folder_dir = str(output_path)
-            else:
-                file_name = None
-                folder_dir = None
-
-            df, tap_times, tap_coeffs, _, _ = measure_and_detect_taps(
-                config=exp_config,
-                file_name=file_name,
-                folder_dir=folder_dir,
-            )
-
-            time.sleep(scan_config.settling_time_sec)
-            print("Exit voltage controller context - heaters should be zeroed")
-
-        dataframes.append(df)
-
+    def extract_psr_and_phase(i, voltage, tap_coeffs):
         # Get all power splitting ratios from tap coefficients
         psr_dict = tap_coeffs_to_power_splitting_ratios(tap_coeffs, mzi_tree)
 
         # Extract the specific MZI's PSR
         psr_db = psr_dict.get(scan_config.mzi_id, 0.0)
-        power_splitting_ratios[i] = psr_db
 
         # Convert PSR to MZI phase
         mzi_phase_rad = power_splitting_ratio_to_mzi_phase(psr_db)
-        mzi_phases[i] = mzi_phase_rad
 
         print(f"  PSR: {psr_db:+.3f} dB, MZI phase: {mzi_phase_rad:.4f} rad")
         print()
 
-    print(f"✓ Scan complete - voltage controller channels zeroed\n")
+        return psr_db, mzi_phase_rad
+
+    voltage_range, results, dataframes = sweep_device_voltage(
+        device_id=f"MZI_{scan_config.mzi_id}",
+        scan_config=scan_config,
+        exp_config=exp_config,
+        file_prefix=f"v2pi_scan_mzi_{scan_config.mzi_id}",
+        extract_result=extract_psr_and_phase,
+    )
+
+    power_splitting_ratios = np.array([psr for psr, _ in results])
+    mzi_phases = np.array([phase for _, phase in results])
 
     return voltage_range, power_splitting_ratios, mzi_phases, dataframes
 
@@ -519,46 +451,27 @@ def main():
     # ============================================================
 
     # Run scan for each MZI
-    for i, mzi_id in enumerate(mzi_ids):
-        print(f"\n{'#'*70}")
-        print(f"# CHARACTERISING MZI {i+1}/{len(mzi_ids)}: {mzi_id}")
-        print(f"{'#'*70}\n")
-
-        try:
-            characterise_mzi(
-                mzi_id=mzi_id,
-                base_output_dir=base_output_dir,
-                exp_config=exp_config,
-                v_min=V_MIN,
-                v_max=V_MAX,
-                n_points=N_POINTS,
-                settling_time=SETTLING_TIME,
-                save_raw_data=SAVE_RAW_DATA,
-            )
-        except Exception as e:
-            print(f"⚠ FAILED to characterise MZI {mzi_id}: {e}")
-            print(f"Continuing with next MZI...\n")
-            continue
-
-        # Add delay between scans to allow thermal settling
-        if i < len(mzi_ids) - 1:
-            print("\nWaiting 5 seconds before next scan...\n")
-            time.sleep(5)
+    run_batch_characterisation(
+        item_ids=mzi_ids,
+        item_label="MZI",
+        characterise_fn=characterise_mzi,
+        id_kwarg="mzi_id",
+        characterise_kwargs=dict(
+            base_output_dir=base_output_dir,
+            exp_config=exp_config,
+            v_min=V_MIN,
+            v_max=V_MAX,
+            n_points=N_POINTS,
+            settling_time=SETTLING_TIME,
+            save_raw_data=SAVE_RAW_DATA,
+        ),
+    )
 
     # ============================================================
     # ZERO ALL HEATERS AT END OF BATCH, redundant safety
     # ============================================================
 
-    with VoltageController(
-        com_port=exp_config.measurement.voltage_controller_port,
-        baud_rate=exp_config.measurement.voltage_controller_baudrate,
-        zero_on_exit=True,
-    ) as v_ctrl:
-        v_ctrl.set_voltages(
-            channels=np.arange(1, 32 + 1),
-            voltages=[0.0] * 32,
-            v_max=30.0,
-        )
+    zero_all_heaters(exp_config)
 
     print(f"\n{'='*70}")
     print(f"BATCH SCAN COMPLETE!")

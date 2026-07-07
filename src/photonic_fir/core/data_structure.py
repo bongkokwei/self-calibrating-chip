@@ -568,6 +568,13 @@ class CalibrationConfig:
     )
     disable_taps: bool = False
 
+    # --- Differential phase referencing ---
+    # If set, the measured phase of this tap is subtracted from every signal
+    # tap's measured phase before computing phase errors. Use this when a
+    # tap's phase shifter isn't actively driven (e.g. held at 0 V) and instead
+    # serves as a live phase reference for the rest of the signal taps.
+    phase_reference_tap: Optional[int] = None
+
     # --- Probe mode settings ---
     probe_mode: bool = False
     ps_probe_threshold_rad: float = float(np.pi / 2)
@@ -608,21 +615,6 @@ class CalibrationConfig:
     # --- Save settings ---
     save_spectrum: bool = True
     save_impulse_response: bool = True
-
-    def calibration_config_kwargs(self) -> dict:
-        return {
-            "lr_min": self.lr_min,
-            "lr_max": self.lr_max,
-            "decay": self.lr_decay,
-            "grow": self.lr_grow,
-            "phi_scale": self.lr_phi_scale,
-            "mzi_adaptive_learning": self.mzi_adaptive_learning,
-            "ps_adaptive_learning": self.ps_adaptive_learning,
-            "mzi_dead_zone_db": self.mzi_dead_zone_db,
-            "ps_dead_zone_rad": self.ps_dead_zone_rad,
-            "probe_mode": self.probe_mode,
-            "ps_probe_threshold_rad": self.ps_probe_threshold_rad,
-        }
 
 
 @dataclass

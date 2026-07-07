@@ -30,7 +30,6 @@ from photonic_fir.hardware.measurement import measure_spectrum
 from photonic_fir.processing import (
     recover_impulse_response_from_df,
     detect_taps,
-    detect_taps_noise_tolerant,
 )
 from photonic_fir.core.power_splitting_ratio import (
     tap_coeffs_to_power_splitting_ratios,

@@ -26,15 +26,11 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import yaml
-import time
 from pathlib import Path
 from datetime import datetime
 from typing import List, Tuple, Dict, Optional
 from dataclasses import dataclass, asdict
 from scipy.stats import linregress
-
-from voltage_ctrl import VoltageController
-from luna_ova import LunaOVA
 
 from photonic_fir import (
     ExperimentConfig,
@@ -43,7 +39,11 @@ from photonic_fir import (
     setup_logging,
 )
 
-from photonic_fir.calibration import measure_and_detect_taps
+from photonic_fir.hardware.voltage_adjustment import (
+    voltage_range_uniform_v_squared,
+    zero_all_heaters,
+)
+from scan_common import sweep_device_voltage, run_batch_characterisation
 
 # ==============================================================================
 # CONFIGURATION DATACLASS
@@ -76,8 +76,7 @@ class PSScanConfig:
         Uniform spacing in V² ensures uniform power steps (P = V²/R),
         giving even phase increments (φ ∝ P for a PS).
         """
-        v_squared = np.linspace(self.v_min**2, self.v_max**2, self.n_points)
-        return np.sqrt(v_squared)
+        return voltage_range_uniform_v_squared(self.v_min, self.v_max, self.n_points)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -390,22 +389,11 @@ def perform_ps_voltage_sweep(
     dataframes : List[pd.DataFrame]
         Raw measurement DataFrames for each voltage point
     """
-    output_path = Path(scan_config.output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    voltage_range = scan_config.get_voltage_range()
-    n_voltages = len(voltage_range)
-
-    # Resolve hardware channel for this PS
-    ps_device_id = f"PS_{scan_config.tap_num}"
-    ps_channel = exp_config.channel_mapping.get_channel(ps_device_id)
+    ps_channel = exp_config.channel_mapping.get_channel(f"PS_{scan_config.tap_num}")
 
     # The tap index in the tap_coeffs array.
     # tap_coeffs are 0-indexed; tap_num is 1-indexed.
     tap_index = scan_config.tap_num - 1
-
-    tap_phases = np.zeros(n_voltages)
-    dataframes = []
 
     print(f"\n{'='*70}")
     print(f"V_2π Voltage Sweep — Phase Shifter Tap {scan_config.tap_num}")
@@ -413,82 +401,34 @@ def perform_ps_voltage_sweep(
     print(f"PS channel:    {ps_channel}")
     print(f"Tap index:     {tap_index}  (0-indexed)")
     print(f"Voltage range: {scan_config.v_min:.2f} – {scan_config.v_max:.2f} V")
-    print(f"N points:      {n_voltages}")
+    print(f"N points:      {scan_config.n_points}")
     print(f"Settling time: {scan_config.settling_time_sec} s")
-    print(f"Output dir:    {output_path}")
+    print(f"Output dir:    {scan_config.output_dir}")
     print(f"{'='*70}\n")
 
-    # Set OVA DUT length once before sweep
-    with LunaOVA(ip=exp_config.measurement.ova_address) as ova:
-        ova.set_dut_length()
-
-    for i, voltage in enumerate(voltage_range):
-        print(
-            f"  [{i+1:02d}/{n_voltages}] V = {voltage:.3f} V  (V² = {voltage**2:.2f} V²)"
-        )
-
-        with VoltageController(
-            com_port=exp_config.measurement.voltage_controller_port,
-            baud_rate=exp_config.measurement.voltage_controller_baudrate,
-            zero_on_exit=True,  # Safety: zero all heaters on context exit
-        ) as v_ctrl:
-
-            init_mzi_channels = list(exp_config.calibration.initial_mzi_voltages.keys())
-
-            init_psu_channels = [
-                exp_config.channel_mapping.get_channel(f"MZI_{mzi_id}")
-                for mzi_id in init_mzi_channels
-            ]
-            init_mzi_voltages = list(
-                exp_config.calibration.initial_mzi_voltages.values()
-            )
-
-            # Apply voltage to this PS only; all others remain at 0 V (zeroed on entry)
-            v_ctrl.set_voltages(
-                channels=init_psu_channels + [ps_channel],
-                voltages=init_mzi_voltages + [voltage],
-                v_max=scan_config.v_max,
-            )
-
-            # Thermal settling
-            time.sleep(scan_config.settling_time_sec)
-
-            # Measure spectrum and detect taps
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-            if scan_config.save_raw_data:
-                file_name = (
-                    f"ps_scan_tap{scan_config.tap_num}_{voltage:.3f}v_{timestamp}"
-                )
-                folder_dir = str(output_path)
-            else:
-                file_name = None
-                folder_dir = None
-
-            df, tap_times, tap_coeffs, _, _ = measure_and_detect_taps(
-                config=exp_config,
-                file_name=file_name,
-                folder_dir=folder_dir,
-            )
-
-            time.sleep(scan_config.settling_time_sec)
-
-        dataframes.append(df)
-
+    def extract_phase(i, voltage, tap_coeffs):
         # Extract phase from the complex tap coefficient for this tap
         if tap_index < len(tap_coeffs):
-            coeff = tap_coeffs[tap_index]
-            phase = np.angle(coeff)  # wrapped to [-π, π]
+            phase = np.angle(tap_coeffs[tap_index])  # wrapped to [-π, π]
         else:
             print(
                 f"  ⚠ tap_index {tap_index} out of range (len={len(tap_coeffs)}), storing NaN"
             )
             phase = np.nan
 
-        tap_phases[i] = phase
         print(f"       → tap phase = {np.degrees(phase):+.2f}°  ({phase:+.4f} rad)")
+        return phase
 
-    print(f"\n✓ Sweep complete — PS heater zeroed\n")
+    voltage_range, results, dataframes = sweep_device_voltage(
+        device_id=f"PS_{scan_config.tap_num}",
+        scan_config=scan_config,
+        exp_config=exp_config,
+        file_prefix=f"ps_scan_tap{scan_config.tap_num}",
+        extract_result=extract_phase,
+    )
+
+    tap_phases = np.array(results)
+
     return voltage_range, tap_phases, dataframes
 
 
@@ -751,45 +691,28 @@ def main():
     # RUN CHARACTERISATION FOR EACH PHASE SHIFTER
     # ============================================================
 
-    for i, tap_num in enumerate(ps_tap_nums):
-        print(f"\n{'#'*70}")
-        print(f"# CHARACTERISING PHASE SHIFTER {i+1}/{len(ps_tap_nums)}: Tap {tap_num}")
-        print(f"{'#'*70}\n")
-
-        try:
-            characterise_ps(
-                tap_num=tap_num,
-                base_output_dir=base_output_dir,
-                exp_config=exp_config,
-                v_min=V_MIN,
-                v_max=V_MAX,
-                n_points=N_POINTS,
-                settling_time=SETTLING_TIME,
-                save_raw_data=SAVE_RAW_DATA,
-            )
-        except Exception as e:
-            print(f"⚠ FAILED to characterise PS tap {tap_num}: {e}")
-            print("  Continuing with next tap...\n")
-            continue
-
-        if i < len(ps_tap_nums) - 1:
-            print("Waiting 5 s before next scan...\n")
-            time.sleep(5)
+    run_batch_characterisation(
+        item_ids=ps_tap_nums,
+        item_label="PHASE SHIFTER",
+        characterise_fn=characterise_ps,
+        id_kwarg="tap_num",
+        characterise_kwargs=dict(
+            base_output_dir=base_output_dir,
+            exp_config=exp_config,
+            v_min=V_MIN,
+            v_max=V_MAX,
+            n_points=N_POINTS,
+            settling_time=SETTLING_TIME,
+            save_raw_data=SAVE_RAW_DATA,
+        ),
+        format_item=lambda tap_num: f"Tap {tap_num}",
+    )
 
     # ============================================================
     # ZERO ALL HEATERS AT END OF BATCH (redundant safety)
     # ============================================================
 
-    with VoltageController(
-        com_port=exp_config.measurement.voltage_controller_port,
-        baud_rate=exp_config.measurement.voltage_controller_baudrate,
-        zero_on_exit=True,
-    ) as v_ctrl:
-        v_ctrl.set_voltages(
-            channels=np.arange(1, 32 + 1).tolist(),
-            voltages=[0.0] * 32,
-            v_max=30.0,
-        )
+    zero_all_heaters(exp_config)
 
     print(f"\n{'='*70}")
     print(f"BATCH PS SCAN COMPLETE!")

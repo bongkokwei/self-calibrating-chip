@@ -8,7 +8,7 @@ Uses power_splitting_ratio.py for all PSR and phase conversions.
 """
 
 import numpy as np
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 import logging
 
 logger = logging.getLogger(__name__)
@@ -112,19 +112,6 @@ def calculate_rms_errors(
     return rms_amp, rms_phase
 
 
-def wrap_phase_error(phase_error: float) -> float:
-    """
-    Wrap phase error to [-π, π] range.
-
-    Args:
-        phase_error: Phase error in radians
-
-    Returns:
-        Wrapped phase error in [-π, π]
-    """
-    return np.arctan2(np.sin(phase_error), np.cos(phase_error))
-
-
 def _log_dict(label: str, d: dict, fmt: str = ".6f") -> None:
     logger.info(f"{label}:")
     for k, v in sorted(d.items()):
@@ -150,6 +137,7 @@ def calculate_all_errors(
     mzi_tree: Dict[str, Dict],
     mzi_phi_init: Dict[str, float],
     ps_phi_init: Dict[int, float],
+    phase_reference_tap: Optional[int] = None,
 ) -> Dict:
     idx = list(signal_tap_indices)
 
@@ -203,6 +191,15 @@ def calculate_all_errors(
     # --- Phases ---
     measured_phases = extract_tap_phases(measured_signal, signal_tap_numbers)
     target_phases = extract_tap_phases(target_signal, signal_tap_numbers)
+
+    if phase_reference_tap is not None:
+        ref_phase = measured_phases[phase_reference_tap]
+        measured_phases = {tap: phase - ref_phase for tap, phase in measured_phases.items()}
+        logger.info(
+            f"Referencing measured phases to tap {phase_reference_tap} "
+            f"(raw phase {ref_phase:+.4f} rad)"
+        )
+
     _log_dict("measured_phases (rad)", measured_phases)
     _log_dict("target_phases   (rad)", target_phases)
 

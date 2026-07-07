@@ -17,7 +17,7 @@ Or with a logger instead of stdout:
 
 import logging
 import math
-from typing import Optional
+from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,21 @@ def print_chip_state(
     if show_target:
         col_headers.append("Target PSR (dB)")
 
-    _print_mzi_table(chip_state, emit, show_phase_shift, show_target)
+    _print_state_table(
+        emit,
+        chip_state.mzis,
+        id_label="MZI",
+        sort_key=_mzi_sort_key,
+        target_label="Target PSR(dB)",
+        target_value=lambda mzi: (
+            f"{mzi.target_power_ratio_db:.2f}"
+            if mzi.target_power_ratio_db is not None
+            else "—"
+        ),
+        empty_message="no MZIs registered",
+        show_phase_shift=show_phase_shift,
+        show_target=show_target,
+    )
 
     emit("")
 
@@ -105,17 +119,36 @@ def print_chip_state(
     emit("  PHASE SHIFTER STATES")
     emit("-" * _WIDE)
 
-    _print_ps_table(chip_state, emit, show_phase_shift, show_target)
+    _print_state_table(
+        emit,
+        chip_state.phase_shifters,
+        id_label="Tap",
+        sort_key=None,
+        target_label="Target φ(rad)",
+        target_value=lambda ps: (
+            f"{ps.target_phase_rad:+.4f}" if ps.target_phase_rad is not None else "—"
+        ),
+        empty_message="no phase shifters registered",
+        show_phase_shift=show_phase_shift,
+        show_target=show_target,
+    )
 
     emit("")
     emit("=" * _WIDE)
 
 
-def _print_mzi_table(
-    chip_state, emit, show_phase_shift: bool, show_target: bool
+def _print_state_table(
+    emit,
+    items: dict,
+    id_label: str,
+    sort_key: Optional[Callable],
+    target_label: str,
+    target_value: Callable,
+    empty_message: str,
+    show_phase_shift: bool,
+    show_target: bool,
 ) -> None:
-    """Print MZI state table."""
-    # Column widths
+    """Print a formatted state table for MZIs or phase shifters."""
     w = {
         "id": 8,
         "power": 10,
@@ -126,9 +159,8 @@ def _print_mzi_table(
         "target": 16,
     }
 
-    # Header row
     header = (
-        f"  {'MZI':>{w['id']}}  "
+        f"  {id_label:>{w['id']}}  "
         f"{'Power(W)':>{w['power']}}  "
         f"{'φ_init(rad)':>{w['phi_init_r']}}  "
         f"{'φ_init/π':>{w['phi_init_pi']}}"
@@ -137,92 +169,30 @@ def _print_mzi_table(
         header += f"  {'φ_shift(rad)':>{w['phi_shift']}}"
     header += f"  {'P_2π(W)':>{w['p2pi']}}"
     if show_target:
-        header += f"  {'Target PSR(dB)':>{w['target']}}"
+        header += f"  {target_label:>{w['target']}}"
 
     emit(header)
     emit("  " + "-" * (_WIDE - 2))
 
-    if not chip_state.mzis:
-        emit("  (no MZIs registered)")
+    if not items:
+        emit(f"  ({empty_message})")
         return
 
-    for mzi_id in sorted(chip_state.mzis.keys(), key=_mzi_sort_key):
-        mzi = chip_state.mzis[mzi_id]
-        phi_pi = mzi.phi_init_rad / math.pi
+    for key in sorted(items.keys(), key=sort_key):
+        item = items[key]
+        phi_pi = item.phi_init_rad / math.pi
 
         row = (
-            f"  {mzi_id:>{w['id']}}  "
-            f"{mzi.applied_power_watts:>{w['power']}.4f}  "
-            f"{mzi.phi_init_rad:>+{w['phi_init_r']}.4f}  "
+            f"  {key:>{w['id']}}  "
+            f"{item.applied_power_watts:>{w['power']}.4f}  "
+            f"{item.phi_init_rad:>+{w['phi_init_r']}.4f}  "
             f"{phi_pi:>+{w['phi_init_pi']}.4f}π"
         )
         if show_phase_shift:
-            row += f"  {mzi.phase_shift_rad:>+{w['phi_shift']}.4f}"
-        row += f"  {mzi.p2pi_watts:>{w['p2pi']}.4f}"
+            row += f"  {item.phase_shift_rad:>+{w['phi_shift']}.4f}"
+        row += f"  {item.p2pi_watts:>{w['p2pi']}.4f}"
         if show_target:
-            target_str = (
-                f"{mzi.target_power_ratio_db:.2f}"
-                if mzi.target_power_ratio_db is not None
-                else "—"
-            )
-            row += f"  {target_str:>{w['target']}}"
-
-        emit(row)
-
-
-def _print_ps_table(
-    chip_state, emit, show_phase_shift: bool, show_target: bool
-) -> None:
-    """Print phase shifter state table."""
-    w = {
-        "tap": 8,
-        "power": 10,
-        "phi_init_r": 14,
-        "phi_init_pi": 12,
-        "phi_shift": 14,
-        "p2pi": 9,
-        "target": 16,
-    }
-
-    header = (
-        f"  {'Tap':>{w['tap']}}  "
-        f"{'Power(W)':>{w['power']}}  "
-        f"{'φ_init(rad)':>{w['phi_init_r']}}  "
-        f"{'φ_init/π':>{w['phi_init_pi']}}"
-    )
-    if show_phase_shift:
-        header += f"  {'φ_shift(rad)':>{w['phi_shift']}}"
-    header += f"  {'P_2π(W)':>{w['p2pi']}}"
-    if show_target:
-        header += f"  {'Target φ(rad)':>{w['target']}}"
-
-    emit(header)
-    emit("  " + "-" * (_WIDE - 2))
-
-    if not chip_state.phase_shifters:
-        emit("  (no phase shifters registered)")
-        return
-
-    for tap_num in sorted(chip_state.phase_shifters.keys()):
-        ps = chip_state.phase_shifters[tap_num]
-        phi_pi = ps.phi_init_rad / math.pi
-
-        row = (
-            f"  {tap_num:>{w['tap']}}  "
-            f"{ps.applied_power_watts:>{w['power']}.4f}  "
-            f"{ps.phi_init_rad:>+{w['phi_init_r']}.4f}  "
-            f"{phi_pi:>+{w['phi_init_pi']}.4f}π"
-        )
-        if show_phase_shift:
-            row += f"  {ps.phase_shift_rad:>+{w['phi_shift']}.4f}"
-        row += f"  {ps.p2pi_watts:>{w['p2pi']}.4f}"
-        if show_target:
-            target_str = (
-                f"{ps.target_phase_rad:+.4f}"
-                if ps.target_phase_rad is not None
-                else "—"
-            )
-            row += f"  {target_str:>{w['target']}}"
+            row += f"  {target_value(item):>{w['target']}}"
 
         emit(row)
 

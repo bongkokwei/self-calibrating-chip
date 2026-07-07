@@ -60,7 +60,6 @@ from .processing.impulse_response import (
 )
 
 from .processing.tap_recovery_robust import (
-    detect_taps_noise_tolerant,
     detect_taps_windowed,
     detect_taps,
 )
@@ -82,7 +81,6 @@ try:
     from .hardware.voltage_adjustment import (
         calculate_power_adjustments,
         apply_voltages_to_hardware,
-        set_mzi_voltage,
     )
 
     _HARDWARE_AVAILABLE = True
@@ -130,7 +128,6 @@ __all__ = [
     "recover_impulse_response_from_df",
     "detect_taps",
     "kramers_kronig_phase_recovery",
-    "detect_taps_noise_tolerant",
     # Plotting utilities
     "plot_insertion_loss",
     "plot_impulse_response",
@@ -150,7 +147,6 @@ if _HARDWARE_AVAILABLE:
             "measure_spectrum_with_config",
             "calculate_power_adjustments",
             "apply_voltages_to_hardware",
-            "set_mzi_voltage",
         ]
     )
 

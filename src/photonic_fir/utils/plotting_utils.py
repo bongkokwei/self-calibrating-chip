@@ -127,6 +127,8 @@ def plot_impulse_response(
     tap_coeffs: Optional[np.ndarray] = None,
     save_fig: Optional[str] = None,
     show_plot: bool = False,
+    fsr_hz: float = 160e9,
+    n_taps: int = 16,
 ):
     h_magnitude = np.abs(h_time)
 
@@ -175,7 +177,7 @@ def plot_impulse_response(
     ax.set_ylabel("Magnitude (dB)", fontsize=12)
     ax.set_title("Impulse Response (Kramers-Kronig Phase Recovery)", fontsize=14)
     ax.set_ylim(bottom=-40)
-    ax.set_xlim(left=-(1 / 160e9) * 1e12, right=16 * (1 / 160e9) * 1e12)
+    ax.set_xlim(left=-(1 / fsr_hz) * 1e12, right=n_taps * (1 / fsr_hz) * 1e12)
 
     plt.tight_layout()
 

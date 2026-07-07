@@ -7,7 +7,6 @@ specified MZIs in a programmable photonic FIR filter.
 """
 
 import argparse
-import re
 from pathlib import Path
 from typing import NamedTuple
 
@@ -22,6 +21,7 @@ from photonic_fir import (
 )
 
 from photonic_fir.calibration import measure_and_detect_taps
+from photonic_fir.utils.file_utils import extract_voltage_from_filename, generate_mzi_ids
 
 
 class PSRResult(NamedTuple):
@@ -62,49 +62,6 @@ def get_csv_files(directory: Path) -> list[Path]:
         raise ValueError(f"No CSV files found in: {directory}")
 
     return csv_files
-
-
-def generate_mzi_ids(n_stages: int = 4) -> list[str]:
-    """
-    Generate all MZI IDs for a binary tree structure.
-
-    For a tree with n_stages, stage k has 2^(k-1) MZIs.
-
-    Parameters
-    ----------
-    n_stages : int
-        Number of stages in the MZI tree (default: 4 for 16-tap filter).
-
-    Returns
-    -------
-    list[str]
-        List of MZI IDs in format "stage-position" (e.g., "1-1", "2-1", "2-2").
-    """
-    return [
-        f"{stage}-{pos}"
-        for stage in range(1, n_stages + 1)
-        for pos in range(1, 2 ** (stage - 1) + 1)
-    ]
-
-
-def extract_voltage_from_filename(filename: Path) -> float | None:
-    """
-    Extract voltage value from filename.
-
-    Expected format: contains pattern like "1.23v" or "0.50v".
-
-    Parameters
-    ----------
-    filename : Path
-        Path to the measurement file.
-
-    Returns
-    -------
-    float | None
-        Extracted voltage value, or None if not found.
-    """
-    match = re.search(r"(\d+\.?\d*)v", filename.name, re.IGNORECASE)
-    return float(match.group(1)) if match else None
 
 
 def extract_psr_from_file(
