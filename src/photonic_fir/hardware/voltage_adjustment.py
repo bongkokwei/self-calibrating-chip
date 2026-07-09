@@ -250,6 +250,11 @@ def calculate_power_adjustments(
                     ps_dead_zone_rad,
                 )
                 continue  # skip normal update
+            elif chip_state.phase_shifters[tap_num].target_probe_rad is not None:
+                # Exiting probe-mode range: clear the accumulated probe target
+                # so a future re-entry starts fresh instead of carrying a
+                # stale offset forward.
+                chip_state.phase_shifters[tap_num].target_probe_rad = None
 
             prev_err = (
                 abs(prev_ps_phase_errors[tap_num])

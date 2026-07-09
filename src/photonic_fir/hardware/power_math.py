@@ -20,7 +20,14 @@ def wrap_and_clip_power(
     max_power: float,
     wrap: bool = True,
 ) -> float:
-    """Apply modulo-P_2π phase wrap (if enabled) then hard-clip to [min_power, max_power]."""
+    """Apply modulo-P_2π phase wrap (if enabled) then hard-clip to [min_power, max_power].
+
+    The wrap margins are intentionally asymmetric: min_power is a hard
+    physical floor (applied heater power can't be negative), so any dip
+    below 0 must wrap immediately to preserve the true phase instead of
+    being clipped away. max_power has real headroom above 1.25*P_2π, so
+    the upper wrap can wait until then.
+    """
     if wrap:
         if new_P < 0:
             new_P += power_for_2pi

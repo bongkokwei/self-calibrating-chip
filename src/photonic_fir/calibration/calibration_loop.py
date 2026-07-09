@@ -246,7 +246,7 @@ def run_calibration_iteration(
         ps_phi_init=chip_state.get_ps_init_phase(),
         ps_crosstalk_matrix=crosstalk_matrix,
         ps_crosstalk_tap_order=crosstalk_tap_order,
-        ps_measured_phases=chip_state.get_ps_measured_phase(),
+        ps_measured_phases=all_errors["ps_measured_phases_ref"],
     )
 
     # 6. Update chip state (in-place)

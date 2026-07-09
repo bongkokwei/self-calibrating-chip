@@ -36,7 +36,7 @@ def calculate_mzi_errors(
     Returns:
         Tuple of (psr_errors, phase_errors) dictionaries keyed by MZI ID
         - psr_errors: Power splitting ratio errors in dB (target - measured)
-        - phase_errors: MZI phase errors in radians (target - (measured - phi_init))
+        - phase_errors: MZI phase errors in radians (target - measured, wrapped to (-π, π])
     """
     # Convert power splitting ratios to MZI phases
     measured_phases = power_splitting_ratios_to_mzi_phases(measured_psr)
@@ -52,13 +52,15 @@ def calculate_mzi_errors(
 
         measured_phase = measured_phases.get(mzi_id, 0.0)
         target_phase = target_phases[mzi_id]
-        phi_init = mzi_phi_init.get(mzi_id, 0.0)
 
         # Error = target - measured
         psr_errors[mzi_id] = target_ratio - measured_ratio
 
-        # Phase error accounting for initial phase offset
-        phase_errors[mzi_id] = target_phase - measured_phase
+        # Phase error, wrapped to (-π, π] so a target/measured pair straddling
+        # the ±π boundary doesn't report a spurious ~2π error.
+        phase_errors[mzi_id] = float(
+            np.angle(np.exp(1j * (target_phase - measured_phase)))
+        )
 
     return psr_errors, phase_errors
 
@@ -77,17 +79,20 @@ def calculate_phase_shifter_errors(
         ps_phi_init: Initial phase offsets in radians (dict keyed by tap number)
 
     Returns:
-        Dictionary of phase errors in radians (target - (measured - phi_init)), keyed by tap number
+        Dictionary of phase errors in radians (target - measured, wrapped to (-π, π]),
+        keyed by tap number
     """
     phase_errors = {}
 
     for tap_num in target_phases.keys():
         measured_phase = measured_phases.get(tap_num, 0.0)
         target_phase = target_phases[tap_num]
-        phi_init = ps_phi_init.get(tap_num, 0.0)
 
-        # Error = target - (measured - initial_offset)
-        phase_errors[tap_num] = target_phase - measured_phase
+        # Error = target - measured, wrapped to (-π, π] so a target/measured
+        # pair straddling the ±π boundary doesn't report a spurious ~2π error.
+        phase_errors[tap_num] = float(
+            np.angle(np.exp(1j * (target_phase - measured_phase)))
+        )
 
     return phase_errors
 
@@ -234,6 +239,7 @@ def calculate_all_errors(
         "mzi_psr_errors": mzi_psr_errors,
         "mzi_phase_errors": mzi_phase_errors,
         "ps_phase_errors": ps_phase_errors,
+        "ps_measured_phases_ref": measured_phases,
         "tap_amplitude_errors": tap_amp_errors,
         "tap_phase_errors": tap_phase_errors,
         "rms_amplitude_error": rms_amp,

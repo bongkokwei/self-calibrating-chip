@@ -63,26 +63,28 @@ class CalibrationPlotter:
         self.mzi_psr_errors_history: List[np.ndarray] = []
 
         # ----- Create figure and static axis furniture -----
-        self.fig, self.axes = plt.subplots(2, 2, figsize=(12, 10))
-        self.fig.suptitle("Calibration Convergence", fontsize=14, fontweight="bold")
+        self.fig, self.axes = plt.subplots(2, 2, figsize=(8, 6.5))
+        self.fig.suptitle("Calibration Convergence", fontsize=11, fontweight="bold")
 
         # -- Axes [0, 0]: RMS amplitude error --
         ax1 = self.axes[0, 0]
         (self._line_rms_amp,) = ax1.plot(
             [], [], "o-", color=self._RMS_AMP_COLOUR, linewidth=2, markersize=6
         )
-        ax1.set_xlabel("Iteration", fontsize=11)
-        ax1.set_ylabel("RMS Amplitude Error (dB)", fontsize=11)
-        ax1.set_title("RMS Amplitude Error Convergence", fontsize=12, fontweight="bold")
+        ax1.set_xlabel("Iteration", fontsize=9)
+        ax1.set_ylabel("RMS Amplitude Error (dB)", fontsize=9)
+        ax1.set_title("RMS Amplitude Error Convergence", fontsize=10, fontweight="bold")
+        ax1.tick_params(labelsize=8)
 
         # -- Axes [0, 1]: RMS phase error --
         ax2 = self.axes[0, 1]
         (self._line_rms_phase,) = ax2.plot(
             [], [], "o-", color=self._RMS_PHASE_COLOUR, linewidth=2, markersize=6
         )
-        ax2.set_xlabel("Iteration", fontsize=11)
-        ax2.set_ylabel("RMS Phase Error (rad)", fontsize=11)
-        ax2.set_title("RMS Phase Error Convergence", fontsize=12, fontweight="bold")
+        ax2.set_xlabel("Iteration", fontsize=9)
+        ax2.set_ylabel("RMS Phase Error (rad)", fontsize=9)
+        ax2.set_title("RMS Phase Error Convergence", fontsize=10, fontweight="bold")
+        ax2.tick_params(labelsize=8)
 
         # -- Axes [1, 0]: Individual tap amplitude errors --
         ax3 = self.axes[1, 0]
@@ -99,10 +101,11 @@ class CalibrationPlotter:
                 color=colour,
             )
             self._lines_tap_amp.append(line)
-        ax3.set_xlabel("Iteration", fontsize=11)
-        ax3.set_ylabel("Amplitude Error (dB)", fontsize=11)
-        ax3.set_title("Individual Tap Amplitude Errors", fontsize=12, fontweight="bold")
-        ax3.legend(loc="best", fontsize=8, ncol=2)
+        ax3.set_xlabel("Iteration", fontsize=9)
+        ax3.set_ylabel("Amplitude Error (dB)", fontsize=9)
+        ax3.set_title("Individual Tap Amplitude Errors", fontsize=10, fontweight="bold")
+        ax3.legend(loc="best", fontsize=7, ncol=2)
+        ax3.tick_params(labelsize=8)
 
         # -- Axes [1, 1]: Individual tap phase errors --
         ax4 = self.axes[1, 1]
@@ -119,10 +122,11 @@ class CalibrationPlotter:
                 color=colour,
             )
             self._lines_tap_phase.append(line)
-        ax4.set_xlabel("Iteration", fontsize=11)
-        ax4.set_ylabel("Phase Error (rad)", fontsize=11)
-        ax4.set_title("Individual Tap Phase Errors", fontsize=12, fontweight="bold")
-        ax4.legend(loc="best", fontsize=8, ncol=2)
+        ax4.set_xlabel("Iteration", fontsize=9)
+        ax4.set_ylabel("Phase Error (rad)", fontsize=9)
+        ax4.set_title("Individual Tap Phase Errors", fontsize=10, fontweight="bold")
+        ax4.legend(loc="best", fontsize=7, ncol=2)
+        ax4.tick_params(labelsize=8)
 
         # Initial layout pass
         plt.tight_layout()
